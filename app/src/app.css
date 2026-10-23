@@ -1,0 +1,118 @@
+/*
+ * Plain text: the system's own monospace, black on white (or light on dark), the system's cursor and selection.
+ * No font to download, no accent color, no shadows, no rounded corners. Nothing else unless something needs you.
+ */
+:root {
+  --bg: #ffffff;
+  --text: #111111;
+  --muted: #6b6b6b;
+  --faint: #a8a8a8;
+  --line: #e2e2e2;
+  --danger: #b3261e;
+  --surface: var(--bg);
+  --accent: var(--text);
+  --accent-inverse: var(--bg);
+  --select: color-mix(in srgb, var(--text) 12%, transparent);
+  --hover: color-mix(in srgb, var(--text) 6%, transparent);
+  /* Behind the panel, the page fades back, so the list doesn't compete with the note. */
+  --scrim: color-mix(in srgb, var(--bg) 80%, transparent);
+  --shadow: none;
+
+  --font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --text: #e6e6e6;
+    --muted: #999999;
+    --faint: #5c5c5c;
+    --line: #2e2e2e;
+    --danger: #f2948a;
+    color-scheme: dark;
+  }
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  font: 400 0.8125rem/1.5 var(--font);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* iOS zooms into any field under 16px. */
+@media (pointer: coarse) {
+  input,
+  textarea {
+    font-size: max(1rem, 16px);
+  }
+}
+
+/* See ui/tooltip.ts. Inverted, like the toast: the two things that speak up. */
+.tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  width: max-content;
+  padding: 4px 8px;
+  background: var(--text);
+  color: var(--bg);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.97);
+  transition:
+    opacity 125ms var(--ease-out),
+    transform 125ms var(--ease-out);
+}
+
+.tooltip[data-open] {
+  opacity: 1;
+  transform: none;
+}
+
+.tooltip[data-instant] {
+  transition-duration: 0ms;
+}
+
+.tooltip kbd {
+  margin-left: 1ch;
+  font: inherit;
+  opacity: 0.6;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

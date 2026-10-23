@@ -1,0 +1,104 @@
+/** The account, as far as this device knows: just the email it's signed in with, remembered across visits. */
+
+import { wipe } from "../notes/notes.svelte.ts";
+
+const KEY = "blank:account";
+
+export const account = $state<{ email: string | null }>({ email: remembered() });
+
+export type Providers = { google: boolean; apple: boolean };
+
+/** Asks the server who's signed in. Null when nobody is; throws when the server can't be reached. */
+export async function session(): Promise<string | null> {
+  const response = await fetch("/api/auth/get-session", { credentials: "same-origin" });
+  if (!response.ok) throw new Error(`get session: ${response.status}`);
+  const body = (await response.json()) as { user?: { email?: string } } | null;
+  return body?.user?.email ?? null;
+}
+
+export function signedIn(email: string) {
+  account.email = email;
+  remember(email);
+}
+
+export async function providers(): Promise<Providers> {
+  const response = await fetch("/api/providers");
+  if (!response.ok) return { google: false, apple: false };
+  return (await response.json()) as Providers;
+}
+
+/** Emails a sign-in code. Resolves to a message for the person when it didn't work. */
+export async function sendCode(email: string): Promise<string | null> {
+  const response = await post("/api/auth/email-otp/send-verification-otp", { email, type: "sign-in" });
+  if (response.ok) return null;
+  if (response.status === 429) return "Too many codes. Try again in a few minutes.";
+  if (response.status === 400) return "That doesn't look like an email address.";
+  return "Couldn't send the code. Try again.";
+}
+
+/** Signs in with the emailed code. Resolves to a message for the person when it didn't work. */
+export async function verify(email: string, code: string): Promise<string | null> {
+  const response = await post("/api/auth/sign-in/email-otp", { email, otp: code });
+  if (response.ok) {
+    signedIn(email);
+    return null;
+  }
+  if (response.status === 429) return "Too many tries. Wait a few minutes.";
+  if (response.status === 400 || response.status === 401 || response.status === 403) return "That code didn't work.";
+  return "Couldn't sign in. Try again.";
+}
+
+/** Leaves for Google or Apple; the app opens again signed in. */
+export async function signInWith(provider: "google" | "apple") {
+  const response = await post("/api/auth/sign-in/social", { provider, callbackURL: "/?signed-in" });
+  const body = (await response.json()) as { url?: string };
+  if (!body.url) throw new Error(`sign in with ${provider}: no redirect`);
+  location.assign(body.url);
+}
+
+/** Signs out and erases every note on this device: they stay in the account. */
+export async function signOut() {
+  // Signed out even if the server can't hear it: the session is useless without the device's notes anyway.
+  await post("/api/auth/sign-out", {}).catch((error: unknown) => console.error(error));
+  await forget();
+}
+
+export async function deleteAccount(): Promise<string | null> {
+  const response = await fetch("/api/account", { method: "DELETE", credentials: "same-origin" });
+  if (!response.ok) return "Couldn't delete the account. Try again.";
+  await forget();
+  return null;
+}
+
+async function forget() {
+  remember(null);
+  await wipe();
+  location.replace("/");
+}
+
+function post(path: string, body: unknown): Promise<Response> {
+  return fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+// Remembered so the app knows it's signed in before the server answers, or when it can't.
+function remembered(): string | null {
+  try {
+    return localStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
+
+function remember(email: string | null) {
+  try {
+    if (email) localStorage.setItem(KEY, email);
+    else localStorage.removeItem(KEY);
+  } catch {
+    // Without storage the app just won't know it's signed in until the server says so.
+  }
+}

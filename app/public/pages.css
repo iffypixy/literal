@@ -1,0 +1,75 @@
+/* The privacy and terms pages: plain text, like the app. */
+:root {
+  --bg: #ffffff;
+  --text: #111111;
+  --muted: #6b6b6b;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --text: #e6e6e6;
+    --muted: #999999;
+    color-scheme: dark;
+  }
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  font:
+    400 0.8125rem/1.5 ui-monospace,
+    "SF Mono",
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    "Cascadia Mono",
+    "Liberation Mono",
+    monospace;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  max-width: 72ch;
+  margin: 0;
+  padding: 12px 16px 64px;
+}
+
+h1,
+h2 {
+  margin: 24px 0 8px;
+  font: inherit;
+}
+
+h1 {
+  margin-top: 0;
+}
+
+p,
+li {
+  color: var(--muted);
+}
+
+p {
+  margin: 0 0 8px;
+}
+
+ul {
+  margin: 0 0 8px;
+  padding-left: 2ch;
+}
+
+strong {
+  color: var(--text);
+  font-weight: 400;
+}
+
+a {
+  color: inherit;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 24px;
+}

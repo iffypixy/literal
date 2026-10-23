@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "blank",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/sync"],
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "NOTES", "class_name": "UserNotes" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserNotes"] }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "blank",
+      // Replace with the id `wrangler d1 create blank` prints.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "worker/migrations",
+    },
+  ],
+  "observability": { "enabled": true },
+  "vars": {
+    // Your domain. Secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, and Google or Apple keys) go in with `wrangler secret put`.
+    "APP_URL": "https://blank.example",
+    "EMAIL_FROM": "Blank <code@blank.example>",
+  },
+}

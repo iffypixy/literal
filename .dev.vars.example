@@ -1,0 +1,8 @@
+# Copy to .dev.vars for `pnpm dev`. Without RESEND_API_KEY, sign-in codes are printed to the terminal.
+APP_URL=http://localhost:5390
+BETTER_AUTH_SECRET=any-long-random-string
+# RESEND_API_KEY=
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+# APPLE_CLIENT_ID=
+# APPLE_CLIENT_SECRET=
