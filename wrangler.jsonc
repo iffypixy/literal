@@ -27,6 +27,8 @@
   ],
   // Sign-in codes, sent from literal.ink once `wrangler email sending enable literal.ink` has set it up.
   "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["code@literal.ink"] }],
+  // Erases what signing in no longer needs: an IP address is then kept an hour at most, as the privacy page says.
+  "triggers": { "crons": ["*/30 * * * *"] },
   "observability": { "enabled": true },
   "vars": {
     // The one secret, BETTER_AUTH_SECRET, goes in with `wrangler secret put`.

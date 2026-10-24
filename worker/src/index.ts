@@ -1,5 +1,5 @@
 import { SignedOut } from "../../protocol/protocol.ts";
-import { createAuth, handleAuth } from "./auth.ts";
+import { createAuth, forgetSignIns, handleAuth } from "./auth.ts";
 import { SessionHeader, type UserNotes } from "./user-notes.ts";
 
 export { UserNotes } from "./user-notes.ts";
@@ -32,6 +32,10 @@ export default {
     if (pathname === "/api/auth/sign-out") return signOut(request, env);
     if (AuthRoutes.has(pathname)) return handleAuth(request, env);
     return new Response("not found", { status: 404 });
+  },
+  /** Every half hour, as wrangler.jsonc sets it. */
+  async scheduled(_controller, env) {
+    await forgetSignIns(env.DB);
   },
 } satisfies ExportedHandler<Env>;
 

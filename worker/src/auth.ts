@@ -29,6 +29,18 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
   return unsent ?? response;
 }
 
+/**
+ * Erases what signing in no longer needs, so none of it outlasts what the privacy page says: codes past their
+ * 10 minutes, past days' counts, and attempts that no longer count. The library keeps dates as ISO text.
+ */
+export async function forgetSignIns(db: D1Database) {
+  await db.batch([
+    db.prepare(`delete from "verification" where "expiresAt" < ?`).bind(new Date().toISOString()),
+    db.prepare(`delete from "codesSent" where "day" < ?`).bind(today()),
+    db.prepare(`delete from "rateLimit" where "lastRequest" < ?`).bind(Date.now() - AttemptWindow * 1000),
+  ]);
+}
+
 /** Accounts exist only for sync: no passwords, just a code by email. */
 export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
   return betterAuth({
@@ -101,34 +113,30 @@ class Refused extends Error {
 
 /** Counts a code toward today's, for its address and for everyone, and refuses it past either limit. */
 async function countCode(db: D1Database, email: string) {
-  const day = new Date().toISOString().slice(0, 10);
-  const add = (key: string) =>
-    db
+  const add = async (key: string) => {
+    const count = await db
       .prepare(
         `insert into "codesSent" ("day", "key", "count") values (?, ?, 1)
          on conflict ("day", "key") do update set "count" = "count" + 1 returning "count"`,
       )
-      .bind(day, key);
-  // Past days' counts, and sign-in attempts that no longer count, are erased as codes go out.
-  const [, , toAddress] = await db.batch<{ count: number }>([
-    db.prepare(`delete from "codesSent" where "day" < ?`).bind(day),
-    db.prepare(`delete from "rateLimit" where "lastRequest" < ?`).bind(Date.now() - AttemptWindow * 1000),
-    add(await sha256(email.toLowerCase())),
-  ]);
-  if (countIn(toAddress) > CodesAnAddress) throw new Refused(503, "no more codes today");
-  if (countIn(await add("all").run<{ count: number }>()) > CodesADay) throw new Refused(503, "no more codes today");
-}
-
-function countIn(result: D1Result<{ count: number }> | undefined): number {
-  const count = result?.results[0]?.count;
-  if (count === undefined) throw new Error("count code: no count returned");
-  return count;
+      .bind(today(), key)
+      .first<number>("count");
+    if (count === null) throw new Error("count code: no count returned");
+    return count;
+  };
+  if ((await add(await sha256(email.toLowerCase()))) > CodesAnAddress) throw new Refused(503, "no more codes today");
+  if ((await add("all")) > CodesADay) throw new Refused(503, "no more codes today");
 }
 
 /** Hex SHA-256: addresses are counted without being kept. */
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Today as a UTC date, the way "codesSent" keys its counts. */
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** The local dev server is plain http; the real one never is. */
