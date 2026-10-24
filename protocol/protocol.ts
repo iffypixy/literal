@@ -29,11 +29,10 @@ export type Message =
   /** Notes deleted long ago, erased for good: devices erase them too. */
   | { type: "purge"; ids: string[] };
 
-export type Refusal = "too-large" | "too-many" | "too-full";
-
 /**
  * The longest note that syncs, in characters as Yjs counts them (UTF-16 code units). The device holds a longer
- * one back itself; the server only refuses a note whose state outgrows its row, which one this long never does.
+ * one back itself. The server refuses a note whose state outgrows its row, which one this long does only after a
+ * pathological history, like each character typed in a new spot in Chinese: such a note stays on its device.
  */
 export const MaxLength = 100_000;
 /** How many notes an account holds, and how many bytes of them. Deleted notes don't count. */
@@ -43,8 +42,11 @@ export const MaxBytes = 100_000_000;
 /** Close codes the server uses, so the device knows not to just reconnect. */
 export const SignedOut = 4001;
 
+/** The order of Types and Refusals is the wire format: only ever append. */
 const Types = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
-const Refusals: Refusal[] = ["too-large", "too-many", "too-full"];
+const Refusals = ["too-large", "too-many", "too-full"] as const;
+
+export type Refusal = (typeof Refusals)[number];
 
 export function encode(message: Message): Uint8Array<ArrayBuffer> {
   const out = encoding.createEncoder();
@@ -93,37 +95,38 @@ export function encode(message: Message): Uint8Array<ArrayBuffer> {
 /** Parses a message; throws on anything malformed, so a bad peer gets disconnected rather than half-understood. */
 export function decode(data: Uint8Array): Message {
   const input = decoding.createDecoder(data);
+  const message = readMessage(input);
+  if (decoding.hasContent(input)) throw new Error("decode: trailing bytes");
+  return message;
+}
+
+function readMessage(input: decoding.Decoder): Message {
   const type = Types[decoding.readVarUint(input)];
   switch (type) {
     case "hello":
       return {
         type,
         since: decoding.readVarUint(input),
-        notes: Array.from({ length: decoding.readVarUint(input) }, () => ({
-          id: decoding.readVarString(input),
+        notes: readList(input, () => ({
+          id: readId(input),
           vector: decoding.readVarUint8Array(input),
-          dirty: decoding.readUint8(input) === 1,
+          dirty: readBoolean(input),
         })),
       };
     case "catch-up":
       return {
         type,
-        done: decoding.readUint8(input) === 1,
+        done: readBoolean(input),
         now: decoding.readVarUint(input),
-        notes: Array.from({ length: decoding.readVarUint(input) }, () => {
-          const id = decoding.readVarString(input);
+        notes: readList(input, () => {
+          const id = readId(input);
           const update = decoding.readVarUint8Array(input);
           const vector = decoding.readVarUint8Array(input);
           return { id, update: update.length ? update : null, vector: vector.length ? vector : null };
         }),
       };
     case "update":
-      return {
-        type,
-        seq: decoding.readVarUint(input),
-        id: decoding.readVarString(input),
-        update: decoding.readVarUint8Array(input),
-      };
+      return { type, seq: decoding.readVarUint(input), id: readId(input), update: decoding.readVarUint8Array(input) };
     case "ack":
       return { type, seq: decoding.readVarUint(input) };
     case "refused": {
@@ -133,10 +136,33 @@ export function decode(data: Uint8Array): Message {
       return { type, seq, reason };
     }
     case "purge":
-      return { type, ids: Array.from({ length: decoding.readVarUint(input) }, () => decoding.readVarString(input)) };
+      return { type, ids: readList(input, () => readId(input)) };
     default:
       throw new Error("decode: unknown message type");
   }
+}
+
+/**
+ * Reads a count, then that many items. Every item takes a byte at least, so a count past the bytes left is
+ * malformed: no message makes its reader allocate more than it holds.
+ */
+function readList<T>(input: decoding.Decoder, item: () => T): T[] {
+  const count = decoding.readVarUint(input);
+  if (count > input.arr.length - input.pos) throw new Error("decode: count past the end");
+  return Array.from({ length: count }, item);
+}
+
+function readId(input: decoding.Decoder): string {
+  const id = decoding.readVarString(input);
+  if (!isNoteId(id)) throw new Error("decode: bad note id");
+  return id;
+}
+
+function readBoolean(input: decoding.Decoder): boolean {
+  // Past the end, lib0's readUint8 returns undefined rather than throwing.
+  const byte: number | undefined = decoding.readUint8(input);
+  if (byte !== 0 && byte !== 1) throw new Error("decode: bad boolean");
+  return byte === 1;
 }
 
 /**
