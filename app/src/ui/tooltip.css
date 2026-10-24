@@ -1,0 +1,37 @@
+/* It floats like the panel, the menu and the toast, so it looks like them. */
+.tooltip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  width: max-content;
+  padding: var(--control-padding) var(--inset);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.97);
+  transition:
+    opacity var(--brief) var(--ease-out),
+    transform var(--brief) var(--ease-out);
+
+  &[data-open] {
+    opacity: 1;
+    transform: none;
+  }
+
+  &[data-instant] {
+    transition-duration: 0ms;
+  }
+
+  & .keys {
+    margin-left: 1ch;
+  }
+
+  /* Windows High Contrast drops shadows: things that float keep an edge. */
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
+  }
+}

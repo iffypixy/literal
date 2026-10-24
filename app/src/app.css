@@ -7,93 +7,93 @@
   align-items: center;
   gap: 2px;
   z-index: 10;
-}
 
-/*
- * A patch of paper under the buttons, so a long first line passes under them instead of through. It ends where
- * the first line does (6.5px above the buttons' bottom): a second line goes on showing whole beneath it.
- */
-.corner::before {
-  content: "";
-  position: absolute;
-  inset: -10px -5px 6.5px -24px;
-  z-index: -1;
-  background: linear-gradient(to right, transparent, var(--bg) 24px);
-  transition: opacity var(--brief) ease;
-}
+  /*
+   * A patch of paper under the buttons, so a long first line passes under them instead of through. It ends where
+   * the first line does (6.5px above the buttons' bottom): a second line goes on showing whole beneath it.
+   */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -10px -5px 6.5px -24px;
+    z-index: -1;
+    background: linear-gradient(to right, transparent, var(--bg) 24px);
+    transition: opacity var(--brief) ease;
+  }
 
-/* The buttons step aside while you type, with their paper; a problem, when there is one, stays. */
-.corner.away::before,
-.corner.away button:not(.problem) {
-  opacity: 0;
-  transition-duration: 300ms;
-}
+  /* The buttons step aside while you type, with their paper; a problem, when there is one, stays. */
+  &.away::before,
+  &.away button:not(.problem) {
+    opacity: 0;
+    transition-duration: 300ms;
+  }
 
-/* Reached by Tab (Esc, then Tab, leaves the page), they're back at once: focus is never on something unseen. */
-.corner.away:focus-within::before,
-.corner.away:focus-within button {
-  opacity: 1;
-  transition-duration: 0ms;
-}
+  /* Reached by Tab (Esc, then Tab, leaves the page), they're back at once: focus is never on something unseen. */
+  &.away:focus-within::before,
+  &.away:focus-within button {
+    opacity: 1;
+    transition-duration: 0ms;
+  }
 
-.corner button {
-  display: grid;
-  place-items: center;
-  width: var(--control);
-  height: var(--control);
-  border-radius: var(--radius-small);
-  color: var(--muted);
-  transition:
-    opacity var(--brief) ease,
-    color var(--quick) ease,
-    background-color var(--quick) ease,
-    transform var(--quick) var(--ease-out);
-}
+  & button {
+    display: grid;
+    place-items: center;
+    width: var(--control);
+    height: var(--control);
+    border-radius: var(--radius-small);
+    color: var(--muted);
+    transition:
+      opacity var(--brief) ease,
+      color var(--quick) ease,
+      background-color var(--quick) ease,
+      transform var(--quick) var(--ease-out);
+  }
 
-.corner button:active {
-  transform: scale(0.97);
-}
+  & button:active {
+    transform: scale(0.97);
+  }
 
-.corner svg {
-  width: 18px;
-  height: 18px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-}
+  & svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+  }
 
-.corner path {
-  stroke-width: var(--stroke);
-  vector-effect: non-scaling-stroke;
-}
+  & path {
+    stroke-width: var(--stroke);
+    vector-effect: non-scaling-stroke;
+  }
 
-@media (hover: hover) and (pointer: fine) {
-  .corner button:hover {
+  @media (hover: hover) and (pointer: fine) {
+    & button:hover {
+      color: var(--text);
+      background: var(--hover);
+    }
+  }
+
+  @media (pointer: coarse) {
+    & svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  /* Its paper, like the patch, stops where the first line does. */
+  & .status {
+    width: auto;
+    margin-right: 4px;
+    padding: 0 var(--inset);
+    border-radius: var(--radius-small);
+    background: linear-gradient(var(--bg), var(--bg)) top / 100% calc(100% - 6.5px) no-repeat;
+    color: var(--muted);
+    animation: fade-in var(--brief) var(--ease-out);
+  }
+
+  & .problem {
     color: var(--text);
-    background: var(--hover);
   }
-}
-
-@media (pointer: coarse) {
-  .corner svg {
-    width: 20px;
-    height: 20px;
-  }
-}
-
-/* Its paper, like the patch, stops where the first line does. */
-.corner .status {
-  width: auto;
-  margin-right: 4px;
-  padding: 0 var(--inset);
-  border-radius: var(--radius-small);
-  background: linear-gradient(var(--bg), var(--bg)) top / 100% calc(100% - 6.5px) no-repeat;
-  color: var(--muted);
-  animation: appear var(--brief) var(--ease-out);
-}
-
-.corner .problem {
-  color: var(--text);
 }
 
 /* Like nano's bottom line: the keys worth knowing. */
@@ -106,18 +106,18 @@
   margin: 0;
   color: var(--faint);
   pointer-events: none;
-}
 
-/* Gone with a fade; back at once. */
-.hint.gone {
-  opacity: 0;
-  transition: opacity 150ms;
-}
+  /* Gone with a fade; back at once. */
+  &.gone {
+    opacity: 0;
+    transition: opacity var(--brief);
+  }
 
-.hint > span {
-  display: flex;
-  align-items: baseline;
-  gap: 1ch;
+  & > span {
+    display: flex;
+    align-items: baseline;
+    gap: 1ch;
+  }
 }
 
 .drop {
@@ -129,23 +129,17 @@
   background: var(--scrim);
   z-index: 40;
   pointer-events: none;
-  animation: appear var(--brief) var(--ease-out);
-}
+  animation: fade-in var(--brief) var(--ease-out);
 
-.drop p {
-  display: grid;
-  place-items: center;
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  border: 1px dashed var(--muted);
-  border-radius: var(--radius);
-  color: var(--muted);
-}
-
-@keyframes appear {
-  from {
-    opacity: 0;
+  & p {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    border: 1px dashed var(--muted);
+    border-radius: var(--radius);
+    color: var(--muted);
   }
 }

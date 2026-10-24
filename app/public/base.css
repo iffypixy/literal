@@ -116,7 +116,6 @@ body {
   white-space: nowrap;
 }
 
-/* A key cap. */
 kbd {
   display: inline-block;
   min-width: 1.5em;
@@ -145,15 +144,37 @@ button {
   -webkit-user-select: none;
 }
 
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 input,
 textarea {
   font: inherit;
   color: inherit;
 }
 
+::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+h2 {
+  margin: 0;
+  font: inherit;
+}
+
+/* An action inside a line of text, a link or a button: underlined, like every other. */
+a,
+.link {
+  color: inherit;
+  text-decoration: underline;
+}
+
 /*
  * The page you write on (editor/editor.tsx), and index.html's stand-in for it until the app's code arrives,
- * which looks the same so whatever is typed in that first moment is kept (main.ts hands it over).
+ * which looks the same so whatever is typed in that first moment is kept (main.tsx hands it over).
  */
 .editor {
   position: fixed;
@@ -182,7 +203,8 @@ textarea {
 
 /*
  * On a phone the buttons are always there, so the text starts under them; the room below follows the visible
- * height, so with the keyboard up the line being typed stays above it; and iOS zooms into a field under 16px.
+ * height, so with the keyboard up the line being typed stays above it; iOS zooms into any field under 16px; and a
+ * finger needs more than a line of text to aim at, so inline actions reach 44px tall without moving anything.
  */
 @media (pointer: coarse) {
   .editor {
@@ -190,53 +212,17 @@ textarea {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height, 100dvh));
     font-size: 16px;
   }
-}
 
-/* iOS zooms into any field under 16px. */
-@media (pointer: coarse) {
   input,
   textarea {
     font-size: max(1rem, 16px);
   }
-}
 
-/* See ui/tooltip.ts. It floats like the panel, the menu and the toast, so it looks like them. */
-.tooltip {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 50;
-  width: max-content;
-  padding: var(--control-padding) var(--inset);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  pointer-events: none;
-  opacity: 0;
-  transform: scale(0.97);
-  transition:
-    opacity var(--brief) var(--ease-out),
-    transform var(--brief) var(--ease-out);
-}
-
-.tooltip[data-open] {
-  opacity: 1;
-  transform: none;
-}
-
-.tooltip[data-instant] {
-  transition-duration: 0ms;
-}
-
-.tooltip .keys {
-  margin-left: 1ch;
-}
-
-/* Windows High Contrast drops shadows: things that float keep an edge. */
-@media (forced-colors: active) {
-  .tooltip {
-    outline: 1px solid CanvasText;
+  a,
+  .link {
+    display: inline-block;
+    padding: 12px 0;
+    margin: -12px 0;
   }
 }
 
@@ -256,4 +242,10 @@ textarea {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }

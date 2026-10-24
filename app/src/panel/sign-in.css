@@ -4,137 +4,104 @@
   flex-direction: column;
   padding: var(--edge);
   overflow-y: auto;
-}
 
-.sign-in h2 {
-  margin: 0;
-  font: inherit;
-}
-
-.sign-in .lead {
-  margin: var(--pair) 0 var(--group);
-  color: var(--muted);
-}
-
-.sign-in .lead strong {
-  font-weight: 400;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.sign-in form {
-  display: grid;
-  gap: var(--gap);
-}
-
-.sign-in input {
-  box-sizing: border-box;
-  width: 100%;
-  height: var(--control);
-  padding: 0 var(--inset);
-  border: 1px solid var(--field);
-  border-radius: var(--radius-small);
-  background: var(--bg);
-  outline: none;
-  transition:
-    border-color var(--quick) ease,
-    box-shadow var(--quick) ease;
-}
-
-/* Focus is the accent's: the border takes it, with a hairline more so it reads at a glance. */
-.sign-in input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.sign-in input::placeholder {
-  color: var(--faint);
-  opacity: 1;
-}
-
-/* Letter-spacing adds space after every digit, the last one too: the same on the left keeps them centered. */
-.sign-in .code {
-  text-align: center;
-  letter-spacing: 0.4em;
-  padding: 0 var(--inset) 0 calc(var(--inset) + 0.4em);
-  font-variant-numeric: tabular-nums;
-}
-
-.sign-in .code.wrong {
-  border-color: var(--danger);
-}
-
-/* The one main action in the view: the accent, filled. */
-.sign-in .primary {
-  min-height: var(--control);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-small);
-  background: var(--accent);
-  color: var(--on-accent);
-  transition:
-    transform var(--quick) var(--ease-out),
-    background-color var(--quick) ease,
-    opacity var(--quick) ease;
-}
-
-.sign-in .primary:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.sign-in button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-/* Disabled, every button looks the same: a grey outline. The main one takes the accent once it can act. */
-.sign-in .primary:disabled {
-  border-color: var(--line);
-  background: transparent;
-  color: var(--muted);
-}
-
-.sign-in .error {
-  margin: var(--gap) 0 0;
-  color: var(--danger);
-}
-
-.sign-in .note {
-  margin: var(--group) 0 0;
-  color: var(--muted);
-}
-
-.sign-in .fine {
-  margin-top: var(--pair);
-}
-
-.sign-in .fine a {
-  color: inherit;
-}
-
-.sign-in .links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1ch;
-  margin: var(--group) 0 0;
-  color: var(--muted);
-}
-
-.sign-in .link {
-  text-decoration: underline;
-}
-
-/* A finger needs more than a line of text to aim at: the links reach 44px tall without moving anything. */
-@media (pointer: coarse) {
-  .sign-in .link,
-  .sign-in .fine a {
-    display: inline-block;
-    padding: 12px 0;
-    margin: -12px 0;
+  & .lead {
+    margin: var(--pair) 0 var(--group);
+    color: var(--muted);
   }
-}
 
-@media (hover: hover) and (pointer: fine) {
-  .sign-in .primary:hover:not(:disabled) {
-    background: var(--accent-hover);
+  & .lead strong {
+    font-weight: 400;
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+
+  & form {
+    display: grid;
+    gap: var(--gap);
+  }
+
+  & input {
+    box-sizing: border-box;
+    width: 100%;
+    height: var(--control);
+    padding: 0 var(--inset);
+    border: 1px solid var(--field);
+    border-radius: var(--radius-small);
+    background: var(--bg);
+    outline: none;
+    transition:
+      border-color var(--quick) ease,
+      box-shadow var(--quick) ease;
+  }
+
+  /* Focus is the accent's: the border takes it, with a hairline more so it reads at a glance. */
+  & input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  /* Letter-spacing adds space after every digit, the last one too: the same on the left keeps them centered. */
+  & .code {
+    text-align: center;
+    letter-spacing: 0.4em;
+    padding: 0 var(--inset) 0 calc(var(--inset) + 0.4em);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .code.wrong {
+    border-color: var(--danger);
+  }
+
+  /* The one main action in the view: the accent, filled. */
+  & .primary {
+    min-height: var(--control);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-small);
+    background: var(--accent);
+    color: var(--on-accent);
+    transition:
+      transform var(--quick) var(--ease-out),
+      background-color var(--quick) ease,
+      opacity var(--quick) ease;
+  }
+
+  & .primary:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Disabled, every button looks the same: a grey outline. The main one takes the accent once it can act. */
+  & .primary:disabled {
+    border-color: var(--line);
+    background: transparent;
+    color: var(--muted);
+  }
+
+  & .error {
+    margin: var(--gap) 0 0;
+    color: var(--danger);
+  }
+
+  & .note {
+    margin: var(--group) 0 0;
+    color: var(--muted);
+  }
+
+  & .fine {
+    margin-top: var(--pair);
+  }
+
+  & .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1ch;
+    margin: var(--group) 0 0;
+    color: var(--muted);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    & .primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
   }
 }

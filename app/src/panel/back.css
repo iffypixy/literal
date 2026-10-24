@@ -15,29 +15,29 @@
   border-radius: var(--radius-small);
   color: var(--muted);
   transition: transform var(--quick) var(--ease-out);
-}
 
-.back:active {
-  transform: scale(0.97);
-}
+  &:active {
+    transform: scale(0.97);
+  }
 
-.back svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
+  & svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
 
-.back path {
-  stroke-width: var(--stroke);
-  vector-effect: non-scaling-stroke;
-}
+  & path {
+    stroke-width: var(--stroke);
+    vector-effect: non-scaling-stroke;
+  }
 
-@media (hover: hover) and (pointer: fine) {
-  .back:hover {
-    color: var(--text);
-    background: var(--hover);
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      color: var(--text);
+      background: var(--hover);
+    }
   }
 }

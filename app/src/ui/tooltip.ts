@@ -1,5 +1,6 @@
 import { onCleanup } from "solid-js";
 import { caps } from "../keys.ts";
+import "./tooltip.css";
 
 /**
  * A tooltip naming a button and its shortcut. The first one waits a moment, so passing over a button doesn't
