@@ -621,7 +621,8 @@
         <p>Instant notes, on all your devices.</p>
         <p class="section">Made by Ansat<br />Write to <a href="mailto:hello@literal.ink">hello@literal.ink</a></p>
         <p class="section">
-          <a href="/terms" target="_blank">Terms</a> · <a href="/privacy" target="_blank">Privacy</a>
+          <a href="/terms" target="_blank">Terms</a> · <a href="/privacy" target="_blank">Privacy</a> ·
+          <a href="https://github.com/iffypixy/literal" target="_blank">Source</a>
         </p>
       </div>
     {:else if view === "delete"}

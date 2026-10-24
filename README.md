@@ -1,46 +1,31 @@
 # Literal
 
-Instant notes, on all your devices. Open it and type; every note is one keystroke away (⌘K), and signing in syncs them. Made by Ansat.
+Instant notes, on all your devices.
 
-- **App:** Svelte 5 + Vite, an installable PWA that works fully offline (`app/`).
-- **Server:** one Cloudflare Worker (`worker/`): Better Auth on D1 for accounts, and a Durable Object per user that stores their notes and syncs them live.
-- **Sync:** every note is a Yjs doc, so edits from any number of devices, online or not, merge without conflicts. The protocol is in `protocol/protocol.ts`.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/demo-dark.gif" />
+  <img src=".github/demo-light.gif" alt="A laptop finds a note with ⌘K, a phone opens it from its list, and each adds a line that shows up on the other" />
+</picture>
+
+Open [literal.ink](https://literal.ink) and start typing. Your notes save as you go, and signing in syncs them across your devices.
+
+## How it works
+
+- **App:** Svelte, an installable PWA that works offline (`app/`).
+- **Server:** a Cloudflare Worker, with D1 for accounts and a Durable Object per person for their notes (`worker/`).
+- **Sync:** each note is a Yjs document, so edits from any device merge without conflicts.
 
 ## Develop
 
 ```sh
 pnpm install
-cp .dev.vars.example .dev.vars          # then set BETTER_AUTH_SECRET to any long random string
+cp .dev.vars.example .dev.vars
 pnpm wrangler d1 migrations apply literal --local --persist-to .wrangler/state
-pnpm dev                                # http://localhost:5390
+pnpm dev
 ```
 
-One dev server runs the app and the Worker. It sends no email: sign-in codes are printed in the terminal.
+Sign-in codes show up in the terminal. `pnpm check` checks types, and `pnpm test` runs the tests.
 
-```sh
-pnpm check   # types: app and worker
-pnpm test    # end to end, against a production build served locally (stop `pnpm dev` first: same port)
-```
+## License
 
-## Deploy
-
-You need a Cloudflare account on the Workers Paid plan, which sending email needs, and a domain on it.
-
-1. `pnpm wrangler login`
-2. `pnpm wrangler d1 create literal`, then put the printed `database_id` in `wrangler.jsonc`.
-3. `pnpm wrangler email sending enable literal.ink`, so the Worker can email sign-in codes from the domain.
-4. In `wrangler.jsonc`, the route, `APP_URL`, `EMAIL_FROM` and the email binding's allowed sender are set for literal.ink: change them for another domain.
-5. `pnpm wrangler d1 migrations apply literal --remote`
-6. `openssl rand -hex 32 | pnpm wrangler secret put BETTER_AUTH_SECRET`
-7. `pnpm run deploy` (not `pnpm deploy`, which is a different pnpm command). It attaches the domain to the Worker too.
-8. In the Cloudflare dashboard, turn on Web Analytics for the domain.
-9. Forward `hello@literal.ink`, the contact address in `app/public/privacy.html`, to a real inbox (Email → Email Routing).
-
-## Before launch, check on real devices
-
-The tests run in desktop Chromium. These need a real iPhone and a real Android phone:
-
-- the keyboard on iOS: the end of a long note stays visible above it,
-- the notes sheet: drag down to close, swipe a row left to delete,
-- installing to the Home Screen, and opening it with no network,
-- the sign-in email: it arrives in Gmail, Outlook and iCloud, and not in spam.
+[MIT](LICENSE)
