@@ -39,7 +39,7 @@ export function deleteDb(): Promise<void> {
   });
 }
 
-/** Every record in `store`, `size` at a time, as stored: the caller checks them. Between batches the page stays free. */
+/** Every record in `store`, as stored, for the caller to check: `size` at a time, leaving the page free in between. */
 export async function* readAll(db: IDBDatabase, store: Store, size: number): AsyncGenerator<unknown[]> {
   let after: IDBValidKey | undefined;
   for (;;) {

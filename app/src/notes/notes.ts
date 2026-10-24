@@ -323,6 +323,9 @@ export async function caughtUp(now: number) {
  * next must hear about every note here, and tell it everything it has.
  */
 export async function unsync() {
+  await start();
+  // Already so: a device opened signed out hears that its account is gone each time it starts.
+  if (!notes.synced && [...marks.values()].every((mark) => mark.dirty)) return;
   const done = await store((tx) => {
     tx.objectStore("meta").delete("since");
     for (const name of ["notes", "docs"]) {

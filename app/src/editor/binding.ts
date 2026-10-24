@@ -177,7 +177,10 @@ function diff(before: string, after: string, caret: number): { at: number; remov
   return { at: start, removed: before.length - start - tail, inserted: after.slice(start, after.length - tail) };
 }
 
-/** Where `index` ends up after the change. Text inserted before it pushes it along; text inserted right at it goes after it. */
+/**
+ * Where `index` ends up after the change. Text inserted before it pushes it along; text inserted right at it goes
+ * after it.
+ */
 function shift(index: number, delta: Delta): number {
   let at = 0;
   let moved = index;

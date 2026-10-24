@@ -12,7 +12,7 @@ import { Back } from "./back.tsx";
 import { SignIn } from "./sign-in.tsx";
 import "./panel.css";
 
-/** What the panel shows: the notes, signing in, a question before something that can't be undone, the keys, or about. */
+/** What the panel shows: the notes, signing in, a question before what can't be undone, the keys, or about. */
 export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
 
 export type PanelApi = {
@@ -94,7 +94,10 @@ export function Panel(props: Props) {
   const removing = new Set<string>();
   /** Whether a click or tap closed the panel, rather than a key: what `onClose` is told. */
   let closedByPointer = false;
-  /** On a touch screen the sheet is a step in the browser's history, so Back closes it. True while the panel takes that step back itself. */
+  /**
+   * On a touch screen the sheet is a step in the browser's history, so Back closes it. True while the panel takes
+   * that step back itself.
+   */
   let stepping = false;
 
   const commands = createMemo<Command[]>(() => [

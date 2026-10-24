@@ -78,7 +78,7 @@ export function App() {
   });
   /** A problem stays in the corner until it's solved. */
   const problem = () => (notes.failed ? "Can't save here" : sync.status || (tooLong() ? "Too long to sync" : ""));
-  /** Otherwise the corner says, quietly, that the note is saved; or, on a blank page, that the others are still here. */
+  /** Otherwise the corner says, quietly, that the note is saved; or on a blank page, that the others are there. */
   const calm = createMemo(() => {
     if (current()) return "Saved";
     void notes.version;

@@ -32,7 +32,10 @@ let socket: WebSocket | null = null;
 let running = false;
 let signedOut = false;
 let seq = 0;
-/** Updates sent and not yet acked: which note, how far its changes went, and whether the update alone left the server lacking none of it. */
+/**
+ * Updates sent and not yet acked: which note, how far its changes went, and whether the update alone left the
+ * server lacking none of it.
+ */
 const unacked = new Map<number, { id: string; upTo: number; at: number; whole: boolean }>();
 /** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
