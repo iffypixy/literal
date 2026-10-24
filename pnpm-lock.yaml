@@ -31,10 +31,10 @@ importers:
         specifier: 1.64.1
         version: 1.64.1
       '@types/node':
-        specifier: '24'
+        specifier: 24.19.2
         version: 24.19.2
       prettier:
-        specifier: '3'
+        specifier: 3.9.10
         version: 3.9.10
       typescript:
         specifier: 6.0.3

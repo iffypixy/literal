@@ -51,3 +51,27 @@ test("after one visit, the app opens and saves with no network", async ({ page, 
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("option")).toHaveCount(2);
 });
+
+test("an empty note opened right after another stays empty", async ({ page, context }) => {
+  const note = page.getByRole("textbox", { name: "Note" });
+  await page.goto("/");
+  await page.keyboard.type("First note");
+  await page.keyboard.press("Alt+n");
+  await page.keyboard.type("Second");
+  await expect(page).toHaveTitle("Second — Literal");
+  const second = page.url();
+  await page.goBack();
+  await expect(note).toHaveValue("First note");
+
+  // Another tab empties the second note and stays on it: a note that exists, with nothing in it.
+  const other = await context.newPage();
+  await other.goto(second);
+  await expect(other.getByRole("textbox", { name: "Note" })).toHaveValue("Second");
+  await other.keyboard.press("Control+a");
+  await other.keyboard.press("Delete");
+  await expect(note).toHaveValue("First note");
+
+  await page.goForward();
+  await expect(page).toHaveURL(second);
+  await expect(note).toHaveValue("");
+});

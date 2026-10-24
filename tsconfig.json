@@ -4,7 +4,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "lib": ["es2023", "dom", "dom.iterable"],
-    "types": ["vite/client", "node"],
+    "types": ["vite/client"],
     "strict": true,
     "noEmit": true,
     "jsx": "preserve",
@@ -15,5 +15,5 @@
     "isolatedModules": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["app/src", "protocol", "e2e", "vite.config.ts", "playwright.config.ts"]
+  "include": ["app/src", "protocol"]
 }
