@@ -1,17 +1,18 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { providers, sendCode, signInWith, verify, type Providers } from "../sync/account.svelte.ts";
+  import { providers, sendCode, signInWith, unreachable, verify, type Providers } from "../sync/account.svelte.ts";
   import Back from "./Back.svelte";
 
   type Props = {
+    /** Safari, not on the Home Screen: it may clear notes after a week away, which syncing guards against. */
+    fragile: boolean;
     onback: () => void;
     ondone: (email: string) => void;
   };
 
-  let { onback, ondone }: Props = $props();
+  let { fragile, onback, ondone }: Props = $props();
 
   const RESEND_AFTER = 30;
-  const OFFLINE = "You're offline. Connect and try again.";
   const touch = matchMedia("(pointer: coarse)").matches;
 
   let step = $state<"email" | "code">("email");
@@ -35,7 +36,7 @@
     if (busy) return;
     busy = true;
     error = "";
-    const problem = await sendCode(email.trim()).catch(() => OFFLINE);
+    const problem = await sendCode(email.trim()).catch(unreachable);
     busy = false;
     if (problem) {
       error = problem;
@@ -54,7 +55,11 @@
     if (busy || code.length !== 6) return;
     busy = true;
     error = "";
-    const problem = await verify(email.trim(), code).catch(() => OFFLINE);
+    let reached = true;
+    const problem = await verify(email.trim(), code).catch(() => {
+      reached = false;
+      return unreachable();
+    });
     busy = false;
     if (!problem) {
       ondone(email.trim());
@@ -63,8 +68,8 @@
     error = problem;
     code = "";
     field?.focus();
-    // A wrong code shakes, as a wrong passcode does; being offline isn't wrong.
-    if (problem !== OFFLINE) shake();
+    // A wrong code shakes, as a wrong passcode does; a lost connection isn't wrong.
+    if (reached) shake();
   }
 
   function shake() {
@@ -99,7 +104,7 @@
     busy = true;
     await signInWith(provider).catch(() => {
       busy = false;
-      error = "Couldn't reach the server. Try again.";
+      error = unreachable();
     });
   }
 </script>
@@ -108,8 +113,11 @@
   <Back onclick={step === "code" ? restart : onback} />
 
   {#if step === "email"}
-    <h2>Sync your notes</h2>
-    <p class="lead">Keep your notes on all your devices.</p>
+    <h2>Sync across devices</h2>
+    <p class="lead">
+      Sign in to keep your notes on all your devices.
+      {#if fragile}Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them.{/if}
+    </p>
 
     {#if offered.google || offered.apple}
       <div class="social">
@@ -162,7 +170,7 @@
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <p class="links">
       {#if wait}
-        <span>Resend in {wait}s</span>
+        <span>Resend code in {wait}s</span>
       {:else}
         <button class="link" onclick={() => send()}>Resend code</button>
       {/if}

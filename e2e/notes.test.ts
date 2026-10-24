@@ -15,7 +15,7 @@ test("opening the app and leaving without typing leaves no note", async ({ page 
   await page.keyboard.type("   ");
   await page.keyboard.press("Alt+n");
   await page.keyboard.press("Control+k");
-  await expect(page.getByText("No notes yet.")).toBeVisible();
+  await expect(page.getByText("No notes yet")).toBeVisible();
 });
 
 test("search finds a note by any of its words, ignoring accents; Undo brings back a deleted one", async ({ page }) => {

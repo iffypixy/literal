@@ -2,6 +2,7 @@
 
 import { decode, encode, SIGNED_OUT, type Message } from "../../../protocol/protocol.ts";
 import * as notes from "../notes/notes.svelte.ts";
+import { shorten, title } from "../notes/search.ts";
 import { toast } from "../ui/toast.svelte.ts";
 
 /** What the corner says, if anything: nothing while all is well. */
@@ -33,6 +34,8 @@ let lastHeard = Date.now();
 let pingSent = 0;
 /** Messages are handled one at a time, in order: each may wait on disk. */
 let queue = Promise.resolve();
+/** Refusals already explained: each is said once, not once for every change the server turns away. */
+const told = new Set<string>();
 
 /** Starts syncing; called again after signing in anew, it tries again at once. */
 export function start() {
@@ -137,14 +140,18 @@ async function handle(ws: WebSocket, message: Message) {
       if (sent) await notes.acked(sent.id, sent.upTo);
       break;
     }
-    case "refused":
+    case "refused": {
+      const sent = unacked.get(message.seq);
       unacked.delete(message.seq);
-      toast(
-        message.reason === "too-many"
-          ? "You've reached 10,000 notes. Delete some to add more."
-          : "This note is too long to sync.",
-      );
+      const about = message.reason === "too-many" ? message.reason : (sent?.id ?? message.reason);
+      if (told.has(about)) break;
+      told.add(about);
+      const name = sent ? shorten(title(notes.find(sent.id)?.text ?? ""), 30) : "";
+      if (message.reason === "too-many") toast("Sync stops at 10,000 notes, so delete some to make room");
+      else
+        toast(name ? `Split "${name}" into shorter notes to sync it` : "Split this note into shorter notes to sync it");
       break;
+    }
     case "purge":
       for (const id of message.ids) await notes.purge(id);
       break;

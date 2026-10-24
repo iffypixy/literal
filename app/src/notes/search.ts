@@ -45,6 +45,15 @@ export function title(text: string): string {
   return split(text).first;
 }
 
+/** A title cut to `length`: at the end of a word if one ends near enough, then "…". */
+export function shorten(name: string, length: number): string {
+  const chars = [...name];
+  if (chars.length <= length) return name;
+  const cut = chars.slice(0, length - 1).join("");
+  const space = cut.lastIndexOf(" ");
+  return `${space > length / 2 ? cut.slice(0, space) : cut}…`;
+}
+
 /** The first non-blank line, and where the text after it starts. */
 function split(text: string): { first: string; restAt: number } {
   const start = text.search(/\S/);

@@ -8,6 +8,10 @@ const MAX_BYTES = 1024 * 1024;
 
 /** Downloads every note as a .txt file, named after its title, in one .zip. */
 export function exportAll() {
+  if (!list().length) {
+    toast("No notes to export");
+    return;
+  }
   const taken = new Set<string>();
   const entries: Entry[] = list().map((note) => {
     const base = fileName(title(note.text));
@@ -27,7 +31,7 @@ export function exportAll() {
 export async function importFiles(files: File[]) {
   const texts = files.filter((file) => /\.(txt|text|md|markdown)$/i.test(file.name) || file.type === "text/plain");
   if (!texts.length) {
-    toast("Only .txt and .md files can be imported.");
+    toast("Only .txt and .md files can be imported");
     return;
   }
   const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -45,8 +49,10 @@ export async function importFiles(files: File[]) {
     imported++;
   }
   const skipped = texts.length - imported;
-  const notes = (n: number) => `${n} note${n === 1 ? "" : "s"}`;
-  toast(skipped ? `Imported ${notes(imported)} · ${skipped} skipped` : `Imported ${notes(imported)}`);
+  const count = (n: number, thing: string) => `${n.toLocaleString()} ${thing}${n === 1 ? "" : "s"}`;
+  if (!imported) toast("Only plain text files under 1 MB can be imported");
+  else if (skipped) toast(`Imported ${count(imported, "note")} and skipped ${count(skipped, "file")}`);
+  else toast(`Imported ${count(imported, "note")}`);
 }
 
 /** A title made safe as a file name on every system. */

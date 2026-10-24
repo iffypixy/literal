@@ -27,13 +27,18 @@ export async function providers(): Promise<Providers> {
   return (await response.json()) as Providers;
 }
 
+/** What to say when a request didn't reach the server, or never came back. */
+export function unreachable(): string {
+  return navigator.onLine ? "Couldn't connect, please try again" : "Connect to the internet and try again";
+}
+
 /** Emails a sign-in code. Resolves to a message for the person when it didn't work. */
 export async function sendCode(email: string): Promise<string | null> {
   const response = await post("/api/auth/email-otp/send-verification-otp", { email, type: "sign-in" });
   if (response.ok) return null;
-  if (response.status === 429) return "Too many codes. Try again in a few minutes.";
-  if (response.status === 400) return "That doesn't look like an email address.";
-  return "Couldn't send the code. Try again.";
+  if (response.status === 429) return "Wait a few minutes, then try again";
+  if (response.status === 400) return "That doesn't look like an email address";
+  return "Couldn't send the code, please try again";
 }
 
 /** Signs in with the emailed code. Resolves to a message for the person when it didn't work. */
@@ -43,9 +48,11 @@ export async function verify(email: string, code: string): Promise<string | null
     signedIn(email);
     return null;
   }
-  if (response.status === 429) return "Too many tries. Wait a few minutes.";
-  if (response.status === 400 || response.status === 401 || response.status === 403) return "That code didn't work.";
-  return "Couldn't sign in. Try again.";
+  if (response.status === 429) return "Wait a few minutes, then try again";
+  // After 5 wrong tries the code is locked: even the right one won't work now.
+  if (response.status === 403) return "Send a new code to try again";
+  if (response.status === 400 || response.status === 401) return "That code didn't work";
+  return "Couldn't sign in, please try again";
 }
 
 /** Leaves for Google or Apple; the app opens again signed in. */
@@ -65,7 +72,7 @@ export async function signOut() {
 
 export async function deleteAccount(): Promise<string | null> {
   const response = await fetch("/api/account", { method: "DELETE", credentials: "same-origin" });
-  if (!response.ok) return "Couldn't delete the account. Try again.";
+  if (!response.ok) return "Couldn't delete your account, please try again";
   await forget();
   return null;
 }

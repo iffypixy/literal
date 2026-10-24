@@ -64,8 +64,8 @@ async function sendCode(env: Env, email: string, code: string) {
     body: JSON.stringify({
       from: env.EMAIL_FROM,
       to: email,
-      subject: `Your Blank code: ${code}`,
-      text: `${code}\n\nValid for 10 minutes.\n\nDidn't ask for this? Ignore this email.\n`,
+      subject: `${code} is your Blank sign-in code`,
+      text: `${code}\n\nEnter this code in Blank to sign in. It works for 10 minutes.\n\nDidn't ask for it? You can ignore this email.\n`,
     }),
   });
   if (!response.ok) throw new Error(`send code: Resend answered ${response.status}: ${await response.text()}`);

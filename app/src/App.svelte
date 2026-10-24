@@ -19,7 +19,7 @@
     settle,
     start,
   } from "./notes/notes.svelte.ts";
-  import { title } from "./notes/search.ts";
+  import { shorten, title } from "./notes/search.ts";
   import Panel from "./panel/Panel.svelte";
   import { account, session, signedIn } from "./sync/account.svelte.ts";
   import { sync, start as startSync } from "./sync/sync.svelte.ts";
@@ -29,6 +29,9 @@
   import { tooltip } from "./ui/tooltip.ts";
   import { act, toast, toasts } from "./ui/toast.svelte.ts";
 
+  /** Characters of a note's title a toast shows, and the window's title. */
+  const NAME_SHOWN = 30;
+  const TITLE_SHOWN = 60;
   /** Cursor positions remembered on this device, newest last. */
   const CURSORS_KEPT = 200;
 
@@ -51,7 +54,7 @@
   $effect(() => {
     void notes.version;
     const note = current ? find(current) : undefined;
-    const name = note ? title(note.text).slice(0, 60) : "";
+    const name = note ? shorten(title(note.text), TITLE_SHOWN) : "";
     document.title = name ? `${name} — Blank` : "Blank";
   });
 
@@ -91,18 +94,18 @@
     return count ? `${count.toLocaleString()} ${count === 1 ? "note" : "notes"}` : "";
   });
   const explanations: Record<string, string> = {
-    "Can't save here": "This browser window can't store notes. Try a normal window.",
-    Offline: "You're offline. Notes are saved here and will sync when you're back.",
-    "Not synced": "Can't reach the server. Notes are safe on this device.",
+    "Can't save here": "This browser can't save notes, so copy your text before closing",
+    Offline: "Notes will sync when you're back online",
+    "Not synced": "Notes are saved on this device and will sync when Blank connects",
   };
 
   function explain() {
     if (problem === "Sign in to sync") return panel.show(true, "sign-in");
     if (!problem && !current) return togglePanel(true);
     if (problem) toast(explanations[problem] ?? "");
-    else if (account.email) toast("Saved and synced as you type.");
+    else if (account.email) toast("Notes save and sync as you type");
     else
-      toast("Saved on this device as you type.", {
+      toast("Notes save on this device as you type", {
         action: { label: "Sync", run: () => panel.show(true, "sign-in") },
       });
     // A word of explanation, then back to writing: the click shouldn't take the cursor away.
@@ -125,7 +128,7 @@
     }
     const next = await open(id);
     if (!next) {
-      toast("That note isn't here.");
+      toast("Note not found");
       void go(null, "replace");
       return;
     }
@@ -166,6 +169,8 @@
   }
 
   function ondelete(id: string) {
+    // Named, so it's clear which one went: Delete acts on whichever row is highlighted.
+    const name = shorten(title(find(id)?.text ?? ""), NAME_SHOWN);
     void remove(id);
     const wasOpen = id === current;
     if (wasOpen) {
@@ -173,7 +178,7 @@
       text = null;
       navigate("/", "replace");
     }
-    toast("Note deleted", {
+    toast(name ? `Deleted "${name}"` : "Deleted", {
       action: {
         label: "Undo",
         keys: hover ? shortcuts.undo : undefined,

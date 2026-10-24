@@ -58,9 +58,9 @@
     [shortcuts.notes, "Open or close your notes"],
     [shortcuts.new, "New note"],
     [shortcuts.move, "Choose a note"],
-    [shortcuts.open, "Open it"],
-    [shortcuts.delete, "Delete it"],
-    [shortcuts.undo, "Bring it back"],
+    [shortcuts.open, "Open note"],
+    [shortcuts.delete, "Delete note"],
+    [shortcuts.undo, "Undo delete"],
     [shortcuts.close, "Close"],
   ];
 
@@ -364,7 +364,7 @@
   }
 
   async function erase() {
-    problem = (await deleteAccount().catch(() => "You're offline. Connect and try again.")) ?? "";
+    problem = (await deleteAccount().catch(() => "Connect to the internet and try again")) ?? "";
   }
 
   function signedIn(email: string) {
@@ -374,9 +374,11 @@
   }
 
   const minute = 60_000;
-  const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-  const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-  const dayAndYear = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+  // In English like every other word here, with the clock (12 or 24 hours) this computer uses.
+  const hourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
+  const clock = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hourCycle });
+  const day = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
+  const dayAndYear = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" });
 
   function ago(at: number): string {
     const age = now - at;
@@ -385,8 +387,9 @@
     const date = new Date(at);
     const today = new Date(now);
     if (date.toDateString() === today.toDateString()) return clock.format(date);
-    today.setDate(today.getDate() - 1);
-    if (date.toDateString() === today.toDateString()) return "Yesterday";
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
     if (date.getFullYear() === today.getFullYear()) return day.format(date);
     return dayAndYear.format(date);
   }
@@ -410,15 +413,19 @@
     <div class="grab" {@attach grab} aria-hidden="true"><span></span></div>
 
     {#if view === "sign-in"}
-      <SignIn onback={back} ondone={signedIn} />
+      <SignIn {fragile} onback={back} ondone={signedIn} />
     {:else if view === "sign-out"}
       <div class="ask">
         <h2>
-          {waiting === 1 ? "1 note hasn't" : waiting ? `${waiting} notes haven't` : "Some notes may not have"} synced yet.
+          {waiting === 1
+            ? "1 note hasn't"
+            : waiting
+              ? `${waiting.toLocaleString()} notes haven't`
+              : "Some notes may not have"} synced yet
         </h2>
-        <p>Signing out erases this device's notes. Wait until you're back online to keep every change.</p>
+        <p>Signing out removes notes from this device. Changes that haven't synced will be lost.</p>
         <div class="choices">
-          <button class="quiet" onclick={back}>Wait</button>
+          <button class="quiet" onclick={back}>Cancel</button>
           <button class="danger" onclick={() => void signOut()}>Sign out anyway</button>
         </div>
       </div>
@@ -435,8 +442,11 @@
       </div>
     {:else if view === "delete"}
       <div class="ask">
-        <h2>Delete your account and all synced notes?</h2>
-        <p>This can't be undone. <button class="link" onclick={exportAll}>Export notes first</button></p>
+        <h2>Delete your account and all your notes?</h2>
+        <p>
+          Your notes will be erased from Blank and this device. This can't be undone.
+          <button class="link" onclick={exportAll}>Export your notes</button> first.
+        </p>
         {#if problem}<p class="problem" role="alert">{problem}</p>{/if}
         <div class="choices">
           <button class="quiet" onclick={back}>Cancel</button>
@@ -456,7 +466,7 @@
           aria-controls="notes-list"
           aria-activedescendant={selected ? `note-${selected.id}` : undefined}
           aria-label="Search notes"
-          placeholder="Search"
+          placeholder="Search…"
           autocomplete="off"
           autocapitalize="off"
           spellcheck="false"
@@ -486,7 +496,7 @@
                 <button
                   class="delete"
                   aria-label="Delete note"
-                  {@attach tooltip("Delete", shortcuts.delete)}
+                  {@attach tooltip("Delete note", shortcuts.delete)}
                   tabindex="-1"
                   onclick={(event) => {
                     event.stopPropagation();
@@ -510,7 +520,7 @@
       </ul>
 
       {#if notes.ready && !results.length}
-        <p class="empty">{words.length ? "No matches." : "No notes yet."}</p>
+        <p class="empty">{words.length ? "No matches" : "No notes yet"}</p>
       {/if}
 
       <footer>
