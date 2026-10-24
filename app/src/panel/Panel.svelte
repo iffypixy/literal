@@ -1,13 +1,15 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { cubicOut } from "svelte/easing";
-  import { mac, mod } from "../keys.ts";
+  import { mod, shortcuts } from "../keys.ts";
   import { list, notes, unsynced, type Note } from "../notes/notes.svelte.ts";
   import { describe, parse, search } from "../notes/search.ts";
   import { account, deleteAccount, signOut } from "../sync/account.svelte.ts";
   import { sync } from "../sync/sync.svelte.ts";
   import { exportAll, importFiles } from "../transfer/transfer.ts";
+  import Keys from "../ui/Keys.svelte";
   import { tooltip } from "../ui/tooltip.ts";
+  import Back from "./Back.svelte";
   import SignIn from "./SignIn.svelte";
 
   /** What the panel shows: the notes, signing in, a question before something that can't be undone, or the keys. */
@@ -52,14 +54,14 @@
   /** Notes on their way out, whose rows collapse instead of vanishing. */
   let leaving = new Set<string>();
 
-  const shortcuts: [string, string][] = [
-    [mac ? "⌘K" : "Ctrl+K", "Open or close your notes"],
-    [mac ? "⌥N" : "Alt+N", "New note"],
-    ["↑ ↓", "Choose a note"],
-    [mac ? "↵" : "Enter", "Open it"],
-    [mac ? "⌘⌫" : "Del", "Delete it"],
-    [mac ? "⌘Z" : "Ctrl+Z", "Bring it back"],
-    ["Esc", "Close"],
+  const keyList: [string[], string][] = [
+    [shortcuts.notes, "Open or close your notes"],
+    [shortcuts.new, "New note"],
+    [shortcuts.move, "Choose a note"],
+    [shortcuts.open, "Open it"],
+    [shortcuts.delete, "Delete it"],
+    [shortcuts.undo, "Bring it back"],
+    [shortcuts.close, "Close"],
   ];
 
   const words = $derived(parse(query));
@@ -422,16 +424,14 @@
       </div>
     {:else if view === "keys"}
       <div class="ask">
+        <Back onclick={back} />
         <h2>Keyboard shortcuts</h2>
         <dl class="keys">
-          {#each shortcuts as [keys, what]}
-            <dt>{keys}</dt>
+          {#each keyList as [keys, what]}
+            <dt><Keys {keys} /></dt>
             <dd>{what}</dd>
           {/each}
         </dl>
-        <div class="choices">
-          <button class="quiet" onclick={back}>Back</button>
-        </div>
       </div>
     {:else if view === "delete"}
       <div class="ask">
@@ -486,7 +486,7 @@
                 <button
                   class="delete"
                   aria-label="Delete note"
-                  {@attach tooltip("Delete", mac ? "⌘⌫" : "Del")}
+                  {@attach tooltip("Delete", shortcuts.delete)}
                   tabindex="-1"
                   onclick={(event) => {
                     event.stopPropagation();
@@ -591,12 +591,11 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    width: min(560px, calc(100vw - 32px));
+    width: min(560px, calc(100vw - 2 * var(--edge)));
     max-height: 70vh;
     margin: 12vh auto 0;
     background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: hidden;
     outline: none;
@@ -613,18 +612,18 @@
     display: none;
   }
 
+  /* The search above and the footer below are the same height: a control's, plus 4px above and below. */
   .search {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 20px;
+    padding: 0 var(--edge);
     border-bottom: 1px solid var(--line);
   }
 
   .search input {
     flex: 1;
     min-width: 0;
-    padding: 12px 0;
+    padding: calc(var(--control-padding) + 4px) 0;
     border: 0;
     outline: 0;
     background: transparent;
@@ -639,8 +638,8 @@
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: 6px;
     list-style: none;
+    padding: calc(var(--edge) - var(--inset));
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
@@ -649,7 +648,7 @@
 
   li {
     position: relative;
-    border-radius: 0;
+    border-radius: var(--radius-small);
     overflow: hidden;
   }
 
@@ -659,7 +658,7 @@
     inset: 0;
     align-items: center;
     justify-content: flex-end;
-    padding: 0 20px;
+    padding: 0 var(--edge);
     background: var(--danger);
     color: var(--surface);
   }
@@ -668,10 +667,10 @@
     display: flex;
   }
 
-  /* Every line of text in the panel starts at the same 20px: the list's 6px gutter, then 14px. */
+  /* A row is a control: its height, and its text on the panel's 16px edge (the list's 4px gutter, then 12px). */
   .row {
     position: relative;
-    padding: 8px 14px;
+    padding: var(--control-padding) var(--inset);
     background: var(--surface);
     cursor: default;
     touch-action: pan-y;
@@ -679,6 +678,7 @@
     -webkit-user-select: none;
   }
 
+  /* The keyboard's place in the list: a quiet wash. */
   [aria-selected="true"] .row {
     background: color-mix(in srgb, var(--text) 6%, var(--surface));
   }
@@ -691,7 +691,7 @@
   .line {
     display: flex;
     align-items: baseline;
-    gap: 12px;
+    gap: 2ch;
   }
 
   .title {
@@ -709,17 +709,18 @@
   }
 
   .snippet {
-    margin-top: 2px;
+    margin-top: var(--pair);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     color: var(--muted);
   }
 
+  /* Full ink on the wash, even in a grey snippet: a hit is what you're looking for. */
   mark {
-    background: var(--select);
-    color: inherit;
-    border-radius: 0;
+    background: var(--highlight);
+    color: var(--text);
+    border-radius: var(--radius-small);
   }
 
   .delete {
@@ -729,7 +730,7 @@
     width: 24px;
     height: 24px;
     margin: -4px -6px -4px 0;
-    border-radius: 0;
+    border-radius: var(--radius-small);
     color: var(--muted);
   }
 
@@ -739,8 +740,12 @@
     margin: 4px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.5;
     stroke-linecap: round;
+  }
+
+  .delete path {
+    stroke-width: var(--stroke);
+    vector-effect: non-scaling-stroke;
   }
 
   @media (hover: hover) and (pointer: fine) {
@@ -763,12 +768,9 @@
       background: var(--hover);
     }
 
-    .quiet:hover {
+    .quiet:hover,
+    .danger:hover {
       background: var(--hover);
-    }
-
-    .link:hover {
-      text-decoration: underline;
     }
 
     .menu button:hover {
@@ -780,9 +782,10 @@
     height: 1px;
   }
 
+  /* Where the first row's text would be. */
   .empty {
     margin: 0;
-    padding: 14px 20px;
+    padding: calc(var(--edge) - var(--inset) + var(--control-padding)) var(--edge);
     color: var(--muted);
   }
 
@@ -791,8 +794,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 8px 10px 8px 20px;
+    gap: 2ch;
+    padding: 4px 6px 4px var(--edge);
     border-top: 1px solid var(--line);
     color: var(--muted);
   }
@@ -805,18 +808,18 @@
   }
 
   .sync {
-    margin: -8px -10px;
-    padding: 8px 10px;
-    border-radius: 0;
+    margin: 0 calc(-1 * var(--inset));
+    padding: var(--control-padding) var(--inset);
+    border-radius: var(--radius-small);
     color: var(--muted);
     transition:
-      color 120ms ease,
-      background-color 120ms ease,
-      transform 120ms var(--ease-out);
+      color var(--quick) ease,
+      background-color var(--quick) ease,
+      transform var(--quick) var(--ease-out);
   }
 
   .menu hr {
-    margin: 4px 8px;
+    margin: 4px var(--inset);
     border: 0;
     border-top: 1px solid var(--line);
   }
@@ -826,14 +829,14 @@
   }
 
   .ask {
-    padding: 20px;
+    padding: var(--edge);
   }
 
   .keys {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 6px 24px;
-    margin: 16px 0 0;
+    gap: var(--gap) 2ch;
+    margin: var(--group) 0 0;
   }
 
   .keys dd {
@@ -847,8 +850,13 @@
   }
 
   .ask p {
-    margin: 8px 0 0;
+    margin: var(--gap) 0 0;
     color: var(--muted);
+  }
+
+  /* A heading and the line that explains it read as one. */
+  .ask h2 + p {
+    margin-top: var(--pair);
   }
 
   .ask .problem {
@@ -862,17 +870,17 @@
   .choices {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin-top: 24px;
+    gap: var(--gap);
+    margin-top: var(--group);
   }
 
   .choices button {
-    height: 40px;
-    padding: 0 16px;
-    border-radius: 0;
+    min-height: var(--control);
+    padding: 0 var(--inset);
+    border-radius: var(--radius-small);
     transition:
-      transform 120ms var(--ease-out),
-      background-color 120ms ease;
+      transform var(--quick) var(--ease-out),
+      background-color var(--quick) ease;
   }
 
   .choices button:active {
@@ -891,9 +899,9 @@
   .more {
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 0;
+    width: var(--control);
+    height: var(--control);
+    border-radius: var(--radius-small);
     color: var(--muted);
   }
 
@@ -905,23 +913,22 @@
 
   .menu {
     position: absolute;
-    right: 10px;
-    bottom: calc(100% - 4px);
+    right: 6px;
+    bottom: calc(100% + 2px);
     display: flex;
     flex-direction: column;
-    min-width: 200px;
-    padding: 4px;
+    min-width: 180px;
+    padding: calc(var(--edge) - var(--inset));
     background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius);
     box-shadow: var(--shadow);
     transform-origin: bottom right;
-    animation: pop 140ms var(--ease-out);
+    animation: pop var(--brief) var(--ease-out);
   }
 
   .menu button {
-    padding: 9px 12px;
-    border-radius: 0;
+    padding: var(--control-padding) var(--inset);
+    border-radius: var(--radius-small);
     text-align: left;
     color: var(--text);
   }
@@ -943,11 +950,11 @@
   }
 
   .overlay:global([data-closing]) .panel {
-    animation: sink 120ms var(--ease-out) forwards;
+    animation: sink var(--quick) var(--ease-out) forwards;
   }
 
   .overlay:global([data-closing]) .scrim {
-    animation: fade 120ms var(--ease-out) reverse forwards;
+    animation: fade var(--quick) var(--ease-out) reverse forwards;
   }
 
   @keyframes rise {
@@ -973,7 +980,7 @@
   @keyframes pop {
     from {
       opacity: 0;
-      transform: scale(0.96);
+      transform: scale(0.97);
     }
   }
 
@@ -989,8 +996,7 @@
       max-height: none;
       margin: 0;
       padding-bottom: env(safe-area-inset-bottom, 0px);
-      border-width: 1px 0 0;
-      border-radius: 0;
+      border-radius: var(--radius) var(--radius) 0 0;
     }
 
     .grab {
@@ -1003,24 +1009,8 @@
     .grab span {
       width: 36px;
       height: 5px;
-      border-radius: 0;
+      border-radius: var(--radius-small);
       background: var(--line);
-    }
-
-    .search {
-      padding: 0 16px;
-    }
-
-    .search input {
-      padding: 10px 0 16px;
-    }
-
-    .row {
-      padding: 12px 10px;
-    }
-
-    footer {
-      padding-left: 16px;
     }
 
     .overlay:global([data-motion]) .panel {

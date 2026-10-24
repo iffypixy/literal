@@ -57,7 +57,8 @@
     height: var(--viewport-height, 100dvh);
     margin: 0;
     /* Like a .txt file: from the top-left corner, as wide as the window. */
-    padding: 12px max(16px, env(safe-area-inset-right, 0px)) 40vh max(16px, env(safe-area-inset-left, 0px));
+    padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) 40vh
+      max(var(--edge), env(safe-area-inset-left, 0px));
     border: 0;
     outline: 0;
     resize: none;

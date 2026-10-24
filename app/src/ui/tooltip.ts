@@ -2,7 +2,7 @@
  * A tooltip naming a button and its shortcut. The first one waits a moment, so passing over a button doesn't
  * flash it; moving on to the next button while one is up shows the next at once. Mouse only: touch has no hover.
  */
-export function tooltip(label: string, keys?: string) {
+export function tooltip(label: string, keys?: string[]) {
   return (node: HTMLElement) => {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -41,7 +41,7 @@ let tip: HTMLElement | null = null;
 let owner: HTMLElement | null = null;
 let warmUntil = 0;
 
-function show(node: HTMLElement, label: string, keys: string | undefined, instant: boolean) {
+function show(node: HTMLElement, label: string, keys: string[] | undefined, instant: boolean) {
   if (!tip) {
     tip = document.body.appendChild(document.createElement("div"));
     tip.className = "tooltip";
@@ -51,7 +51,11 @@ function show(node: HTMLElement, label: string, keys: string | undefined, instan
   }
   owner = node;
   tip.replaceChildren(label);
-  if (keys) tip.append(Object.assign(document.createElement("kbd"), { textContent: keys }));
+  if (keys) {
+    const caps = Object.assign(document.createElement("span"), { className: "keys" });
+    caps.append(...keys.map((key) => Object.assign(document.createElement("kbd"), { textContent: key })));
+    tip.append(caps);
+  }
   tip.toggleAttribute("data-instant", instant);
 
   // Under the button, right edges aligned (every button with one sits on the right); above it if there's no room.

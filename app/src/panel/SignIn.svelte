@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { providers, sendCode, signInWith, verify, type Providers } from "../sync/account.svelte.ts";
+  import Back from "./Back.svelte";
 
   type Props = {
     onback: () => void;
@@ -104,9 +105,7 @@
 </script>
 
 <div class="sign-in">
-  <button class="back" aria-label="Back" onclick={step === "code" ? restart : onback}>
-    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5" /></svg>
-  </button>
+  <Back onclick={step === "code" ? restart : onback} />
 
   {#if step === "email"}
     <h2>Sync your notes</h2>
@@ -167,41 +166,19 @@
       {:else}
         <button class="link" onclick={() => send()}>Resend code</button>
       {/if}
-      <span class="dot">·</span>
+      <span>·</span>
       <button class="link" onclick={restart}>Use another email</button>
     </p>
   {/if}
 </div>
 
 <style>
+  /* The app's scale (see app.css): 16px around and between groups, 6px within one, 2px for a line's explanation. */
   .sign-in {
-    position: relative;
     display: flex;
     flex-direction: column;
-    padding: 48px 20px 20px;
+    padding: var(--edge);
     overflow-y: auto;
-  }
-
-  .back {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 0;
-    color: var(--muted);
-  }
-
-  .back svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   h2 {
@@ -210,26 +187,27 @@
   }
 
   .lead {
-    margin: 6px 0 24px;
+    margin: var(--pair) 0 var(--group);
     color: var(--muted);
   }
 
   .lead strong {
     font-weight: 400;
     color: var(--text);
+    overflow-wrap: anywhere;
   }
 
   .social {
     display: grid;
-    gap: 8px;
+    gap: var(--gap);
   }
 
   .or {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin: 16px 0;
-    color: var(--faint);
+    gap: 2ch;
+    margin: var(--gap) 0;
+    color: var(--muted);
   }
 
   .or::before,
@@ -242,23 +220,27 @@
 
   form {
     display: grid;
-    gap: 8px;
+    gap: var(--gap);
   }
 
   input {
     box-sizing: border-box;
     width: 100%;
-    height: 36px;
-    padding: 0 14px;
-    border: 1px solid var(--line);
-    border-radius: 0;
+    height: var(--control);
+    padding: 0 var(--inset);
+    border: 1px solid var(--field);
+    border-radius: var(--radius-small);
     background: var(--bg);
     outline: none;
-    transition: border-color 120ms ease;
+    transition:
+      border-color var(--quick) ease,
+      box-shadow var(--quick) ease;
   }
 
+  /* Focus is the accent's: the border takes it, with a hairline more so it reads at a glance. */
   input:focus {
     border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
   }
 
   input::placeholder {
@@ -266,10 +248,11 @@
     opacity: 1;
   }
 
+  /* Letter-spacing adds space after every digit, the last one too: the same on the left keeps them centered. */
   .code {
     text-align: center;
     letter-spacing: 0.4em;
-    padding-left: 0.4em;
+    padding: 0 var(--inset) 0 calc(var(--inset) + 0.4em);
     font-variant-numeric: tabular-nums;
   }
 
@@ -279,12 +262,12 @@
 
   .option,
   .primary {
-    height: 36px;
-    border-radius: 0;
+    min-height: var(--control);
+    border-radius: var(--radius-small);
     transition:
-      transform 120ms var(--ease-out),
-      background-color 120ms ease,
-      opacity 120ms ease;
+      transform var(--quick) var(--ease-out),
+      background-color var(--quick) ease,
+      opacity var(--quick) ease;
   }
 
   .option {
@@ -292,13 +275,15 @@
     background: var(--surface);
   }
 
+  /* The one main action in the view: the accent, filled. */
   .primary {
-    border: 1px solid var(--text);
+    border: 1px solid var(--accent);
+    background: var(--accent);
+    color: var(--on-accent);
   }
 
   .option:active:not(:disabled),
-  .primary:active:not(:disabled),
-  .back:active {
+  .primary:active:not(:disabled) {
     transform: scale(0.97);
   }
 
@@ -307,18 +292,25 @@
     cursor: default;
   }
 
+  /* Disabled, every button looks the same: a grey outline. The main one takes the accent once it can act. */
+  .primary:disabled {
+    border-color: var(--line);
+    background: transparent;
+    color: var(--muted);
+  }
+
   .error {
-    margin: 10px 0 0;
+    margin: var(--gap) 0 0;
     color: var(--danger);
   }
 
   .note {
-    margin: 16px 0 0;
-    color: var(--faint);
+    margin: var(--group) 0 0;
+    color: var(--muted);
   }
 
   .fine {
-    margin-top: 4px;
+    margin-top: var(--pair);
   }
 
   .fine a {
@@ -328,8 +320,8 @@
   .links {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin: 16px 0 0;
+    gap: 1ch;
+    margin: var(--group) 0 0;
     color: var(--muted);
   }
 
@@ -337,19 +329,13 @@
     text-decoration: underline;
   }
 
-  .dot {
-    color: var(--faint);
-  }
-
   @media (hover: hover) and (pointer: fine) {
-    .back:hover {
-      color: var(--text);
+    .option:hover:not(:disabled) {
       background: var(--hover);
     }
 
-    .option:hover:not(:disabled),
     .primary:hover:not(:disabled) {
-      background: var(--hover);
+      background: var(--accent-hover);
     }
   }
 </style>

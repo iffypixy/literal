@@ -1,16 +1,16 @@
 /* The privacy and terms pages: plain text, like the app. */
 :root {
   --bg: #ffffff;
-  --text: #111111;
-  --muted: #6b6b6b;
+  --text: #17181c;
+  --muted: #696c75;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121212;
-    --text: #e6e6e6;
-    --muted: #999999;
+    --bg: #111215;
+    --text: #ececf0;
+    --muted: #9b9ea7;
     color-scheme: dark;
   }
 }
@@ -30,20 +30,27 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/*
+ * Laid out like a note in the app: text from the top-left at the app's 16px edge, as wide as the window, so lines
+ * break only where the window ends. Like a .txt file: a heading's text follows on the next line, a blank line
+ * separates everything else, and lists are dashes.
+ */
 body {
-  max-width: 72ch;
   margin: 0;
-  padding: 12px 16px 64px;
+  padding: 16px 16px 4lh;
+}
+
+h1,
+h2,
+p,
+ul {
+  margin: 0 0 1lh;
+  font: inherit;
 }
 
 h1,
 h2 {
-  margin: 24px 0 8px;
-  font: inherit;
-}
-
-h1 {
-  margin-top: 0;
+  margin-bottom: 0;
 }
 
 p,
@@ -51,13 +58,9 @@ li {
   color: var(--muted);
 }
 
-p {
-  margin: 0 0 8px;
-}
-
 ul {
-  margin: 0 0 8px;
   padding-left: 2ch;
+  list-style: "- ";
 }
 
 strong {
@@ -70,6 +73,7 @@ a {
 }
 
 .back {
-  display: inline-block;
-  margin-bottom: 24px;
+  display: block;
+  width: fit-content;
+  margin-bottom: 1lh;
 }

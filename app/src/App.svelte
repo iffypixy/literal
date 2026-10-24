@@ -3,7 +3,7 @@
   import { fade } from "svelte/transition";
   import type * as Y from "yjs";
   import Editor from "./editor/Editor.svelte";
-  import { letter, mac, mod } from "./keys.ts";
+  import { letter, mod, shortcuts } from "./keys.ts";
   import {
     create,
     discardIfEmpty,
@@ -24,6 +24,7 @@
   import { account, session, signedIn } from "./sync/account.svelte.ts";
   import { sync, start as startSync } from "./sync/sync.svelte.ts";
   import { importFiles } from "./transfer/transfer.ts";
+  import Keys from "./ui/Keys.svelte";
   import Toast from "./ui/Toast.svelte";
   import { tooltip } from "./ui/tooltip.ts";
   import { act, toast, toasts } from "./ui/toast.svelte.ts";
@@ -175,7 +176,7 @@
     toast("Note deleted", {
       action: {
         label: "Undo",
-        shortcut: hover ? (mac ? "⌘Z" : "Ctrl+Z") : undefined,
+        keys: hover ? shortcuts.undo : undefined,
         run: () => {
           restore(id);
           // Undo puts you back where you were: in the note, if you were in it.
@@ -332,10 +333,10 @@
     {#if problem || calm}
       <button class="status" class:problem={Boolean(problem)} onclick={explain}>{problem || calm}</button>
     {/if}
-    <button aria-label="New note" {@attach tooltip("New note", mac ? "⌥N" : "Alt+N")} onclick={newNote}>
+    <button aria-label="New note" {@attach tooltip("New note", shortcuts.new)} onclick={newNote}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
     </button>
-    <button aria-label="Notes" {@attach tooltip("Notes", mac ? "⌘K" : "Ctrl+K")} onclick={() => togglePanel(true)}>
+    <button aria-label="Notes" {@attach tooltip("Notes", shortcuts.notes)} onclick={() => togglePanel(true)}>
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M4.5 10h11M4.5 14h7" /></svg>
     </button>
   </div>
@@ -343,8 +344,8 @@
   <!-- Only on a blank page, where it covers nothing: gone with the first word, back with every new page. -->
   {#if hover && !current}
     <p class="hint" aria-hidden="true" out:fade={{ duration: 150 }}>
-      <span><kbd>{mac ? "⌥N" : "Alt+N"}</kbd> new note</span>
-      <span><kbd>{mac ? "⌘K" : "Ctrl+K"}</kbd> notes</span>
+      <span><Keys keys={shortcuts.new} /> new note</span>
+      <span><Keys keys={shortcuts.notes} /> notes</span>
     </p>
   {/if}
 </div>
@@ -366,24 +367,28 @@
 {/if}
 
 <style>
+  /* Centered on the page's first line, with the icons' ink (not their buttons) on the page's 16px right edge. */
   .corner {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 6px);
-    right: calc(env(safe-area-inset-right, 0px) + 8px);
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 5px);
     display: flex;
     align-items: center;
     gap: 2px;
     z-index: 10;
   }
 
-  /* A patch of paper under the buttons, so a long first line passes under them instead of through. */
+  /*
+   * A patch of paper under the buttons, so a long first line passes under them instead of through. It ends where
+   * the first line does (6.5px above the buttons' bottom): a second line goes on showing whole beneath it.
+   */
   .corner::before {
     content: "";
     position: absolute;
-    inset: -6px -8px -6px -24px;
+    inset: -10px -5px 6.5px -24px;
     z-index: -1;
     background: linear-gradient(to right, transparent, var(--bg) 24px);
-    transition: opacity 150ms ease;
+    transition: opacity var(--brief) ease;
   }
 
   /* The buttons step aside while you type, with their paper; a problem, when there is one, stays. */
@@ -396,19 +401,19 @@
   .corner button {
     display: grid;
     place-items: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 0;
+    width: var(--control);
+    height: var(--control);
+    border-radius: var(--radius-small);
     color: var(--muted);
     transition:
-      opacity 150ms ease,
-      color 120ms ease,
-      background-color 120ms ease,
-      transform 120ms var(--ease-out);
+      opacity var(--brief) ease,
+      color var(--quick) ease,
+      background-color var(--quick) ease,
+      transform var(--quick) var(--ease-out);
   }
 
   .corner button:active {
-    transform: scale(0.94);
+    transform: scale(0.97);
   }
 
   .corner svg {
@@ -416,8 +421,12 @@
     height: 18px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.5;
     stroke-linecap: round;
+  }
+
+  .corner path {
+    stroke-width: var(--stroke);
+    vector-effect: non-scaling-stroke;
   }
 
   @media (hover: hover) and (pointer: fine) {
@@ -428,47 +437,43 @@
   }
 
   @media (pointer: coarse) {
-    .corner button {
-      width: 44px;
-      height: 44px;
-    }
-
     .corner svg {
       width: 20px;
       height: 20px;
     }
   }
 
+  /* Its paper, like the patch, stops where the first line does. */
   .corner .status {
     width: auto;
-    height: 32px;
-    margin-right: 6px;
-    padding: 0 10px;
-    border-radius: 0;
-    background: var(--bg);
-    color: var(--faint);
-    animation: appear 200ms var(--ease-out);
+    margin-right: 4px;
+    padding: 0 var(--inset);
+    border-radius: var(--radius-small);
+    background: linear-gradient(var(--bg), var(--bg)) top / 100% calc(100% - 6.5px) no-repeat;
+    color: var(--muted);
+    animation: appear var(--brief) var(--ease-out);
   }
 
   .corner .problem {
-    color: var(--muted);
+    color: var(--text);
   }
 
   /* Like nano's bottom line: the keys worth knowing. */
   .hint {
     position: fixed;
-    right: calc(env(safe-area-inset-right, 0px) + 20px);
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    right: calc(env(safe-area-inset-right, 0px) + var(--edge));
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
     display: flex;
-    gap: 3ch;
+    gap: 2ch;
     margin: 0;
     color: var(--faint);
     pointer-events: none;
   }
 
-  .hint kbd {
-    font: inherit;
-    color: var(--muted);
+  .hint span {
+    display: flex;
+    align-items: baseline;
+    gap: 1ch;
   }
 
   .drop {
@@ -476,11 +481,11 @@
     inset: 0;
     display: grid;
     place-items: center;
-    padding: 16px;
-    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    padding: var(--edge);
+    background: var(--scrim);
     z-index: 40;
     pointer-events: none;
-    animation: appear 120ms var(--ease-out);
+    animation: appear var(--brief) var(--ease-out);
   }
 
   .drop p {
@@ -491,7 +496,7 @@
     height: 100%;
     margin: 0;
     border: 1px dashed var(--muted);
-    border-radius: 0;
+    border-radius: var(--radius);
     color: var(--muted);
   }
 

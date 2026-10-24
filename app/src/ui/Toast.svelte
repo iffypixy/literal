@@ -1,6 +1,7 @@
 <script lang="ts">
   import { quintOut } from "svelte/easing";
   import { fade, fly } from "svelte/transition";
+  import Keys from "./Keys.svelte";
   import { act, pause, resume, toasts } from "./toast.svelte.ts";
 
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -19,10 +20,11 @@
       >
         <span>{toasts.current.message}</span>
         {#if toasts.current.action}
-          {@const { label, shortcut } = toasts.current.action}
-          <button onclick={act}
-            >{label}{#if shortcut}<kbd>{shortcut}</kbd>{/if}</button
-          >
+          {@const { label, keys } = toasts.current.action}
+          <span class="action">
+            <button onclick={act}>{label}</button>
+            {#if keys}<Keys {keys} />{/if}
+          </span>
         {/if}
       </div>
     {/if}
@@ -34,44 +36,53 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
     display: grid;
     justify-items: center;
     pointer-events: none;
     z-index: 30;
   }
 
+  /* It floats like the panel and the menu, so it looks like them: their surface, corners and shadow. */
   .toast {
     grid-area: 1 / 1;
     display: flex;
-    align-items: center;
-    gap: 16px;
-    max-width: calc(100vw - 32px);
+    align-items: baseline;
+    gap: 2ch;
+    max-width: calc(100vw - 2 * var(--edge));
     box-sizing: border-box;
-    padding: 8px 14px;
-    border-radius: 0;
-    background: var(--text);
-    color: var(--bg);
+    padding: var(--control-padding) var(--edge);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
     box-shadow: var(--shadow);
     pointer-events: auto;
   }
 
+  /*
+   * An action inside a line of text: underlined, like every other one in the app. Its target reaches past the
+   * word, for a finger, without moving it or swelling its focus ring.
+   */
   button {
-    margin: -10px -8px;
-    padding: 10px 8px;
-    color: var(--accent-inverse);
+    position: relative;
+    border-radius: var(--radius-small);
     text-decoration: underline;
-    transition: transform 120ms var(--ease-out);
+    transition: transform var(--quick) var(--ease-out);
+  }
+
+  button::after {
+    content: "";
+    position: absolute;
+    inset: -12px -10px;
   }
 
   button:active {
-    transform: scale(0.96);
+    transform: scale(0.97);
   }
 
-  kbd {
-    display: inline-block;
-    margin-left: 1ch;
-    font: inherit;
-    opacity: 0.6;
+  .action {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1ch;
   }
 </style>

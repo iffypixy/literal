@@ -1,22 +1,56 @@
 /*
- * Plain text: the system's own monospace, black on white (or light on dark), the system's cursor and selection.
- * No font to download, no accent color, no shadows, no rounded corners. Nothing else unless something needs you.
+ * High contrast, kept easy on the eyes: the system's own monospace in soft black on white, or soft white on
+ * near-black (17.7:1 and 15.9:1), in greys with a whisper of cool. Things that float sit on their own surface
+ * with tiny corners and a faint shadow instead of a hard line. One accent, Klein blue, the ultramarine of
+ * Yves Klein's one-color canvases: the caret on the blank page, and wherever you act (focus, the text you
+ * select, the main button). Search hits are a wash of ink.
  */
 :root {
   --bg: #ffffff;
-  --text: #111111;
-  --muted: #6b6b6b;
-  --faint: #a8a8a8;
-  --line: #e2e2e2;
-  --danger: #b3261e;
-  --surface: var(--bg);
-  --accent: var(--text);
-  --accent-inverse: var(--bg);
-  --select: color-mix(in srgb, var(--text) 12%, transparent);
+  --surface: #ffffff;
+  --text: #17181c;
+  --muted: #696c75;
+  /* Only for hints that are said elsewhere too: 2.9:1, the same in light and dark. */
+  --faint: #9497a0;
+  /* Dividers, and key caps: drawn, not read. */
+  --line: #e4e5ea;
+  /* A field's border, which has to be seen to be found: 3.3:1. */
+  --field: #8a8d96;
+  --danger: #c4342b;
+  --highlight: color-mix(in srgb, var(--text) 16%, transparent);
+  /* 10.7:1 against white, either way round. */
+  --accent: #002fa7;
+  --on-accent: #ffffff;
+  --accent-hover: color-mix(in srgb, var(--accent) 88%, black);
+  --selection: color-mix(in srgb, var(--accent) 18%, transparent);
   --hover: color-mix(in srgb, var(--text) 6%, transparent);
   /* Behind the panel, the page fades back, so the list doesn't compete with the note. */
   --scrim: color-mix(in srgb, var(--bg) 80%, transparent);
-  --shadow: none;
+  --shadow: 0 0 0 1px rgb(0 0 0 / 0.07), 0 4px 16px rgb(0 0 0 / 0.06);
+  /* Every icon's line, whatever size it's drawn at: close to the weight of the text beside it. */
+  --stroke: 1.35px;
+
+  /*
+   * One scale for the whole app, so every part reads as the same thing.
+   * Text starts 16px from the edge of whatever holds it: the page, the panel, the list, the menu.
+   * 2px ties a line to the line explaining it; 6px separates things in a group; 16px separates groups.
+   * Every control (a button, a field, a row, a menu item, the toast) is 32px tall, 44px under a finger,
+   * with its text 12px from its sides. On a line, 1ch sits between a label and its keys, 2ch between things.
+   */
+  --edge: 16px;
+  --pair: 2px;
+  --gap: 6px;
+  --group: 16px;
+  --control: 32px;
+  --inset: 12px;
+  /* The padding that makes one line of text a control's height. */
+  --control-padding: calc((var(--control) - 1lh) / 2);
+  /* Corners are only just rounded: 3px on things that hold others (the panel, the menu), 2px on the rest. */
+  --radius: 3px;
+  --radius-small: 2px;
+  /* Feedback (hover, press) is fast; small things come and go a bit slower. */
+  --quick: 120ms;
+  --brief: 150ms;
 
   --font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -24,14 +58,29 @@
   color-scheme: light;
 }
 
+@media (pointer: coarse) {
+  :root {
+    --control: 44px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121212;
-    --text: #e6e6e6;
-    --muted: #999999;
-    --faint: #5c5c5c;
-    --line: #2e2e2e;
-    --danger: #f2948a;
+    --bg: #111215;
+    --surface: #1a1b1f;
+    --text: #ececf0;
+    --muted: #9b9ea7;
+    --faint: #5c5f68;
+    --line: #2a2c31;
+    --field: #686b74;
+    --danger: #ff7b72;
+    /* Klein blue, lit for the dark on Klein's own hue: 6.1:1 on the background, with dark text on it. */
+    --accent: #6a8cff;
+    --on-accent: #111215;
+    --accent-hover: color-mix(in srgb, var(--accent) 88%, white);
+    /* The hairline a touch stronger than in light: in the dark the shadow alone barely shows. */
+    --shadow: 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 16px rgb(0 0 0 / 0.4);
+    --selection: color-mix(in srgb, var(--accent) 32%, transparent);
     color-scheme: dark;
   }
 }
@@ -39,6 +88,7 @@
 html {
   background: var(--bg);
   color: var(--text);
+  caret-color: var(--accent);
   font: 400 0.8125rem/1.5 var(--font);
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
@@ -47,6 +97,33 @@ html {
 
 body {
   margin: 0;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+/* Where the keyboard is, when it's the keyboard that moved it. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* A key cap. See ui/Keys.svelte. */
+kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  box-sizing: border-box;
+  padding: 0 0.3em;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  font: inherit;
+  font-size: 0.85em;
+  line-height: 1.45;
+  /* A cap is a little taller than the line: this keeps rows at their height and caps on the text's baseline. */
+  margin-block: -1px;
+  text-align: center;
+  color: var(--muted);
 }
 
 button {
@@ -75,22 +152,24 @@ textarea {
   }
 }
 
-/* See ui/tooltip.ts. Inverted, like the toast: the two things that speak up. */
+/* See ui/tooltip.ts. It floats like the panel, the menu and the toast, so it looks like them. */
 .tooltip {
   position: fixed;
   top: 0;
   left: 0;
   z-index: 50;
   width: max-content;
-  padding: 4px 8px;
-  background: var(--text);
-  color: var(--bg);
+  padding: var(--control-padding) var(--inset);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
   pointer-events: none;
   opacity: 0;
   transform: scale(0.97);
   transition:
-    opacity 125ms var(--ease-out),
-    transform 125ms var(--ease-out);
+    opacity var(--brief) var(--ease-out),
+    transform var(--brief) var(--ease-out);
 }
 
 .tooltip[data-open] {
@@ -102,10 +181,10 @@ textarea {
   transition-duration: 0ms;
 }
 
-.tooltip kbd {
+.tooltip .keys {
+  display: inline-flex;
+  gap: 2px;
   margin-left: 1ch;
-  font: inherit;
-  opacity: 0.6;
 }
 
 .visually-hidden {

@@ -1,7 +1,7 @@
 /** One toast at a time: a new one ends the last. */
 
-/** `shortcut` is the key that also takes the action, shown beside it. */
-type Action = { label: string; shortcut?: string; run: () => void };
+/** `keys` is the shortcut that also takes the action, shown beside it. */
+type Action = { label: string; keys?: string[]; run: () => void };
 
 type Toast = {
   id: number;

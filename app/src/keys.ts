@@ -13,3 +13,14 @@ export function letter(event: KeyboardEvent, letter: string): boolean {
   if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === letter;
   return event.code === `Key${letter.toUpperCase()}`;
 }
+
+/** Each shortcut's keys, labeled as this computer's keyboard labels them; drawn as key caps wherever they show. */
+export const shortcuts = {
+  notes: mac ? ["⌘", "K"] : ["Ctrl", "K"],
+  new: mac ? ["⌥", "N"] : ["Alt", "N"],
+  move: ["↑", "↓"],
+  open: mac ? ["↵"] : ["Enter"],
+  delete: mac ? ["⌘", "⌫"] : ["Del"],
+  undo: mac ? ["⌘", "Z"] : ["Ctrl", "Z"],
+  close: ["Esc"],
+};
