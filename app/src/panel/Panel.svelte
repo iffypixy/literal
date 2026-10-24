@@ -69,6 +69,8 @@
   let leaving = new Set<string>();
   /** Whether a click or tap closed the panel, rather than a key: what `onclose` is told. */
   let closedByPointer = false;
+  /** On screen: open, or still sliding away. The list stays until it's gone. */
+  let visible = $state(false);
   /** On a touch screen the sheet is a step in the browser's history, so Back closes it. True while the panel takes that step back itself. */
   let stepping = false;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -107,7 +109,7 @@
   );
   const results = $derived.by(() => {
     void notes.version;
-    return open ? search(list(), words) : [];
+    return visible ? search(list(), words) : [];
   });
   const shown = $derived(results.slice(0, limit));
   /** Every row in order: the commands, then the notes. */
@@ -156,6 +158,7 @@
     if (pointer) overlay.dataset.motion = "";
     else delete overlay.dataset.motion;
     overlay.hidden = false;
+    visible = true;
     if (touch.matches) history.pushState({ sheet: true }, "");
     // Once the view is on screen (it may have just changed), within the same task: no keystroke gets lost.
     void tick().then(() => {
@@ -201,6 +204,7 @@
     panel.style.transform = "";
     panel.style.transition = "";
     overlay.hidden = true;
+    visible = false;
     delete overlay.dataset.closing;
     onclose(closedByPointer);
   }
@@ -208,6 +212,8 @@
   function pick(entry: Command | Note | undefined, pointer: boolean) {
     if (!entry) return;
     if (isCommand(entry)) return entry.run(pointer);
+    // Tapped, the row stays marked while the sheet slides away, so it's clear which note opens.
+    if (pointer) active = entries.indexOf(entry);
     onpick(entry.id, pointer);
     hide(pointer, entry.id !== current);
   }
