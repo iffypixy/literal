@@ -291,8 +291,8 @@ export async function receive(id: string, update: Uint8Array) {
   if (wasDeleted && wrote && isDeleted(summarize(id, doc))) restore(id);
 }
 
-/** What this device has that the server, at `vector`, doesn't: always including every deletion. */
-export async function missing(id: string, vector: Uint8Array): Promise<Uint8Array | null> {
+/** What this device has that the server, at `vector`, doesn't, with every deletion; all of it, without one. */
+export async function missing(id: string, vector?: Uint8Array): Promise<Uint8Array | null> {
   const doc = await load(id);
   return doc ? Y.encodeStateAsUpdate(doc, vector) : null;
 }

@@ -31,10 +31,16 @@ let socket: WebSocket | null = null;
 let running = false;
 let signedOut = false;
 let seq = 0;
-/** Updates sent and not yet acked: which note, and how far its changes went. */
-const unacked = new Map<number, { id: string; upTo: number; at: number }>();
+/** Updates sent and not yet acked: which note, how far its changes went, and whether it carried all of the note. */
+const unacked = new Map<number, { id: string; upTo: number; at: number; whole: boolean }>();
 /** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
+/**
+ * Notes the server may lack changes of that their next update alone wouldn't carry: an update was refused, or lost
+ * with a connection. Each by the last `seq` that went without them: until a whole note sent after that is acked,
+ * the note goes whole, and no other ack marks it synced.
+ */
+const behind = new Map<string, number>();
 let retry = RETRY_MIN;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let downSince = Date.now();
@@ -96,7 +102,7 @@ function connect() {
     if (socket !== ws) return;
     if (event.code === SIGNED_OUT) {
       socket = null;
-      unacked.clear();
+      abandon();
       signedOut = true;
       update();
       return;
@@ -110,7 +116,7 @@ function drop() {
   const ws = socket;
   if (!ws) return;
   socket = null;
-  unacked.clear();
+  abandon();
   downSince = Date.now();
   ws.close();
   clearTimeout(retryTimer);
@@ -120,6 +126,12 @@ function drop() {
     retry = Math.min(retry * 2, RETRY_MAX);
   }
   update();
+}
+
+/** Updates on a lost connection may never have arrived: their notes are behind until they go whole. */
+function abandon() {
+  for (const sent of unacked.values()) fallBehind(sent.id, seq);
+  unacked.clear();
 }
 
 /** Tries again right away: the network came back, or the app came back to the front. */
@@ -136,7 +148,7 @@ async function handle(ws: WebSocket, message: Message) {
         if (note.update) await notes.receive(note.id, note.update);
         if (note.vector) {
           const update = await notes.missing(note.id, note.vector);
-          if (update) send(note.id, update, ws);
+          if (update) send(note.id, update, true, ws);
         }
       }
       if (message.done) await notes.caughtUp(message.now);
@@ -147,12 +159,19 @@ async function handle(ws: WebSocket, message: Message) {
     case "ack": {
       const sent = unacked.get(message.seq);
       unacked.delete(message.seq);
-      if (sent) await notes.acked(sent.id, sent.upTo);
+      if (!sent) break;
+      const since = behind.get(sent.id);
+      if (since !== undefined) {
+        if (!sent.whole || message.seq <= since) break;
+        behind.delete(sent.id);
+      }
+      await notes.acked(sent.id, sent.upTo);
       break;
     }
     case "refused": {
       const sent = unacked.get(message.seq);
       unacked.delete(message.seq);
+      if (sent) fallBehind(sent.id, message.seq);
       const about = message.reason === "too-many" ? message.reason : (sent?.id ?? message.reason);
       if (told.has(about)) break;
       told.add(about);
@@ -173,7 +192,7 @@ async function handle(ws: WebSocket, message: Message) {
 /** Sends every change still waiting, then gives the server a moment to take them all: before signing out. */
 export async function drain() {
   await notes.flush();
-  sendAll();
+  await Promise.all([...outbox.keys()].map((id) => flush(id)));
   const until = Date.now() + DRAIN_FOR;
   while (unacked.size && socket?.readyState === WebSocket.OPEN && Date.now() < until) {
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -188,28 +207,37 @@ function post(id: string, update: Uint8Array) {
   const waiting = outbox.get(id) ?? { updates: [], since: now };
   clearTimeout(waiting.timer);
   waiting.updates.push(update);
-  waiting.timer = setTimeout(() => flush(id), Math.min(SEND_DELAY, waiting.since + SEND_AT_MOST - now));
+  waiting.timer = setTimeout(() => void flush(id), Math.min(SEND_DELAY, waiting.since + SEND_AT_MOST - now));
   outbox.set(id, waiting);
 }
 
 function sendAll() {
-  for (const id of [...outbox.keys()]) flush(id);
+  for (const id of [...outbox.keys()]) void flush(id);
 }
 
-/** Sends the note's waiting changes, as one update. */
-function flush(id: string) {
+/** Sends the note's waiting changes, as one update; or all of the note, if the server is behind on it. */
+async function flush(id: string) {
   const waiting = outbox.get(id);
   if (!waiting) return;
   clearTimeout(waiting.timer);
   outbox.delete(id);
-  send(id, Y.mergeUpdates(waiting.updates));
+  if (!behind.has(id)) {
+    send(id, Y.mergeUpdates(waiting.updates), false);
+    return;
+  }
+  const whole = await notes.missing(id);
+  if (whole) send(id, whole, true);
 }
 
 /** Sends a change now if connected; otherwise the note stays dirty and goes with the next hello. */
-function send(id: string, update: Uint8Array, ws = socket) {
+function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  unacked.set(++seq, { id, upTo: notes.generation(id), at: Date.now() });
+  unacked.set(++seq, { id, upTo: notes.generation(id), at: Date.now(), whole });
   ws.send(encode({ type: "update", seq, id, update }));
+}
+
+function fallBehind(id: string, since: number) {
+  behind.set(id, Math.max(since, behind.get(id) ?? 0));
 }
 
 /** Once a second: checks the connection is alive, and updates the status. */
