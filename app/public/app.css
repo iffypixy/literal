@@ -156,7 +156,7 @@ textarea {
   height: var(--viewport-height, 100dvh);
   margin: 0;
   /* Like a .txt file: from the top-left corner, as wide as the window, with room to scroll the end up. */
-  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) 40vh
+  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) calc(0.4 * var(--viewport-height, 100dvh))
     max(var(--edge), env(safe-area-inset-left, 0px));
   border: 0;
   outline: 0;
@@ -173,12 +173,15 @@ textarea {
   scrollbar-color: var(--line) transparent;
 }
 
-/* On a phone the buttons are always there, so the text starts under them; and iOS zooms into a field under 16px. */
+/*
+ * On a phone the buttons are always there, so the text starts under them; the room below follows the visible
+ * height, so with the keyboard up the line being typed stays above it; and iOS zooms into a field under 16px.
+ */
 @media (pointer: coarse) {
   .editor {
     padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40vh);
-    font-size: 1rem;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height, 100dvh));
+    font-size: 16px;
   }
 }
 
@@ -223,6 +226,22 @@ textarea {
   display: inline-flex;
   gap: 2px;
   margin-left: 1ch;
+}
+
+/* Windows High Contrast drops shadows: things that float keep an edge. */
+@media (forced-colors: active) {
+  .tooltip {
+    outline: 1px solid CanvasText;
+  }
+}
+
+/* Asked for more contrast, the quiet greys and hairlines step up. */
+@media (prefers-contrast: more) {
+  :root {
+    --faint: var(--muted);
+    --line: var(--field);
+    --highlight: color-mix(in srgb, var(--text) 28%, transparent);
+  }
 }
 
 .visually-hidden {

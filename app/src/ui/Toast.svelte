@@ -4,7 +4,7 @@
   import Keys from "./Keys.svelte";
   import { act, pause, resume, toasts } from "./toast.svelte.ts";
 
-  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const calm = matchMedia("(prefers-reduced-motion: reduce)");
 </script>
 
 <div class="dock" role="status" aria-live="polite">
@@ -13,10 +13,12 @@
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="toast"
-        in:fly={{ y: calm ? 0 : 8, duration: 180, easing: quintOut }}
+        in:fly={{ y: calm.matches ? 0 : 8, duration: 180, easing: quintOut }}
         out:fade={{ duration: 150 }}
         onpointerenter={pause}
         onpointerleave={resume}
+        onfocusin={pause}
+        onfocusout={resume}
       >
         <span>{toasts.current.message}</span>
         {#if toasts.current.action}
@@ -41,6 +43,17 @@
     justify-items: center;
     pointer-events: none;
     z-index: 30;
+  }
+
+  /* With the phone's sheet open, it sits above the sheet's footer rather than on it. */
+  :global(body:has(.overlay:not([hidden]))) .dock {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 8px + var(--edge));
+  }
+
+  @media (min-width: 641px) {
+    :global(body:has(.overlay:not([hidden]))) .dock {
+      bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
+    }
   }
 
   /* It floats like the panel and the menu, so it looks like them: their surface, corners and shadow. */
@@ -84,5 +97,11 @@
     display: inline-flex;
     align-items: baseline;
     gap: 1ch;
+  }
+
+  @media (forced-colors: active) {
+    .toast {
+      outline: 1px solid CanvasText;
+    }
   }
 </style>

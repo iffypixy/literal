@@ -26,9 +26,10 @@
     /** `pointer` says whether a click (not a key) chose it, which decides if the panel animates away. */
     onpick: (id: string, pointer: boolean) => void;
     ondelete: (id: string) => void;
-    onclose: () => void;
     /** Starts a new note: the New note command. */
     onnew: () => void;
+    /** `pointer`: whether a click or tap closed it, rather than a key. */
+    onclose: (pointer: boolean) => void;
     onsignedin: (email: string) => void;
     /** Whether the panel is open: the page behind it goes inert meanwhile. */
     open?: boolean;
@@ -51,6 +52,7 @@
   let rows = $state<HTMLDivElement>();
   let panel: HTMLDivElement;
   let picker = $state<HTMLInputElement>();
+  let menuBox = $state<HTMLDivElement>();
 
   let query = $state("");
   /** The row the arrows are on; -1 until they move. */
@@ -58,11 +60,18 @@
   let limit = $state(PAGE);
   let now = $state(Date.now());
   let menu = $state(false);
+  /** The menu opens upward from its button, or downward when there's no room above. */
+  let below = $state(false);
   let view = $state<View>("notes");
   let waiting = $state(0);
   let problem = $state("");
   /** Notes on their way out, whose rows collapse instead of vanishing. */
   let leaving = new Set<string>();
+  /** Whether a click or tap closed the panel, rather than a key: what `onclose` is told. */
+  let closedByPointer = false;
+  /** On a touch screen the sheet is a step in the browser's history, so Back closes it. True while the panel takes that step back itself. */
+  let stepping = false;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 
   const keyList: [string[], string][] = [
     [shortcuts.notes, "Notes and commands"],
@@ -72,6 +81,8 @@
     [shortcuts.delete, "Delete note"],
     [shortcuts.undo, "Undo delete"],
     [shortcuts.close, "Close"],
+    // Tab types a tab in a note: Esc first lets Tab move on, out of it.
+    [["Esc", "Tab"], "Leave the note"],
   ];
 
   const commands = $derived<Command[]>([
@@ -117,6 +128,8 @@
   });
   const at = $derived(active >= 0 ? active : first);
   const selected = $derived(entries[at]);
+  /** On a touch screen no row is highlighted until a key moves the highlight: nothing there could act on it. */
+  const highlighted = $derived(!touch.matches || active >= 0);
 
   export function toggle(pointer: boolean) {
     if (open) hide(pointer);
@@ -142,25 +155,43 @@
     if (pointer) overlay.dataset.motion = "";
     else delete overlay.dataset.motion;
     overlay.hidden = false;
+    if (touch.matches) history.pushState({ sheet: true }, "");
     // Once the view is on screen (it may have just changed), within the same task: no keystroke gets lost.
     void tick().then(() => {
       if (rows) rows.scrollTop = 0;
-      // On a phone the keyboard would cover the list; the search field is a tap away.
-      if (touch.matches || !input) panel.focus();
+      // Tapped open on a phone, the keyboard would cover the list; the search field is a tap away. Opened by a key,
+      // there's a keyboard to type with, even on a tablet.
+      if ((pointer && touch.matches) || !input) panel.focus();
       else input.focus();
     });
   }
 
-  export function hide(pointer: boolean) {
+  /** Closes the panel. `opened`: a note took its place, and with it the sheet's step in history. */
+  export function hide(pointer: boolean, opened = false) {
     if (!open) return;
     open = false;
     menu = false;
-    if (!pointer || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    closedByPointer = pointer;
+    if (!opened) stepBack();
+    if (!pointer || reduced.matches) {
       finish();
       return;
     }
     overlay.dataset.closing = "";
     panel.addEventListener("animationend", finish, { once: true });
+  }
+
+  /** Whether the last change in history was the panel stepping back by itself, which App leaves alone. */
+  export function stepped(): boolean {
+    const was = stepping;
+    stepping = false;
+    return was;
+  }
+
+  function stepBack() {
+    if (!history.state?.sheet) return;
+    stepping = true;
+    history.back();
   }
 
   function finish() {
@@ -170,14 +201,14 @@
     panel.style.transition = "";
     overlay.hidden = true;
     delete overlay.dataset.closing;
-    onclose();
+    onclose(closedByPointer);
   }
 
   function pick(entry: Command | Note | undefined, pointer: boolean) {
     if (!entry) return;
     if (isCommand(entry)) return entry.run(pointer);
     onpick(entry.id, pointer);
-    hide(pointer);
+    hide(pointer, entry.id !== current);
   }
 
   function isCommand(entry: Command | Note): entry is Command {
@@ -195,6 +226,36 @@
     const position = entries.indexOf(note);
     ondelete(note.id);
     void tick().then(() => (active = Math.min(position, Math.max(0, found.length + results.length - 1))));
+  }
+
+  /** Moves through the menu's items with the arrow keys. */
+  function onmenukeydown(event: KeyboardEvent) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const items = [...(menuBox?.querySelectorAll("button") ?? [])];
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    const at = items.findIndex((item) => item === document.activeElement);
+    items.at(at < 0 ? (step > 0 ? 0 : -1) : (at + step) % items.length)?.focus();
+  }
+
+  async function toggleMenu(event: MouseEvent) {
+    menu = !menu;
+    if (!menu) return;
+    below = false;
+    await tick();
+    below = (menuBox?.getBoundingClientRect().top ?? 0) < 0;
+    // Opened by a key (a click no pointer made): the keys go on into the menu.
+    if (event.detail === 0) menuBox?.querySelector("button")?.focus();
+  }
+
+  function closeMenu() {
+    menu = false;
+    if (!touch.matches) input?.focus();
+  }
+
+  /** A click in the panel leaves the cursor where it was, in the search field: the keys go on working. */
+  function keepFocus(event: MouseEvent) {
+    if (!(event.target as Element).closest("input, a")) event.preventDefault();
   }
 
   function move(by: number) {
@@ -240,10 +301,12 @@
     return mac && event.key === "Backspace" && event.metaKey && input.selectionStart === 0;
   }
 
+  /** Esc goes back one step: out of the menu, out of a view, then out of the panel. */
   function onescape(event: KeyboardEvent) {
-    if (!open || event.key !== "Escape") return;
+    if (!open || event.key !== "Escape" || event.defaultPrevented) return;
     event.preventDefault();
-    if (menu) menu = false;
+    if (menu) closeMenu();
+    else if (view !== "notes") void back();
     else hide(false);
   }
 
@@ -254,7 +317,7 @@
   /** Rows collapse when their note is deleted, and vanish instantly when a search filters them out. */
   function collapse(node: HTMLElement, id: string) {
     // The mark is used up here, when the row leaves: the delete is saved first, so that's after a tick or two.
-    if (!leaving.delete(id)) return { duration: 0 };
+    if (!leaving.delete(id) || reduced.matches) return { duration: 0 };
     const height = node.offsetHeight;
     return {
       duration: 200,
@@ -280,46 +343,51 @@
   /** Swipe a row left to delete its note: far enough, or fast enough. Touch only; a mouse gets the × button. */
   function swipe(note: Note) {
     return (node: HTMLElement) => {
-      let start: { x: number; y: number; time: number } | null = null;
+      let start: { x: number; y: number; id: number } | null = null;
       let dragging = false;
       let dx = 0;
+      const recent = motion();
 
       function down(event: PointerEvent) {
+        // One finger at a time: a second one can't take over the swipe.
         if (event.pointerType !== "touch" || start) return;
-        start = { x: event.clientX, y: event.clientY, time: event.timeStamp };
+        start = { x: event.clientX, y: event.clientY, id: event.pointerId };
         dragging = false;
         dx = 0;
+        recent.reset(event.clientX, event.timeStamp);
       }
 
       function moveTo(event: PointerEvent) {
-        if (!start) return;
+        if (!start || event.pointerId !== start.id) return;
         dx = event.clientX - start.x;
+        recent.add(event.clientX, event.timeStamp);
         const dy = event.clientY - start.y;
         if (!dragging) {
           if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) start = null;
           else if (Math.abs(dx) > 8) {
             dragging = true;
             node.setPointerCapture(event.pointerId);
-            node.parentElement?.setAttribute("data-swiping", "");
           }
           return;
         }
-        // Left follows the finger; right resists.
+        // Left follows the finger, over the red "Delete"; right resists, over nothing.
+        node.parentElement?.toggleAttribute("data-swiping", dx < 0);
         const x = dx < 0 ? dx : dx * 0.15;
         node.style.transition = "none";
         node.style.transform = `translateX(${x}px)`;
       }
 
       function up(event: PointerEvent) {
-        if (!start) return;
-        const velocity = -dx / Math.max(1, event.timeStamp - start.time);
+        if (!start || event.pointerId !== start.id) return;
         start = null;
         if (!dragging) return;
         dragging = false;
-        node.style.transition = "transform 200ms var(--ease-out)";
+        const velocity = -recent.velocity(event.timeStamp);
+        node.style.transition = reduced.matches ? "none" : "transform 200ms var(--ease-out)";
         if (-dx > node.offsetWidth * 0.4 || (velocity > 0.5 && dx < -40)) {
           node.style.transform = "translateX(-100%)";
-          node.addEventListener("transitionend", () => remove(note, true), { once: true });
+          if (reduced.matches) remove(note, true);
+          else node.addEventListener("transitionend", () => remove(note, true), { once: true });
         } else {
           node.style.transform = "";
           node.addEventListener("transitionend", () => node.parentElement?.removeAttribute("data-swiping"), {
@@ -348,50 +416,82 @@
     };
   }
 
-  /** Drag the sheet down by its handle to close it, as on any phone. */
+  /** Drag the sheet down by its handle to close it, as on any phone; a tap on the handle closes it too. */
   function grab(node: HTMLElement) {
-    let start: { y: number; time: number } | null = null;
+    let start: { y: number; id: number } | null = null;
     let dy = 0;
+    const recent = motion();
 
     function down(event: PointerEvent) {
-      // A second finger doesn't take over the drag.
+      // One finger at a time: a second one can't take over the drag.
       if (start) return;
-      start = { y: event.clientY, time: event.timeStamp };
+      start = { y: event.clientY, id: event.pointerId };
       dy = 0;
+      recent.reset(event.clientY, event.timeStamp);
       node.setPointerCapture(event.pointerId);
       panel.style.transition = "none";
     }
 
     function moveTo(event: PointerEvent) {
-      if (!start) return;
+      if (!start || event.pointerId !== start.id) return;
       dy = event.clientY - start.y;
+      recent.add(event.clientY, event.timeStamp);
       // Down follows the finger; up resists.
       panel.style.transform = `translateY(${dy > 0 ? dy : dy * 0.1}px)`;
     }
 
     function up(event: PointerEvent) {
-      if (!start) return;
-      const velocity = dy / Math.max(1, event.timeStamp - start.time);
+      if (!start || event.pointerId !== start.id) return;
       start = null;
+      const velocity = recent.velocity(event.timeStamp);
       panel.style.transition = "transform 240ms var(--ease-drawer)";
       if (dy > 120 || (velocity > 0.5 && dy > 24)) {
         panel.style.transform = "translateY(100%)";
         open = false;
+        closedByPointer = true;
+        stepBack();
         panel.addEventListener("transitionend", finish, { once: true });
       } else {
         panel.style.transform = "";
       }
     }
 
+    // A drag ends in a click on the handle; only a tap should close it that way.
+    function click(event: MouseEvent) {
+      if (Math.abs(dy) > 4) event.stopPropagation();
+    }
+
     node.addEventListener("pointerdown", down);
     node.addEventListener("pointermove", moveTo);
     node.addEventListener("pointerup", up);
     node.addEventListener("pointercancel", up);
+    node.addEventListener("click", click, true);
     return () => {
       node.removeEventListener("pointerdown", down);
       node.removeEventListener("pointermove", moveTo);
       node.removeEventListener("pointerup", up);
       node.removeEventListener("pointercancel", up);
+      node.removeEventListener("click", click, true);
+    };
+  }
+
+  /** How fast a finger moved over its last tenth of a second: a flick at the end counts, a slow start doesn't. */
+  function motion() {
+    let samples: { at: number; time: number }[] = [];
+    return {
+      reset(at: number, time: number) {
+        samples = [{ at, time }];
+      },
+      add(at: number, time: number) {
+        samples.push({ at, time });
+        while (samples.length > 2 && time - (samples[1]?.time ?? time) > 100) samples.shift();
+      },
+      velocity(now: number): number {
+        const first = samples[0];
+        const last = samples.at(-1);
+        if (!first || !last || first === last) return 0;
+        return (last.at - first.at) / Math.max(1, now - first.time);
+      },
     };
   }
 
@@ -424,6 +524,12 @@
   async function erase() {
     problem = (await deleteAccount().catch(() => "Connect to the internet and try again")) ?? "";
   }
+
+  // A view other than the list puts the keyboard on its heading, so it's read out and Tab goes on from there.
+  $effect(() => {
+    if (!open || view === "notes" || view === "sign-in") return;
+    void tick().then(() => panel.querySelector<HTMLElement>("#view-title")?.focus());
+  });
 
   function signedIn(email: string) {
     view = "notes";
@@ -461,20 +567,22 @@
   bind:this={overlay}
   role="dialog"
   aria-modal="true"
-  aria-label="Notes"
+  aria-label={view === "notes" ? "Notes" : undefined}
+  aria-labelledby={view === "notes" ? undefined : "view-title"}
   tabindex="-1"
   hidden
   {onclick}
 >
   <div class="scrim" onclick={() => hide(true)} aria-hidden="true"></div>
-  <div class="panel" bind:this={panel} tabindex="-1">
-    <div class="grab" {@attach grab} aria-hidden="true"><span></span></div>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="panel" bind:this={panel} tabindex="-1" onmousedown={keepFocus}>
+    <button class="grab" aria-label="Close" {@attach grab} onclick={() => hide(true)}><span></span></button>
 
     {#if view === "sign-in"}
       <SignIn {fragile} onback={back} ondone={signedIn} />
     {:else if view === "sign-out"}
       <div class="ask">
-        <h2>
+        <h2 id="view-title" tabindex="-1">
           {waiting === 1
             ? "1 note hasn't"
             : waiting
@@ -490,7 +598,7 @@
     {:else if view === "keys"}
       <div class="ask">
         <Back onclick={back} />
-        <h2>Keyboard shortcuts</h2>
+        <h2 id="view-title" tabindex="-1">Keyboard shortcuts</h2>
         <dl class="keys">
           {#each keyList as [keys, what]}
             <dt><Keys {keys} /></dt>
@@ -500,7 +608,7 @@
       </div>
     {:else if view === "delete"}
       <div class="ask">
-        <h2>Delete your account and all your notes?</h2>
+        <h2 id="view-title" tabindex="-1">Delete your account and all your notes?</h2>
         <p>
           Your notes will be erased from Blank and this device. This can't be undone.
           <button class="link" onclick={exportAll}>Export your notes</button> first.
@@ -520,7 +628,7 @@
           {onkeydown}
           type="text"
           role="combobox"
-          aria-expanded="true"
+          aria-expanded={entries.length > 0}
           aria-controls="notes-list"
           aria-activedescendant={selected ? rowId(selected) : undefined}
           aria-label="Search notes and commands"
@@ -539,6 +647,7 @@
         aria-label="Notes and commands"
         bind:this={rows}
         hidden={!entries.length}
+        data-highlighted={highlighted ? "" : undefined}
       >
         {#if found.length}
           <div role="group" aria-labelledby="commands-label">
@@ -629,19 +738,19 @@
           <span class="account" title={account.email}>{account.email}</span>
         {:else}
           <button class="sync" onclick={() => (view = "sign-in")}>
-            {fragile ? "Sync to keep notes safe" : "Sync across devices"}&ensp;→
+            {fragile ? "Sync to keep notes safe" : "Sync across devices"}<span aria-hidden="true">&ensp;→</span>
           </button>
         {/if}
-        <button class="more" aria-label="More" aria-expanded={menu} onclick={() => (menu = !menu)}>
+        <button class="more" aria-label="More" aria-expanded={menu} aria-controls="more-menu" onclick={toggleMenu}>
           <svg viewBox="0 0 20 20" aria-hidden="true">
             <circle cx="5" cy="10" r="1.25" /><circle cx="10" cy="10" r="1.25" /><circle cx="15" cy="10" r="1.25" />
           </svg>
         </button>
         {#if menu}
-          <div class="menu" role="menu">
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="menu" class:below id="more-menu" bind:this={menuBox} onkeydown={onmenukeydown}>
             {#if !touch.matches}
               <button
-                role="menuitem"
                 onclick={() => {
                   menu = false;
                   view = "keys";
@@ -649,19 +758,17 @@
               >
               <hr />
             {/if}
-            <button role="menuitem" onclick={() => picker?.click()}>Import .txt files</button>
+            <button onclick={() => picker?.click()}>Import .txt files</button>
             <button
-              role="menuitem"
               onclick={() => {
-                menu = false;
+                closeMenu();
                 exportAll();
               }}>Export all notes</button
             >
             {#if account.email}
               <hr />
-              <button role="menuitem" onclick={leave}>Sign out</button>
+              <button onclick={leave}>Sign out</button>
               <button
-                role="menuitem"
                 class="danger-item"
                 onclick={() => {
                   menu = false;
@@ -685,9 +792,11 @@
 </div>
 
 <style>
+  /* As tall as what's visible: with a phone's keyboard up, the sheet ends above it. */
   .overlay {
     position: fixed;
-    inset: 0;
+    inset: 0 0 auto;
+    height: var(--viewport-height, 100dvh);
     overflow: hidden;
     z-index: 20;
   }
@@ -708,19 +817,36 @@
     background: var(--surface);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    overflow: hidden;
     outline: none;
   }
 
-  /* iOS zooms into a field under 16px. */
+  /* On a touch screen, the panel's text is the page's size: 16px, which also keeps iOS from zooming into fields. */
   @media (pointer: coarse) {
     .panel {
-      font-size: 1rem;
+      font-size: 16px;
     }
   }
 
   .grab {
     display: none;
+  }
+
+  /* Windows High Contrast drops shadows and washes: edges and the highlighted row are drawn in system colors. */
+  @media (forced-colors: active) {
+    .panel,
+    .menu {
+      outline: 1px solid CanvasText;
+    }
+
+    .rows[data-highlighted] [aria-selected="true"] .row {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+
+    mark {
+      background: Mark;
+      color: MarkText;
+    }
   }
 
   /* The search above and the footer below are the same height: a control's, plus 4px above and below. */
@@ -789,8 +915,15 @@
   }
 
   /* The keyboard's place in the list: a quiet wash. */
-  [aria-selected="true"] .row {
+  .rows[data-highlighted] [aria-selected="true"] .row {
     background: color-mix(in srgb, var(--text) 6%, var(--surface));
+  }
+
+  /* Asked for more contrast, the wash alone (1.13:1) isn't enough to find: the accent's edge marks the row. */
+  @media (prefers-contrast: more) {
+    .rows[data-highlighted] [aria-selected="true"] .row {
+      box-shadow: inset 2px 0 var(--accent);
+    }
   }
 
   /* Pressed: the row answers the finger before the sheet moves. */
@@ -949,7 +1082,9 @@
   }
 
   .ask {
+    min-height: 0;
     padding: var(--edge);
+    overflow-y: auto;
   }
 
   .keys {
@@ -1046,6 +1181,12 @@
     animation: pop var(--brief) var(--ease-out);
   }
 
+  .menu.below {
+    top: calc(100% + 2px);
+    bottom: auto;
+    transform-origin: top right;
+  }
+
   .menu button {
     padding: var(--control-padding) var(--inset);
     border-radius: var(--radius-small);
@@ -1114,15 +1255,19 @@
       width: auto;
       height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
       max-height: none;
+      box-sizing: border-box;
       margin: 0;
       padding-bottom: env(safe-area-inset-bottom, 0px);
       border-radius: var(--radius) var(--radius) 0 0;
     }
 
+    /* Drag it down, or tap it, to close. */
     .grab {
       display: grid;
       place-items: center;
-      height: 20px;
+      flex: none;
+      width: 100%;
+      height: var(--control);
       touch-action: none;
     }
 

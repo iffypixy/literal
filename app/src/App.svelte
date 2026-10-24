@@ -3,7 +3,7 @@
   import { fade } from "svelte/transition";
   import type * as Y from "yjs";
   import Editor, { type Position } from "./editor/Editor.svelte";
-  import { letter, mod, shortcuts } from "./keys.ts";
+  import { letter, mac, mod, shortcuts } from "./keys.ts";
   import {
     create,
     discardIfEmpty,
@@ -67,7 +67,8 @@
 
   setSignedIn(Boolean(account.email));
   void start().then(() => prepare(list()));
-  void go(idFrom(location.pathname), "none");
+  // "replace": an address that isn't a note becomes the blank page's own.
+  void go(idFrom(location.pathname), "replace");
   if (account.email) startSync();
   void checkSession();
 
@@ -119,9 +120,13 @@
     if (hover) void editor.focus();
   }
 
-  async function go(id: string | null, how: "push" | "replace" | "none") {
+  /**
+   * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
+   * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
+   */
+  async function go(id: string | null, how: "push" | "replace" | "none", focus = hover) {
     if (id === current && id !== null) {
-      editor.focus();
+      if (focus) void editor.focus();
       return;
     }
     if (current !== null) previous = current;
@@ -134,7 +139,7 @@
       text = null;
       navigate("/", how);
       await tick();
-      editor.focus();
+      void editor.focus();
       return;
     }
     opening = true;
@@ -148,8 +153,7 @@
     text = next;
     navigate(`/n/${id}`, how);
     await tick();
-    // On a phone, opening a note shouldn't throw the keyboard over it; tapping the text brings it up.
-    if (hover) editor.focus(cursors.get(id));
+    if (focus) void editor.focus(cursors.get(id));
   }
 
   /** Before switching notes: remember where the cursor was, and drop the note if it was emptied. */
@@ -163,8 +167,11 @@
   }
 
   function navigate(path: string, how: "push" | "replace" | "none") {
-    if (how === "none" || location.pathname === path) return;
-    if (how === "push") history.pushState(null, "", path);
+    if (how === "none") return;
+    // On a phone the panel's sheet is a step in history (so Back closes it): a note it opens takes that step's place.
+    const sheet = Boolean(history.state?.sheet);
+    if (location.pathname === path && !sheet) return;
+    if (how === "push" && !sheet) history.pushState(null, "", path);
     else history.replaceState(null, "", path);
   }
 
@@ -176,8 +183,16 @@
   }
 
   function newNote() {
-    panel.hide(false);
+    panel.hide(false, true);
     void go(null, "push");
+  }
+
+  function onpopstate() {
+    // The panel stepping back by itself (closing on a phone) is nothing to act on.
+    if (panel.stepped()) return;
+    // Back with the panel open closes it, as it would anything on top.
+    if (browsing) return panel.hide(true, true);
+    void go(idFrom(location.pathname), "none");
   }
 
   function ondelete(id: string) {
@@ -331,9 +346,10 @@
   }
 
   const viewport = window.visualViewport;
-  // iOS doesn't shrink the page for the keyboard; this keeps the end of the text above it.
+  // iOS doesn't shrink the page for the keyboard; this keeps the end of the text above it. A pinch zoom shrinks
+  // what's visible too, but not the page: scaled back, it leaves the page its size.
   viewport?.addEventListener("resize", () => {
-    document.documentElement.style.setProperty("--viewport-height", `${viewport.height}px`);
+    document.documentElement.style.setProperty("--viewport-height", `${viewport.height * viewport.scale}px`);
   });
 </script>
 
@@ -347,7 +363,7 @@
   {ondragover}
   {ondrop}
   {onpagehide}
-  onpopstate={() => void go(idFrom(location.pathname), "none")}
+  {onpopstate}
 />
 <svelte:document {onvisibilitychange} />
 
@@ -358,10 +374,20 @@
     {#if problem || calm}
       <button class="status" class:problem={Boolean(problem)} onclick={explain}>{problem || calm}</button>
     {/if}
-    <button aria-label="New note" {@attach tooltip("New note", shortcuts.new)} onclick={newNote}>
+    <button
+      aria-label="New note"
+      aria-keyshortcuts="Alt+N"
+      {@attach tooltip("New note", shortcuts.new)}
+      onclick={newNote}
+    >
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
     </button>
-    <button aria-label="Notes" {@attach tooltip("Notes", shortcuts.notes)} onclick={() => togglePanel(true)}>
+    <button
+      aria-label="Notes"
+      aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
+      {@attach tooltip("Notes", shortcuts.notes)}
+      onclick={() => togglePanel(true)}
+    >
       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M4.5 10h11M4.5 14h7" /></svg>
     </button>
   </div>
@@ -380,14 +406,19 @@
   bind:open={browsing}
   {current}
   {previous}
-  onpick={(id) => void go(id, "push")}
+  onpick={(id, pointer) => void go(id, "push", hover || !pointer)}
   {ondelete}
   onnew={newNote}
   {onsignedin}
-  onclose={() => hover && editor.focus()}
+  onclose={(pointer) => {
+    if (!opening && (hover || !pointer)) void editor.focus();
+  }}
 />
 
 <Toast />
+
+<!-- A problem in the corner is also said aloud, once, by a screen reader. -->
+<p class="visually-hidden" aria-live="polite">{problem}</p>
 
 {#if dropping}
   <div class="drop" aria-hidden="true"><p>Drop to import</p></div>
@@ -423,6 +454,13 @@
   .corner.away button:not(.problem) {
     opacity: 0;
     transition-duration: 300ms;
+  }
+
+  /* Reached by Tab (Esc, then Tab, leaves the page), they're back at once: focus is never on something unseen. */
+  .corner.away:focus-within::before,
+  .corner.away:focus-within button {
+    opacity: 1;
+    transition-duration: 0ms;
   }
 
   .corner button {

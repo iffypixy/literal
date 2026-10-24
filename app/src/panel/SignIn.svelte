@@ -67,6 +67,8 @@
     }
     error = problem;
     code = "";
+    // Once the field takes keys again, the cursor is back in it for the next try.
+    await tick();
     field?.focus();
     // A wrong code shakes, as a wrong passcode does; a lost connection isn't wrong.
     if (reached) shake();
@@ -107,13 +109,21 @@
       error = unreachable();
     });
   }
+
+  // Esc on the code step goes back to the email; on the email step it's the panel's, which goes back to the list.
+  function onkeydown(event: KeyboardEvent) {
+    if (event.key !== "Escape" || step !== "code") return;
+    event.preventDefault();
+    void restart();
+  }
 </script>
 
-<div class="sign-in">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="sign-in" {onkeydown}>
   <Back onclick={step === "code" ? restart : onback} />
 
   {#if step === "email"}
-    <h2>Sync across devices</h2>
+    <h2 id="view-title">Sync across devices</h2>
     <p class="lead">
       Sign in to keep your notes on all your devices.
       {#if fragile}Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them.{/if}
@@ -151,7 +161,7 @@
     <p class="note">No password. We'll email you a 6-digit code.</p>
     <p class="note fine"><a href="/terms" target="_blank">Terms</a> · <a href="/privacy" target="_blank">Privacy</a></p>
   {:else}
-    <h2>Check your email</h2>
+    <h2 id="view-title">Check your email</h2>
     <p class="lead">Enter the code we sent to <strong>{email.trim()}</strong>.</p>
     <label class="visually-hidden" for="sign-in-code">Code</label>
     <input
@@ -165,7 +175,7 @@
       autocomplete="one-time-code"
       maxlength="6"
       placeholder="000000"
-      disabled={busy}
+      readonly={busy}
     />
     {#if error}<p class="error" role="alert">{error}</p>{/if}
     <p class="links">
@@ -335,6 +345,16 @@
 
   .link {
     text-decoration: underline;
+  }
+
+  /* A finger needs more than a line of text to aim at: the links reach 44px tall without moving anything. */
+  @media (pointer: coarse) {
+    .link,
+    .fine a {
+      display: inline-block;
+      padding: 12px 0;
+      margin: -12px 0;
+    }
   }
 
   @media (hover: hover) and (pointer: fine) {
