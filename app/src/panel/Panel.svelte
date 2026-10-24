@@ -254,9 +254,9 @@
     if (!touch.matches) input?.focus();
   }
 
-  /** A click in the panel leaves the cursor where it was, in the search field: the keys go on working. */
+  /** In the list, a click leaves the cursor where it was, in the search field: the keys go on working. */
   function keepFocus(event: MouseEvent) {
-    if (!(event.target as Element).closest("input, a")) event.preventDefault();
+    if (view === "notes" && !(event.target as Element).closest("input, a")) event.preventDefault();
   }
 
   function move(by: number) {
