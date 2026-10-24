@@ -3,7 +3,8 @@ import type { Note } from "./notes.svelte.ts";
 /** A piece of displayed text, and whether it matches the search. */
 export type Segment = { text: string; hit: boolean };
 
-const folds = new WeakMap<Note, string>();
+/** Each note's text and title, folded for searching; a note that changes is a new object, so it's folded again. */
+const folds = new WeakMap<Note, { text: string; title: string }>();
 
 /** The words of a query, folded. */
 export function parse(query: string): string[] {
@@ -16,12 +17,27 @@ export function parse(query: string): string[] {
  */
 export function search(notes: Note[], words: string[]): Note[] {
   if (!words.length) return notes;
-  const matches = notes.filter((note) => words.every((word) => folded(note).includes(word)));
-  const inTitle = (note: Note) => {
-    const title = fold(split(note.text).first);
-    return words.some((word) => title.includes(word));
+  const inTitle: Note[] = [];
+  const inText: Note[] = [];
+  for (const note of notes) {
+    const { text, title } = folded(note);
+    if (!words.every((word) => text.includes(word))) continue;
+    (words.some((word) => title.includes(word)) ? inTitle : inText).push(note);
+  }
+  return [...inTitle, ...inText];
+}
+
+/** Folds every note ahead of time, in moments the page is idle, so the first search is as quick as the rest. */
+export function prepare(notes: Note[]) {
+  let next = 0;
+  const work = (deadline?: IdleDeadline) => {
+    do {
+      const note = notes[next++];
+      if (note) folded(note);
+    } while (next < notes.length && (deadline ? deadline.timeRemaining() > 1 : next % 100 !== 0));
+    if (next < notes.length) later(work);
   };
-  return [...matches.filter(inTitle), ...matches.filter((note) => !inTitle(note))];
+  if (notes.length) later(work);
 }
 
 /** Whether every one of `words` starts a word of `label`: "exp" and "all exp" both find "Export all notes". */
@@ -36,11 +52,11 @@ export function startsWords(label: string, words: string[]): boolean {
  */
 export function describe(note: Note, words: string[]): { title: Segment[]; snippet: Segment[] } {
   const { first, restAt } = split(note.text);
-  const inTitle = fold(first);
+  const { text, title } = folded(note);
   // Folding keeps positions for nearly all text, so a match found in the folded copy marks the same place.
   const hits = words
-    .filter((word) => !inTitle.includes(word))
-    .map((word) => folded(note).indexOf(word, restAt))
+    .filter((word) => !title.includes(word))
+    .map((word) => text.indexOf(word, restAt))
     .filter((at) => at >= 0);
   const snippet = hits.length ? around(note.text, Math.min(...hits), restAt) : "";
   return { title: mark(first, words), snippet: mark(snippet, words) };
@@ -79,11 +95,17 @@ function split(text: string): { first: string; restAt: number } {
   return { first: text.slice(start, end).trim(), restAt: end + 1 };
 }
 
-/** One line of text around `at`: a little before it, more after, cut at spaces. */
+/** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
+const SNIPPET_REACH = 20;
+
+/** One line of text around `at`: a little before it, more after, cut at spaces near enough to keep the hit in view. */
 function around(text: string, at: number, from: number): string {
-  let start = Math.max(from, at - 20);
+  let start = Math.max(from, at - SNIPPET_REACH);
   let end = Math.min(text.length, at + 60);
-  if (start > from) start = text.lastIndexOf(" ", start) + 1 || start;
+  if (start > from) {
+    const space = text.lastIndexOf(" ", start);
+    if (space >= Math.max(from, start - SNIPPET_REACH)) start = space + 1;
+  }
   if (end < text.length) end = Math.max(text.lastIndexOf(" ", end), at + 1);
   const line = text.slice(start, end).replace(/\s+/g, " ").trim();
   return `${start > from ? "…" : ""}${line}${end < text.length ? "…" : ""}`;
@@ -91,16 +113,18 @@ function around(text: string, at: number, from: number): string {
 
 /** Lowercase, without accents: "Café" and "cafe" fold the same. */
 function fold(text: string): string {
+  // Plain ASCII has nothing to fold but case, and most notes are plain ASCII: the quick way, then.
+  if (/^[\x00-\x7f]*$/.test(text)) return text.toLowerCase();
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
 
-function folded(note: Note): string {
-  let text = folds.get(note);
-  if (text === undefined) {
-    text = fold(note.text);
-    folds.set(note, text);
+function folded(note: Note): { text: string; title: string } {
+  let known = folds.get(note);
+  if (!known) {
+    known = { text: fold(note.text), title: fold(split(note.text).first) };
+    folds.set(note, known);
   }
-  return text;
+  return known;
 }
 
 function marked(text: string, words: string[], counts: (folded: string, at: number) => boolean): Segment[] {
@@ -134,4 +158,9 @@ function foldWithOrigin(text: string): { folded: string; origin: number[] } {
   }
   origin.push(text.length);
   return { folded, origin };
+}
+
+function later(work: (deadline?: IdleDeadline) => void) {
+  if ("requestIdleCallback" in window) requestIdleCallback(work);
+  else setTimeout(work, 50);
 }

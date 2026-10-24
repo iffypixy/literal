@@ -29,7 +29,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function type() {
-    const change = diff(shown, area.value);
+    const change = diff(shown, area.value, area.selectionEnd);
     shown = area.value;
     if (!change) return;
     // Text that arrived mid-composition sits in the Yjs text but not yet on screen.
@@ -43,7 +43,9 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   function receive(event: Y.YTextEvent, transaction: Y.Transaction) {
     if (transaction.origin === TYPED) return;
     const delta = event.delta as Delta;
-    if (composing) {
+    // Mid-composition the textarea can't be touched; while the tab is hidden nobody sees it, and a long note
+    // would be redrawn for every word another tab types. Both wait.
+    if (composing || document.hidden) {
       held.push(delta);
       return;
     }
@@ -109,13 +111,20 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 
   function onCompositionEnd() {
     composing = false;
-    if (!held.length) return;
     // Some browsers send the composition's last input right after this event; let it land first.
-    setTimeout(() => {
-      const deltas = held;
-      held = [];
-      show(deltas, null);
-    });
+    setTimeout(release);
+  }
+
+  function onVisibilityChange() {
+    if (!document.hidden && !composing) release();
+  }
+
+  /** Puts on screen what arrived while it had to wait. */
+  function release() {
+    if (!held.length) return;
+    const deltas = held;
+    held = [];
+    show(deltas, null);
   }
 
   text.observe(receive);
@@ -124,6 +133,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   area.addEventListener("beforeinput", onBeforeInput);
   area.addEventListener("compositionstart", onCompositionStart);
   area.addEventListener("compositionend", onCompositionEnd);
+  document.addEventListener("visibilitychange", onVisibilityChange);
 
   return () => {
     text.unobserve(receive);
@@ -132,6 +142,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     area.removeEventListener("beforeinput", onBeforeInput);
     area.removeEventListener("compositionstart", onCompositionStart);
     area.removeEventListener("compositionend", onCompositionEnd);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     undo.destroy();
   };
 }
@@ -139,14 +150,20 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 /**
  * The one replaced range between two versions of the text: everything between their common start and end.
  * Never splits a surrogate pair, which would put half an emoji into the doc.
+ *
+ * `caret` is where the cursor ended up. The change almost always sits just before it, so the common start and
+ * end are first checked there in one comparison each: typing in a long note doesn't walk the whole text.
  */
-function diff(before: string, after: string): { at: number; removed: number; inserted: string } | null {
+function diff(before: string, after: string, caret: number): { at: number; removed: number; inserted: string } | null {
   if (before === after) return null;
   const limit = Math.min(before.length, after.length);
-  let start = 0;
+  const grown = Math.max(0, after.length - before.length);
+  let start = Math.min(limit, Math.max(0, caret - grown));
+  if (before.slice(0, start) !== after.slice(0, start)) start = 0;
   while (start < limit && before.charCodeAt(start) === after.charCodeAt(start)) start++;
   if (start > 0 && isHighSurrogate(before.charCodeAt(start - 1))) start--;
-  let tail = 0;
+  let tail = Math.min(limit - start, Math.max(0, after.length - caret));
+  if (before.slice(before.length - tail) !== after.slice(after.length - tail)) tail = 0;
   while (
     tail < limit - start &&
     before.charCodeAt(before.length - 1 - tail) === after.charCodeAt(after.length - 1 - tail)

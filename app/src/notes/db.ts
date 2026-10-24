@@ -21,8 +21,20 @@ export function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export function getAll<T>(db: IDBDatabase, store: Store): Promise<T[]> {
-  return done(db.transaction(store).objectStore(store).getAll());
+/** Every record in `store`, `size` at a time: between batches the page stays free to take keystrokes. */
+export async function* readAll<T>(db: IDBDatabase, store: Store, size: number): AsyncGenerator<T[]> {
+  let after: IDBValidKey | undefined;
+  for (;;) {
+    const range = after === undefined ? undefined : IDBKeyRange.lowerBound(after, true);
+    const records = db.transaction(store).objectStore(store);
+    const [values, keys] = await Promise.all([
+      done(records.getAll(range, size)),
+      done(records.getAllKeys(range, size)),
+    ]);
+    if (values.length) yield values as T[];
+    if (values.length < size) return;
+    after = keys.at(-1);
+  }
 }
 
 export function get<T>(db: IDBDatabase, store: Store, key: string): Promise<T | undefined> {

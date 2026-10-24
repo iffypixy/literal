@@ -144,6 +144,44 @@ textarea {
   color: inherit;
 }
 
+/*
+ * The page you write on (Editor.svelte), and index.html's stand-in for it until the app's code arrives,
+ * which looks the same so whatever is typed in that first moment is kept (main.ts hands it over).
+ */
+.editor {
+  position: fixed;
+  inset: 0 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--viewport-height, 100dvh);
+  margin: 0;
+  /* Like a .txt file: from the top-left corner, as wide as the window, with room to scroll the end up. */
+  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) 40vh
+    max(var(--edge), env(safe-area-inset-left, 0px));
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* On a phone the buttons are always there, so the text starts under them; and iOS zooms into a field under 16px. */
+@media (pointer: coarse) {
+  .editor {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40vh);
+    font-size: 1rem;
+  }
+}
+
 /* iOS zooms into any field under 16px. */
 @media (pointer: coarse) {
   input,

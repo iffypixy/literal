@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import { get, getAll, openDb, write } from "./db.ts";
+import { get, openDb, readAll, write } from "./db.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc: its `text`, and its `meta` (the times). */
 export type Note = {
@@ -37,6 +37,8 @@ const RESCUE = "blank:unsaved:";
 const SAVE_DELAY = 250;
 /** However fast you keep typing, a change is on disk within this long. */
 const SAVE_AT_MOST = 1000;
+/** Notes read from disk at a time when the app starts. */
+const READ_BATCH = 500;
 /** How often typing moves a note's `editedAt`: often enough to sort, rarely enough to stay out of the doc. */
 const TOUCH_EVERY = 1000;
 const TAB_ID = crypto.randomUUID();
@@ -56,6 +58,8 @@ const pending = new Map<string, ReturnType<typeof setTimeout>>();
 const waitingSince = new Map<string, number>();
 /** Notes whose save is on its way to disk: until it lands, a closing page must rescue them too. */
 const saving = new Set<string>();
+/** The live notes, last edited first, until a note changes. */
+let sorted: Note[] | null = null;
 const touched = new Map<string, number>();
 /** Notes changed here since their last save. */
 const changed = new Set<string>();
@@ -79,6 +83,7 @@ channel.onmessage = ({ data }: MessageEvent<Message>) => {
   } else if (data.type === "purge") {
     all.delete(data.id);
     marks.delete(data.id);
+    sorted = null;
     notes.version++;
   } else {
     void db.then((database) => database.close());
@@ -93,9 +98,11 @@ export function setSignedIn(value: boolean) {
 /** Reads every note's summary, and puts back changes a closing page left unsaved. Signed out, it also clears out deleted and empty notes. */
 export async function start() {
   try {
-    for (const row of await getAll<Row>(await db, "notes")) {
-      if (!signedIn && (isDeleted(row) || !row.text.trim())) void purge(row.id);
-      else keep(row);
+    for await (const rows of readAll<Row>(await db, "notes", READ_BATCH)) {
+      for (const row of rows) {
+        if (!signedIn && (isDeleted(row) || !isWritten(row))) void purge(row.id);
+        else keep(row);
+      }
     }
     for (const id of rescuedIds()) await load(id);
   } catch (error) {
@@ -106,16 +113,27 @@ export async function start() {
   notes.version++;
 }
 
-/** Live notes, last edited first. */
+/** Live notes, last edited first. The same array until a note changes: don't modify it. */
 export function list(): Note[] {
   // Notes still waiting to be saved are newer in memory than in the list.
   for (const id of pending.keys()) {
     const doc = loaded.get(id);
-    if (doc) all.set(id, summarize(id, doc));
+    if (!doc) continue;
+    const note = summarize(id, doc);
+    const known = all.get(id);
+    if (known?.text === note.text && known.editedAt === note.editedAt && known.deletedAt === note.deletedAt) continue;
+    all.set(id, note);
+    sorted = null;
   }
-  return [...all.values()]
-    .filter((note) => !isDeleted(note) && note.text.trim())
-    .sort((a, b) => b.editedAt - a.editedAt);
+  sorted ??= [...all.values()].filter(isLive).sort((a, b) => b.editedAt - a.editedAt);
+  return sorted;
+}
+
+/** How many live notes there are: what `list().length` says, without sorting them all. */
+export function count(): number {
+  let live = 0;
+  for (const note of all.values()) if (isLive(note)) live++;
+  return live;
 }
 
 export function find(id: string): Note | undefined {
@@ -124,6 +142,15 @@ export function find(id: string): Note | undefined {
 
 export function isDeleted(note: Note): boolean {
   return note.deletedAt !== null && note.deletedAt >= note.editedAt;
+}
+
+function isLive(note: Note): boolean {
+  return !isDeleted(note) && isWritten(note);
+}
+
+/** Whether there's anything in it but whitespace. Stops at the first character that isn't. */
+function isWritten(note: Note): boolean {
+  return /\S/.test(note.text);
 }
 
 /** A new, empty note, in memory until its first save. */
@@ -188,6 +215,7 @@ export async function purge(id: string) {
   pending.delete(id);
   waitingSince.delete(id);
   all.delete(id);
+  sorted = null;
   marks.delete(id);
   loaded.get(id)?.destroy();
   loaded.delete(id);
@@ -463,10 +491,12 @@ function fromBase64(text: string): Uint8Array {
 function keep({ vector, dirty, ...note }: Row) {
   all.set(note.id, note);
   marks.set(note.id, { vector, dirty });
+  sorted = null;
 }
 
 function refresh(id: string, doc: Y.Doc) {
   all.set(id, summarize(id, doc));
+  sorted = null;
   notes.version++;
 }
 

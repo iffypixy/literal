@@ -60,41 +60,6 @@
   }
 </script>
 
-<textarea bind:this={area} {oninput} {onkeydown} {readonly} class="page" aria-label="Note" autocapitalize="sentences"
+<!-- Styled in app.css, which index.html's stand-in page shares: the page looks the same before the app is here. -->
+<textarea bind:this={area} {oninput} {onkeydown} {readonly} class="editor" aria-label="Note" autocapitalize="sentences"
 ></textarea>
-
-<style>
-  .page {
-    position: fixed;
-    inset: 0 0 auto;
-    box-sizing: border-box;
-    width: 100%;
-    height: var(--viewport-height, 100dvh);
-    margin: 0;
-    /* Like a .txt file: from the top-left corner, as wide as the window. */
-    padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) 40vh
-      max(var(--edge), env(safe-area-inset-left, 0px));
-    border: 0;
-    outline: 0;
-    resize: none;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
-    tab-size: 4;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--line) transparent;
-  }
-
-  /* On a phone the buttons are always there, so the text starts under them; and iOS zooms into a field under 16px. */
-  @media (pointer: coarse) {
-    .page {
-      padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
-      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 40vh);
-      font-size: 1rem;
-    }
-  }
-</style>

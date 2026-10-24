@@ -7,6 +7,7 @@
   import {
     create,
     discardIfEmpty,
+    count,
     find,
     flush,
     list,
@@ -19,7 +20,7 @@
     settle,
     start,
   } from "./notes/notes.svelte.ts";
-  import { shorten, title } from "./notes/search.ts";
+  import { prepare, shorten, title } from "./notes/search.ts";
   import Panel from "./panel/Panel.svelte";
   import { account, session, signedIn } from "./sync/account.svelte.ts";
   import { sync, start as startSync } from "./sync/sync.svelte.ts";
@@ -65,7 +66,7 @@
   });
 
   setSignedIn(Boolean(account.email));
-  void start();
+  void start().then(() => prepare(list()));
   void go(idFrom(location.pathname), "none");
   if (account.email) startSync();
   void checkSession();
@@ -96,8 +97,8 @@
   const calm = $derived.by(() => {
     if (current) return "Saved";
     void notes.version;
-    const count = notes.ready ? list().length : 0;
-    return count ? `${count.toLocaleString()} ${count === 1 ? "note" : "notes"}` : "";
+    const live = notes.ready ? count() : 0;
+    return live ? `${live.toLocaleString()} ${live === 1 ? "note" : "notes"}` : "";
   });
   const explanations: Record<string, string> = {
     "Can't save here": "This browser can't save notes, so copy your text before closing",
