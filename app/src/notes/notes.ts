@@ -28,21 +28,21 @@ type Message =
   | { type: "wipe" };
 
 /** Origins of changes that arrive from outside this tab. Anything else is typed here. */
-const DISK = "disk";
-const TAB = "tab";
-const REMOTE = "remote";
+const Disk = "disk";
+const Tab = "tab";
+const Remote = "remote";
 
 /** Where unsaved changes wait out a page closing, by note id: localStorage writes at once, IndexedDB may not finish. */
-const RESCUE = "literal:unsaved:";
+const RescuePrefix = "literal:unsaved:";
 
-const SAVE_DELAY = 250;
+const SaveDelay = 250;
 /** However fast you keep typing, a change is on disk within this long. */
-const SAVE_AT_MOST = 1000;
+const SaveAtMost = 1000;
 /** Notes read from disk at a time when the app starts. */
-const READ_BATCH = 500;
+const ReadBatch = 500;
 /** How often typing moves a note's `editedAt`: often enough to sort, rarely enough to stay out of the doc. */
-const TOUCH_EVERY = 1000;
-const TAB_ID = crypto.randomUUID();
+const TouchEvery = 1000;
+const TabId = crypto.randomUUID();
 
 /** `synced`: this device has caught up with its account at least once, so its list is the whole list. */
 export const notes = createMutable({ version: 0, ready: false, failed: false, synced: false });
@@ -78,7 +78,7 @@ const channel = new BroadcastChannel("literal");
 channel.onmessage = ({ data }: MessageEvent<Message>) => {
   if (data.type === "update") {
     const doc = loaded.get(data.id);
-    if (doc) Y.applyUpdate(doc, data.update, TAB);
+    if (doc) Y.applyUpdate(doc, data.update, Tab);
   } else if (data.type === "note") {
     keep(data.row);
     notes.version++;
@@ -100,7 +100,7 @@ export function setSignedIn(value: boolean) {
 /** Reads every note's summary, and puts back changes a closing page left unsaved. Signed out, it also clears out deleted and empty notes. */
 export async function start() {
   try {
-    for await (const rows of readAll<Row>(await db, "notes", READ_BATCH)) {
+    for await (const rows of readAll<Row>(await db, "notes", ReadBatch)) {
       for (const row of rows) {
         if (!signedIn && (isDeleted(row) || !isWritten(row))) void purge(row.id);
         else keep(row);
@@ -246,7 +246,7 @@ export function rescue() {
     const doc = loaded.get(id);
     if (!doc) continue;
     try {
-      localStorage.setItem(RESCUE + id, toBase64(Y.encodeStateAsUpdate(doc)));
+      localStorage.setItem(RescuePrefix + id, toBase64(Y.encodeStateAsUpdate(doc)));
     } catch (error) {
       // Full or blocked storage: the IndexedDB save started alongside is all there is.
       console.error(error);
@@ -287,7 +287,7 @@ export async function receive(id: string, update: Uint8Array) {
   const text = doc.getText("text");
   const watch = () => (wrote = true);
   text.observe(watch);
-  Y.applyUpdate(doc, update, REMOTE);
+  Y.applyUpdate(doc, update, Remote);
   text.unobserve(watch);
   if (wasDeleted && wrote && isDeleted(summarize(id, doc))) restore(id);
 }
@@ -363,7 +363,7 @@ async function read(id: string): Promise<Y.Doc | null> {
   if (existing) return existing;
   const doc = new Y.Doc();
   if (stored) {
-    Y.applyUpdate(doc, stored.state, DISK);
+    Y.applyUpdate(doc, stored.state, Disk);
     seen.set(id, `${stored.writer}:${stored.rev}`);
   }
   adopt(id, doc);
@@ -380,9 +380,9 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
   loaded.set(id, doc);
   loading.set(id, Promise.resolve(doc));
   doc.on("update", (update: Uint8Array, origin: unknown) => {
-    if (origin === DISK || origin === TAB) return;
+    if (origin === Disk || origin === Tab) return;
     channel.postMessage({ type: "update", id, update } satisfies Message);
-    if (origin !== REMOTE) {
+    if (origin !== Remote) {
       changed.add(id);
       edits.set(id, generation(id) + 1);
       for (const listener of listeners) listener(id, update);
@@ -394,7 +394,7 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
     clearTimeout(pending.get(id));
     pending.set(
       id,
-      setTimeout(() => void save(id), Math.min(SAVE_DELAY, since + SAVE_AT_MOST - now)),
+      setTimeout(() => void save(id), Math.min(SaveDelay, since + SaveAtMost - now)),
     );
   });
   doc.getText("text").observe((_, transaction) => {
@@ -405,7 +405,7 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
 
 function touch(id: string, doc: Y.Doc) {
   const now = Date.now();
-  if (now - (touched.get(id) ?? 0) < TOUCH_EVERY) return;
+  if (now - (touched.get(id) ?? 0) < TouchEvery) return;
   touched.set(id, now);
   // Yjs runs observers inside the transaction; a change made from one belongs in its own.
   queueMicrotask(() => doc.getMap<number>("meta").set("editedAt", now));
@@ -428,11 +428,11 @@ async function save(id: string) {
       const request = docs.get(id);
       request.onsuccess = () => {
         const stored = request.result as Stored | undefined;
-        if (stored && seen.get(id) !== `${stored.writer}:${stored.rev}`) Y.applyUpdate(doc, stored.state, DISK);
+        if (stored && seen.get(id) !== `${stored.writer}:${stored.rev}`) Y.applyUpdate(doc, stored.state, Disk);
         const rev = (stored?.rev ?? 0) + 1;
         const dirty = local || (stored?.dirty ?? false);
-        docs.put({ state: Y.encodeStateAsUpdate(doc), writer: TAB_ID, rev, dirty } satisfies Stored, id);
-        seen.set(id, `${TAB_ID}:${rev}`);
+        docs.put({ state: Y.encodeStateAsUpdate(doc), writer: TabId, rev, dirty } satisfies Stored, id);
+        seen.set(id, `${TabId}:${rev}`);
         row = { ...summarize(id, doc), vector: Y.encodeStateVector(doc), dirty };
         tx.objectStore("notes").put(row);
       };
@@ -458,8 +458,8 @@ async function save(id: string) {
 function rescuedIds(): string[] {
   try {
     return Object.keys(localStorage)
-      .filter((key) => key.startsWith(RESCUE))
-      .map((key) => key.slice(RESCUE.length));
+      .filter((key) => key.startsWith(RescuePrefix))
+      .map((key) => key.slice(RescuePrefix.length));
   } catch {
     return [];
   }
@@ -467,7 +467,7 @@ function rescuedIds(): string[] {
 
 function rescued(id: string): Uint8Array | null {
   try {
-    const text = localStorage.getItem(RESCUE + id);
+    const text = localStorage.getItem(RescuePrefix + id);
     return text ? fromBase64(text) : null;
   } catch {
     return null;
@@ -476,7 +476,7 @@ function rescued(id: string): Uint8Array | null {
 
 function unrescue(id: string) {
   try {
-    localStorage.removeItem(RESCUE + id);
+    localStorage.removeItem(RescuePrefix + id);
   } catch {
     // Nothing was rescued where there's no storage.
   }

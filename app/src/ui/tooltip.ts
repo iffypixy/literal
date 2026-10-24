@@ -1,4 +1,5 @@
 import { onCleanup } from "solid-js";
+import { caps } from "../keys.ts";
 
 /**
  * A tooltip naming a button and its shortcut. The first one waits a moment, so passing over a button doesn't
@@ -10,7 +11,7 @@ export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
   function enter() {
     if (!fine.matches) return;
     const instant = performance.now() < warmUntil;
-    timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : DELAY);
+    timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : Delay);
   }
 
   function leave() {
@@ -25,11 +26,11 @@ export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
   onCleanup(leave);
 }
 
-const DELAY = 500;
+const Delay = 500;
 /** How long after one tooltip goes the next still shows at once. */
-const WARM = 300;
+const Warm = 300;
 /** Between the tooltip and its button, and the tooltip and the window's edge. */
-const GAP = 6;
+const Gap = 6;
 
 const fine = matchMedia("(hover: hover) and (pointer: fine)");
 let tip: HTMLElement | null = null;
@@ -46,19 +47,15 @@ function show(node: HTMLElement, label: string, keys: string[] | undefined, inst
   }
   owner = node;
   tip.replaceChildren(label);
-  if (keys) {
-    const caps = Object.assign(document.createElement("span"), { className: "keys" });
-    caps.append(...keys.map((key) => Object.assign(document.createElement("kbd"), { textContent: key })));
-    tip.append(caps);
-  }
+  if (keys) tip.append(caps(keys));
   tip.toggleAttribute("data-instant", instant);
 
   // Under the button, right edges aligned (every button with one sits on the right); above it if there's no room.
   const button = node.getBoundingClientRect();
   const { offsetWidth: width, offsetHeight: height } = tip;
-  const below = button.bottom + GAP + height < innerHeight;
-  tip.style.top = `${below ? button.bottom + GAP : button.top - GAP - height}px`;
-  tip.style.left = `${Math.max(GAP, Math.min(button.right - width, innerWidth - width - GAP))}px`;
+  const below = button.bottom + Gap + height < innerHeight;
+  tip.style.top = `${below ? button.bottom + Gap : button.top - Gap - height}px`;
+  tip.style.left = `${Math.max(Gap, Math.min(button.right - width, innerWidth - width - Gap))}px`;
   tip.style.transformOrigin = below ? "top right" : "bottom right";
   tip.dataset.open = "";
 }
@@ -67,5 +64,5 @@ function hide() {
   if (!tip || !owner) return;
   delete tip.dataset.open;
   owner = null;
-  warmUntil = performance.now() + WARM;
+  warmUntil = performance.now() + Warm;
 }

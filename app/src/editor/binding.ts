@@ -2,10 +2,10 @@ import * as Y from "yjs";
 import { letter, mod } from "../keys.ts";
 
 /** The changes a Yjs text event describes, in Yjs' own delta format. */
-type Delta = { insert?: unknown; retain?: number; delete?: number }[];
+type Delta = Y.YTextEvent["delta"];
 
 /** Marks the changes this textarea makes, so they aren't echoed back into it. */
-const TYPED = Symbol("typed");
+const Typed = Symbol("typed");
 
 /**
  * Keeps a textarea and a Yjs text the same, both ways. Typing goes into the text as the smallest change;
@@ -14,7 +14,7 @@ const TYPED = Symbol("typed");
  * If the text is empty and the textarea isn't, the textarea's content counts as typed: that's how a new note starts.
  */
 export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
-  const undo = new Y.UndoManager(text, { trackedOrigins: new Set([TYPED]), captureTimeout: 600 });
+  const undo = new Y.UndoManager(text, { trackedOrigins: new Set([Typed]), captureTimeout: 600 });
   /** What the textarea showed when it was last in step with the text. */
   let shown = "";
   /** Changes from elsewhere that came in mid-composition, when the textarea can't be touched. */
@@ -37,12 +37,12 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     text.doc?.transact(() => {
       if (change.removed) text.delete(at, change.removed);
       if (change.inserted) text.insert(at, change.inserted);
-    }, TYPED);
+    }, Typed);
   }
 
   function receive(event: Y.YTextEvent, transaction: Y.Transaction) {
-    if (transaction.origin === TYPED) return;
-    const delta = event.delta as Delta;
+    if (transaction.origin === Typed) return;
+    const delta = event.delta;
     // Mid-composition the textarea can't be touched; while the tab is hidden nobody sees it, and a long note
     // would be redrawn for every word another tab types. Both wait.
     if (composing || document.hidden) {

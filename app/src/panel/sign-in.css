@@ -1,4 +1,4 @@
-/* The app's scale (see app.css): 16px around and between groups, 6px within one, 2px for a line's explanation. */
+/* The app's scale (see base.css): 16px around and between groups, 6px within one, 2px for a line's explanation. */
 .sign-in {
   display: flex;
   flex-direction: column;

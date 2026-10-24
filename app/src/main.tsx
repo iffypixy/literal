@@ -1,5 +1,5 @@
 import { render } from "solid-js/web";
-import { App } from "./App.tsx";
+import { App } from "./app.tsx";
 
 const early = document.querySelector<HTMLTextAreaElement>(".early");
 render(() => <App />, document.body);

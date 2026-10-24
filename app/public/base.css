@@ -109,7 +109,7 @@ body {
   outline-offset: 1px;
 }
 
-/* A shortcut as key caps, like `Ctrl` `K`: see ui/Keys.tsx. */
+/* A shortcut as key caps, like `Ctrl` `K`: see caps() in keys.ts. */
 .keys {
   display: inline-flex;
   gap: 2px;
@@ -152,7 +152,7 @@ textarea {
 }
 
 /*
- * The page you write on (Editor.tsx), and index.html's stand-in for it until the app's code arrives,
+ * The page you write on (editor/editor.tsx), and index.html's stand-in for it until the app's code arrives,
  * which looks the same so whatever is typed in that first moment is kept (main.ts hands it over).
  */
 .editor {

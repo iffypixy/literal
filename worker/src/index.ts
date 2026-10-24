@@ -1,4 +1,4 @@
-import { SIGNED_OUT } from "../../protocol/protocol.ts";
+import { SignedOut } from "../../protocol/protocol.ts";
 import { createAuth, handleAuth } from "./auth.ts";
 import type { UserNotes } from "./user-notes.ts";
 
@@ -41,9 +41,9 @@ async function connect(request: Request, env: Env): Promise<Response> {
  * at once with a code saying so: it then stops retrying and asks to sign in.
  */
 function signedOut(): Response {
-  const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
+  const { 0: client, 1: server } = new WebSocketPair();
   server.accept();
-  server.close(SIGNED_OUT, "signed out");
+  server.close(SignedOut, "signed out");
   return new Response(null, { status: 101, webSocket: client });
 }
 

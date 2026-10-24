@@ -2,12 +2,12 @@
 
 export type Store = "notes" | "docs" | "meta";
 
-const NAME = "literal";
-const VERSION = 1;
+const Name = "literal";
+const Version = 1;
 
 export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(NAME, VERSION);
+    const request = indexedDB.open(Name, Version);
     request.onupgradeneeded = () => {
       // `notes` holds what the list, search and sync read; `docs` holds the Yjs state behind each note;
       // `meta` holds the rest, like when sync last caught up.
@@ -24,7 +24,7 @@ export function openDb(): Promise<IDBDatabase> {
 /** Deletes the database with everything in it. Every open connection must be closed first. */
 export function deleteDb(): Promise<void> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.deleteDatabase(NAME);
+    const request = indexedDB.deleteDatabase(Name);
     request.onsuccess = () => resolve();
     request.onerror = () => reject(new Error(`delete database: ${request.error?.message}`));
   });

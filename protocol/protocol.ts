@@ -35,20 +35,20 @@ export type Refusal = "too-large" | "too-many" | "too-full";
  * The longest note that syncs, in characters as Yjs counts them (UTF-16 code units). The device holds a longer
  * one back itself; the server only refuses a note whose state outgrows its row, which one this long never does.
  */
-export const MAX_LENGTH = 100_000;
+export const MaxLength = 100_000;
 /** How many notes an account holds, and how many bytes of them. Deleted notes don't count. */
-export const MAX_NOTES = 10_000;
-export const MAX_BYTES = 100_000_000;
+export const MaxNotes = 10_000;
+export const MaxBytes = 100_000_000;
 
 /** Close codes the server uses, so the device knows not to just reconnect. */
-export const SIGNED_OUT = 4001;
+export const SignedOut = 4001;
 
-const TYPES = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
-const REFUSALS: Refusal[] = ["too-large", "too-many", "too-full"];
+const Types = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
+const Refusals: Refusal[] = ["too-large", "too-many", "too-full"];
 
 export function encode(message: Message): Uint8Array<ArrayBuffer> {
   const out = encoding.createEncoder();
-  encoding.writeVarUint(out, TYPES.indexOf(message.type));
+  encoding.writeVarUint(out, Types.indexOf(message.type));
   switch (message.type) {
     case "hello":
       encoding.writeVarUint(out, message.since);
@@ -79,7 +79,7 @@ export function encode(message: Message): Uint8Array<ArrayBuffer> {
       break;
     case "refused":
       encoding.writeVarUint(out, message.seq);
-      encoding.writeVarUint(out, REFUSALS.indexOf(message.reason));
+      encoding.writeVarUint(out, Refusals.indexOf(message.reason));
       break;
     case "purge":
       encoding.writeVarUint(out, message.ids.length);
@@ -93,7 +93,7 @@ export function encode(message: Message): Uint8Array<ArrayBuffer> {
 /** Parses a message; throws on anything malformed, so a bad peer gets disconnected rather than half-understood. */
 export function decode(data: Uint8Array): Message {
   const input = decoding.createDecoder(data);
-  const type = TYPES[decoding.readVarUint(input)];
+  const type = Types[decoding.readVarUint(input)];
   switch (type) {
     case "hello":
       return {
@@ -128,7 +128,7 @@ export function decode(data: Uint8Array): Message {
       return { type, seq: decoding.readVarUint(input) };
     case "refused": {
       const seq = decoding.readVarUint(input);
-      const reason = REFUSALS[decoding.readVarUint(input)];
+      const reason = Refusals[decoding.readVarUint(input)];
       if (!reason) throw new Error("decode: unknown refusal");
       return { type, seq, reason };
     }

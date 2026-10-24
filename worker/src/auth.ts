@@ -2,12 +2,12 @@ import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
 import type { Env } from "./index.ts";
 
-const YEAR = 60 * 60 * 24 * 365;
+const Year = 60 * 60 * 24 * 365;
 /**
  * Codes emailed a day, across everyone. Cloudflare bills each email past the plan's 3,000 a month and caps
  * nothing itself, so this keeps a flood of sign-ins to a few dollars a month.
  */
-const CODES_A_DAY = 500;
+const CodesADay = 500;
 
 /**
  * Answers the auth library's requests. A code that couldn't be emailed fails its request: the library would
@@ -35,7 +35,7 @@ export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
     database: env.DB,
     trustedOrigins: [env.APP_URL],
     // Signed in until you sign out: a year, renewed whenever it's used.
-    session: { expiresIn: YEAR, updateAge: 60 * 60 * 24 },
+    session: { expiresIn: Year, updateAge: 60 * 60 * 24 },
     plugins: [
       emailOTP({
         otpLength: 6,
@@ -97,7 +97,7 @@ async function countCode(db: D1Database) {
     .bind(day)
     .first<number>("count");
   if (sent === null) throw new Error("count code: no count returned");
-  if (sent > CODES_A_DAY) throw new DailyLimit("daily code limit reached");
+  if (sent > CodesADay) throw new DailyLimit("daily code limit reached");
 }
 
 /** The local dev server is plain http; the real one never is. */

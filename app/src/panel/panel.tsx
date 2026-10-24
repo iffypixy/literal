@@ -1,15 +1,14 @@
 import { batch, createEffect, createMemo, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
-import { mac, shortcuts } from "../keys.ts";
+import { caps, mac, shortcuts } from "../keys.ts";
 import { list, notes, unsynced, type Note } from "../notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "../notes/search.ts";
 import { account, deleteAccount, signOut } from "../sync/account.ts";
 import { drain, sync } from "../sync/sync.ts";
 import { exportAll, importFiles } from "../transfer/transfer.ts";
-import { Keys } from "../ui/Keys.tsx";
 import { tooltip } from "../ui/tooltip.ts";
-import { Back } from "./Back.tsx";
-import { SignIn } from "./SignIn.tsx";
-import "./Panel.css";
+import { Back } from "./back.tsx";
+import { SignIn } from "./sign-in.tsx";
+import "./panel.css";
 
 /** What the panel shows: the notes, signing in, a question before something that can't be undone, the keys, or about. */
 export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
@@ -47,9 +46,9 @@ type Props = {
 };
 
 /** Rows rendered at a time; more appear as the list scrolls. */
-const PAGE = 50;
+const PageSize = 50;
 /** Letters typed before commands show: with one, they'd come and go with every key, shoving the notes about. */
-const COMMANDS_FROM = 2;
+const CommandsFrom = 2;
 const touch = matchMedia("(pointer: coarse)");
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 // Safari erases a site's storage after 7 days without a visit, unless it's on the Home Screen.
@@ -57,7 +56,7 @@ const fragile =
   /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) &&
   !matchMedia("(display-mode: standalone)").matches;
 
-const KEY_LIST: [string[], string][] = [
+const KeyList: [string[], string][] = [
   [shortcuts.notes, "Notes and commands"],
   [shortcuts.new, "New note"],
   [shortcuts.move, "Choose a note"],
@@ -80,7 +79,7 @@ export function Panel(props: Props) {
   const [query, setQuery] = createSignal("");
   /** The row the arrows are on; -1 until they move. */
   const [active, setActive] = createSignal(-1);
-  const [limit, setLimit] = createSignal(PAGE);
+  const [limit, setLimit] = createSignal(PageSize);
   const [now, setNow] = createSignal(Date.now());
   const [menu, setMenu] = createSignal(false);
   /** The menu opens upward from its button, or downward when there's no room above. */
@@ -113,7 +112,7 @@ export function Panel(props: Props) {
   const words = createMemo(() => parse(query()));
   /** The commands whose words what you type starts; none until you type, so the list opens on your notes. */
   const found = createMemo(() =>
-    words().join("").length >= COMMANDS_FROM ? commands().filter((command) => startsWords(command.label, words())) : [],
+    words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
   const results = createMemo(() => {
     void notes.version;
@@ -173,7 +172,7 @@ export function Panel(props: Props) {
       props.onOpenChange(true);
       setView(start);
       setQuery("");
-      setLimit(PAGE);
+      setLimit(PageSize);
       setMenu(false);
       setNow(Date.now());
       setActive(-1);
@@ -280,7 +279,8 @@ export function Panel(props: Props) {
 
   /** In the list, a click leaves the cursor where it was, in the search field: the keys go on working. */
   function keepFocus(event: MouseEvent) {
-    if (view() === "notes" && !(event.target as Element).closest("input, a")) event.preventDefault();
+    if (view() === "notes" && event.target instanceof Element && !event.target.closest("input, a"))
+      event.preventDefault();
   }
 
   function move(by: number) {
@@ -288,7 +288,7 @@ export function Panel(props: Props) {
     if (!total) return;
     const next = Math.min(total - 1, Math.max(0, at() + by));
     setActive(next);
-    if (next - found().length >= limit()) setLimit(limit() + PAGE);
+    if (next - found().length >= limit()) setLimit(limit() + PageSize);
     rows?.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
   }
 
@@ -296,7 +296,7 @@ export function Panel(props: Props) {
     batch(() => {
       setQuery(field.value);
       setActive(-1);
-      setLimit(PAGE);
+      setLimit(PageSize);
     });
     if (rows) rows.scrollTop = 0;
   }
@@ -329,12 +329,12 @@ export function Panel(props: Props) {
   }
 
   function onClick(event: MouseEvent) {
-    if (menu() && !(event.target as Element).closest(".menu, .more")) setMenu(false);
+    if (menu() && event.target instanceof Element && !event.target.closest(".menu, .more")) setMenu(false);
   }
 
   /** Loads the next page of rows when the end of the list scrolls into view. */
   function more(sentinel: HTMLElement) {
-    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && setLimit(limit() + PAGE), {
+    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && setLimit(limit() + PageSize), {
       root: rows,
       rootMargin: "200px",
     });
@@ -479,12 +479,10 @@ export function Panel(props: Props) {
                 Keyboard shortcuts
               </h2>
               <dl class="shortcuts">
-                <For each={KEY_LIST}>
+                <For each={KeyList}>
                   {([keys, what]) => (
                     <>
-                      <dt>
-                        <Keys keys={keys} />
-                      </dt>
+                      <dt>{caps(keys)}</dt>
                       <dd>{what}</dd>
                     </>
                   )}
@@ -599,7 +597,7 @@ export function Panel(props: Props) {
                             <span class="title">
                               <Marked parts={markStarts(command.label, words())} />
                             </span>
-                            <Show when={command.keys}>{(keys) => <Keys keys={keys()} />}</Show>
+                            <Show when={command.keys}>{(keys) => caps(keys())}</Show>
                           </div>
                         </div>
                       </div>
@@ -619,7 +617,7 @@ export function Panel(props: Props) {
                 </Show>
                 <For each={shown()}>
                   {(note, position) => {
-                    let option!: HTMLDivElement;
+                    let option: HTMLDivElement | undefined;
                     const index = () => found().length + position();
                     const parts = createMemo(() => describe(note, words()));
                     return (
@@ -865,7 +863,7 @@ function motion() {
   };
 }
 
-const MINUTE = 60_000;
+const Minute = 60_000;
 // In English like every other word here, with the clock (12 or 24 hours) this computer uses.
 const hourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
 const clock = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hourCycle });
@@ -874,8 +872,8 @@ const dayAndYear = new Intl.DateTimeFormat("en", { month: "short", day: "numeric
 
 function ago(at: number, now: number): string {
   const age = now - at;
-  if (age < MINUTE) return "Just now";
-  if (age < 60 * MINUTE) return `${Math.floor(age / MINUTE)}m`;
+  if (age < Minute) return "Just now";
+  if (age < 60 * Minute) return `${Math.floor(age / Minute)}m`;
   const date = new Date(at);
   const today = new Date(now);
   if (date.toDateString() === today.toDateString()) return clock.format(date);

@@ -1,9 +1,9 @@
 import { createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { sendCode, unreachable, verify } from "../sync/account.ts";
-import { Back } from "./Back.tsx";
-import "./SignIn.css";
+import { Back } from "./back.tsx";
+import "./sign-in.css";
 
-const RESEND_AFTER = 30;
+const ResendAfter = 30;
 const touch = matchMedia("(pointer: coarse)").matches;
 
 type Props = {
@@ -42,7 +42,7 @@ export function SignIn(props: Props) {
     }
     setStep("code");
     setCode("");
-    setWait(RESEND_AFTER);
+    setWait(ResendAfter);
     clearInterval(timer);
     timer = setInterval(() => setWait((left) => Math.max(0, left - 1)), 1000);
     field?.focus();

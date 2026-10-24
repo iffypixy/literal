@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { LOG } from "./server.ts";
+import { ServerLog } from "./server.ts";
 
 /** Two devices, signed in to one account, each with a note written before signing in. */
 async function devices(browser: Browser): Promise<[Page, Page]> {
@@ -33,7 +33,7 @@ async function code(email: string, sent: number): Promise<string> {
 }
 
 function codes(email: string): string[] {
-  return [...readFileSync(LOG, "utf8").matchAll(/sign-in code for (\S+): (\d{6})/g)]
+  return [...readFileSync(ServerLog, "utf8").matchAll(/sign-in code for (\S+): (\d{6})/g)]
     .filter((match) => match[1] === email)
     .map((match) => match[2] ?? "");
 }

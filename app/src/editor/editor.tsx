@@ -25,43 +25,42 @@ type Props = {
 };
 
 export function Editor(props: Props) {
-  let area!: HTMLTextAreaElement;
+  // Everything here needs the textarea, so it starts once the textarea exists.
+  function attach(area: HTMLTextAreaElement) {
+    createEffect(() => {
+      if (props.text) onCleanup(bind(area, props.text));
+      else area.value = "";
+    });
 
-  createEffect(() => {
-    if (props.text) onCleanup(bind(area, props.text));
-    else area.value = "";
-  });
-
-  props.ref({
-    focus(position) {
-      if (!position) return area.focus();
-      const [start, end, scroll] = position;
-      const length = area.value.length;
-      area.focus({ preventScroll: true });
-      area.setSelectionRange(Math.min(start, length), Math.min(end, length));
-      if (scroll !== undefined) area.scrollTop = scroll;
-    },
-    position: () => [area.selectionStart, area.selectionEnd, area.scrollTop],
-    clear() {
-      if (!props.text) area.value = "";
-    },
-  });
-
-  function onInput() {
-    props.onType();
-    if (!props.text && area.value.trim()) props.onCreate();
+    props.ref({
+      focus(position) {
+        if (!position) return area.focus();
+        const [start, end, scroll] = position;
+        const length = area.value.length;
+        area.focus({ preventScroll: true });
+        area.setSelectionRange(Math.min(start, length), Math.min(end, length));
+        if (scroll !== undefined) area.scrollTop = scroll;
+      },
+      position: () => [area.selectionStart, area.selectionEnd, area.scrollTop],
+      clear() {
+        if (!props.text) area.value = "";
+      },
+    });
   }
 
-  // Styled in app.css, which index.html's stand-in page shares: the page looks the same before the app is here.
+  // Styled in base.css, which index.html's stand-in page shares: the page looks the same before the app is here.
   return (
     <textarea
-      ref={area}
+      ref={attach}
       class="editor"
       aria-label="Note"
       autocapitalize="sentences"
       readOnly={props.readonly}
-      onInput={onInput}
-      onKeyDown={(event) => event.key === "Escape" && area.blur()}
+      onInput={(event) => {
+        props.onType();
+        if (!props.text && event.currentTarget.value.trim()) props.onCreate();
+      }}
+      onKeyDown={(event) => event.key === "Escape" && event.currentTarget.blur()}
     />
   );
 }

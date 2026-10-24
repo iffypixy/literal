@@ -1,8 +1,8 @@
 import { createEffect, createMemo, createSignal, onMount, Show } from "solid-js";
 import type * as Y from "yjs";
-import { isNoteId, MAX_LENGTH } from "../../protocol/protocol.ts";
-import { Editor, type EditorApi, type Position } from "./editor/Editor.tsx";
-import { letter, mac, mod, shortcuts } from "./keys.ts";
+import { isNoteId, MaxLength } from "../../protocol/protocol.ts";
+import { Editor, type EditorApi, type Position } from "./editor/editor.tsx";
+import { caps, letter, mac, mod, shortcuts } from "./keys.ts";
 import {
   count,
   create,
@@ -20,22 +20,26 @@ import {
   settle,
   start,
 } from "./notes/notes.ts";
-import { prepare, shorten, title } from "./notes/search.ts";
-import { Panel, type PanelApi } from "./panel/Panel.tsx";
-import { FAREWELL, account, session, signedIn } from "./sync/account.ts";
+import { prepare, quoted, shorten, title } from "./notes/search.ts";
+import { Panel, type PanelApi } from "./panel/panel.tsx";
+import { FarewellKey, account, session, signedIn } from "./sync/account.ts";
 import { sync, start as startSync } from "./sync/sync.ts";
 import { importFiles } from "./transfer/transfer.ts";
-import { Keys } from "./ui/Keys.tsx";
-import { Toast } from "./ui/Toast.tsx";
-import { act, quiet, toast, toasts } from "./ui/toast.ts";
+import { act, quiet, toast, Toasts } from "./ui/toast.tsx";
 import { tooltip } from "./ui/tooltip.ts";
-import "./App.css";
+import "./app.css";
 
-/** Characters of a note's title a toast shows, and the window's title. */
-const NAME_SHOWN = 30;
-const TITLE_SHOWN = 60;
+/** Characters of a note's title the window's title shows. */
+const TitleShown = 60;
 /** Cursor positions remembered on this device, newest last. */
-const CURSORS_KEPT = 200;
+const CursorsKept = 200;
+/** What tapping the corner says about each problem it can show. */
+const Explanations = {
+  "Can't save here": "This browser can't save notes, so copy your text before closing",
+  Offline: "Notes will sync when you're back online",
+  "Not synced": "Notes are saved on this device and will sync when Literal connects",
+  "Too long to sync": `Notes sync up to ${MaxLength.toLocaleString()} characters, so split this one into shorter notes`,
+};
 
 type How = "push" | "replace" | "none";
 
@@ -66,7 +70,7 @@ export function App() {
   const tooLong = createMemo(() => {
     void notes.version;
     const id = current();
-    return Boolean(account.email && id && length(id) > MAX_LENGTH);
+    return Boolean(account.email && id && length(id) > MaxLength);
   });
   /** A problem stays in the corner until it's solved. */
   const problem = () => (notes.failed ? "Can't save here" : sync.status || (tooLong() ? "Too long to sync" : ""));
@@ -77,25 +81,19 @@ export function App() {
     const live = notes.ready ? count() : 0;
     return live ? `${live.toLocaleString()} ${live === 1 ? "note" : "notes"}` : "";
   });
-  const explanations: Record<string, string> = {
-    "Can't save here": "This browser can't save notes, so copy your text before closing",
-    Offline: "Notes will sync when you're back online",
-    "Not synced": "Notes are saved on this device and will sync when Literal connects",
-    "Too long to sync": `Notes sync up to ${MAX_LENGTH.toLocaleString()} characters, so split this one into shorter notes`,
-  };
 
   createEffect(() => {
     void notes.version;
     const id = current();
-    const name = id ? shorten(title(find(id)?.text ?? ""), TITLE_SHOWN) : "";
+    const name = id ? shorten(title(find(id)?.text ?? ""), TitleShown) : "";
     document.title = name ? `${name} — Literal` : "Literal";
   });
 
   onMount(() => {
     // A farewell left by signing out or deleting the account, which ends with a reload: said once it's done.
-    const farewell = read(FAREWELL);
+    const farewell = read(FarewellKey);
     if (farewell) {
-      unset(FAREWELL);
+      unset(FarewellKey);
       toast(farewell);
     }
     setSignedIn(Boolean(account.email));
@@ -125,9 +123,10 @@ export function App() {
   }
 
   function explain() {
-    if (problem() === "Sign in to sync") return panel.show(true, "sign-in");
-    if (!problem() && !current()) return togglePanel(true);
-    if (problem()) toast(explanations[problem()] ?? "");
+    const shown = problem();
+    if (shown === "Sign in to sync") return panel.show(true, "sign-in");
+    if (!shown && !current()) return togglePanel(true);
+    if (shown) toast(Explanations[shown]);
     else if (account.email) toast("Notes save and sync as you type");
     else
       toast("Notes save on this device as you type", {
@@ -174,7 +173,10 @@ export function App() {
     if (!id) return;
     cursors.delete(id);
     cursors.set(id, editor.position());
-    while (cursors.size > CURSORS_KEPT) cursors.delete(cursors.keys().next().value ?? "");
+    for (const oldest of cursors.keys()) {
+      if (cursors.size <= CursorsKept) break;
+      cursors.delete(oldest);
+    }
     write("literal:cursors", JSON.stringify([...cursors]));
     discardIfEmpty(id);
   }
@@ -201,7 +203,7 @@ export function App() {
 
   function onDelete(id: string) {
     // Named, so it's clear which one went: Delete acts on whichever row is highlighted.
-    const name = shorten(title(find(id)?.text ?? ""), NAME_SHOWN);
+    const name = quoted(find(id)?.text ?? "");
     void remove(id);
     const wasOpen = id === current();
     if (wasOpen) {
@@ -218,13 +220,14 @@ export function App() {
         keys: hover ? shortcuts.undo : undefined,
         run: () => {
           deleted = [];
+          undoable = false;
           for (const note of batch) restore(note.id);
           // Undo puts you back where you were: in the note, if you were in it.
           const open = batch.find((note) => note.wasOpen);
           if (open && current() === null) void go(open.id, "replace");
         },
       },
-      onexpire: () => {
+      onExpire: () => {
         deleted = [];
         undoable = false;
         for (const note of batch) settle(note.id);
@@ -245,7 +248,7 @@ export function App() {
   addEventListener(
     "keydown",
     (event) => {
-      if (!undoable || !toasts.current?.action) return;
+      if (!undoable) return;
       if (!mod(event) || event.shiftKey || event.altKey || !letter(event, "z")) return;
       event.preventDefault();
       event.stopPropagation();
@@ -382,12 +385,8 @@ export function App() {
         {/* Only on a blank page, where it covers nothing: gone with the first word, back with every new page. */}
         <Show when={hover}>
           <p class="hint" classList={{ gone: current() !== null }} aria-hidden="true">
-            <span>
-              <Keys keys={shortcuts.new} /> new note
-            </span>
-            <span>
-              <Keys keys={shortcuts.notes} /> notes
-            </span>
+            <span>{caps(shortcuts.new)} new note</span>
+            <span>{caps(shortcuts.notes)} notes</span>
           </p>
         </Show>
       </div>
@@ -407,7 +406,7 @@ export function App() {
         }}
       />
 
-      <Toast />
+      <Toasts />
 
       {/* A problem in the corner is also said aloud, once, by a screen reader. */}
       <p class="visually-hidden" aria-live="polite">

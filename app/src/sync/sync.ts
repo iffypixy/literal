@@ -2,18 +2,10 @@
 
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import {
-  decode,
-  encode,
-  MAX_BYTES,
-  MAX_LENGTH,
-  MAX_NOTES,
-  SIGNED_OUT,
-  type Message,
-} from "../../../protocol/protocol.ts";
+import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "../../../protocol/protocol.ts";
 import * as notes from "../notes/notes.ts";
-import { shorten, title } from "../notes/search.ts";
-import { toast } from "../ui/toast.ts";
+import { quoted } from "../notes/search.ts";
+import { toast } from "../ui/toast.tsx";
 
 /** What the corner says, if anything: nothing while all is well. */
 export type Status = "" | "Offline" | "Not synced" | "Sign in to sync";
@@ -21,20 +13,20 @@ export type Status = "" | "Offline" | "Not synced" | "Sign in to sync";
 export const sync = createMutable<{ status: Status }>({ status: "" });
 
 /** How long the connection may be down before the corner says so. */
-const DOWN_AFTER = 5000;
+const DownAfter = 5000;
 /**
  * A lost network often leaves a WebSocket open and silent. So the device pings when idle, and treats the
  * connection as dead when a pong or an ack is this late.
  */
-const PING_EVERY = 25_000;
-const DEAD_AFTER = 10_000;
-const RETRY_MIN = 1000;
-const RETRY_MAX = 30_000;
+const PingEvery = 25_000;
+const DeadAfter = 10_000;
+const RetryMin = 1000;
+const RetryMax = 30_000;
 /** A pause in typing this long sends what was typed; so does typing this long without one. */
-const SEND_DELAY = 1000;
-const SEND_AT_MOST = 5000;
+const SendDelay = 1000;
+const SendAtMost = 5000;
 /** How long signing out waits for the server to take the last changes. */
-const DRAIN_FOR = 3000;
+const DrainFor = 3000;
 
 let socket: WebSocket | null = null;
 let running = false;
@@ -50,7 +42,7 @@ const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: R
  * note sent after that is acked, the note goes whole, and no other ack marks it synced.
  */
 const behind = new Map<string, number>();
-let retry = RETRY_MIN;
+let retry = RetryMin;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let downSince = Date.now();
 let lastHeard = Date.now();
@@ -90,7 +82,7 @@ function connect() {
   ws.binaryType = "arraybuffer";
   socket = ws;
   ws.onopen = async () => {
-    retry = RETRY_MIN;
+    retry = RetryMin;
     lastHeard = Date.now();
     const hello = await notes.hello();
     if (ws.readyState === WebSocket.OPEN) ws.send(encode({ type: "hello", ...hello }));
@@ -109,7 +101,7 @@ function connect() {
   };
   ws.onclose = (event) => {
     if (socket !== ws) return;
-    if (event.code === SIGNED_OUT) {
+    if (event.code === SignedOut) {
       socket = null;
       abandon();
       signedOut = true;
@@ -132,7 +124,7 @@ function drop() {
   // Without a network, the `online` event is the time to try again.
   if (navigator.onLine) {
     retryTimer = setTimeout(connect, retry * (0.75 + Math.random() / 2));
-    retry = Math.min(retry * 2, RETRY_MAX);
+    retry = Math.min(retry * 2, RetryMax);
   }
   update();
 }
@@ -146,7 +138,7 @@ function abandon() {
 /** Tries again right away: the network came back, or the app came back to the front. */
 function reconnect() {
   if (!running || signedOut || socket) return;
-  retry = RETRY_MIN;
+  retry = RetryMin;
   connect();
 }
 
@@ -185,11 +177,11 @@ async function handle(ws: WebSocket, message: Message) {
       const about = message.reason === "too-large" ? (sent?.id ?? message.reason) : message.reason;
       if (told.has(about)) break;
       told.add(about);
-      const name = sent ? shorten(title(notes.find(sent.id)?.text ?? ""), 30) : "";
+      const name = sent ? quoted(notes.find(sent.id)?.text ?? "") : "";
       if (message.reason === "too-many")
-        toast(`Sync stops at ${MAX_NOTES.toLocaleString()} notes, so delete some to make room`);
+        toast(`Sync stops at ${MaxNotes.toLocaleString()} notes, so delete some to make room`);
       else if (message.reason === "too-full")
-        toast(`Sync stops at ${MAX_BYTES / 1_000_000} MB, so delete some notes to make room`);
+        toast(`Sync stops at ${MaxBytes / 1_000_000} MB, so delete some notes to make room`);
       else
         toast(name ? `Split "${name}" into shorter notes to sync it` : "Split this note into shorter notes to sync it");
       break;
@@ -206,7 +198,7 @@ async function handle(ws: WebSocket, message: Message) {
 export async function drain() {
   await notes.flush();
   await Promise.all([...outbox.keys()].map((id) => flush(id)));
-  const until = Date.now() + DRAIN_FOR;
+  const until = Date.now() + DrainFor;
   while (unacked.size && socket?.readyState === WebSocket.OPEN && Date.now() < until) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -220,7 +212,7 @@ function post(id: string, update: Uint8Array) {
   const waiting = outbox.get(id) ?? { updates: [], since: now };
   clearTimeout(waiting.timer);
   waiting.updates.push(update);
-  waiting.timer = setTimeout(() => void flush(id), Math.min(SEND_DELAY, waiting.since + SEND_AT_MOST - now));
+  waiting.timer = setTimeout(() => void flush(id), Math.min(SendDelay, waiting.since + SendAtMost - now));
   outbox.set(id, waiting);
 }
 
@@ -248,7 +240,7 @@ async function flush(id: string) {
  */
 function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (notes.length(id) > MAX_LENGTH) {
+  if (notes.length(id) > MaxLength) {
     fallBehind(id, seq);
     return;
   }
@@ -264,9 +256,9 @@ function fallBehind(id: string, since: number) {
 function tick() {
   const now = Date.now();
   if (socket?.readyState === WebSocket.OPEN) {
-    const late = [...unacked.values()].some((sent) => now - sent.at > DEAD_AFTER);
-    if (late || (pingSent && now - pingSent > DEAD_AFTER)) drop();
-    else if (!pingSent && now - lastHeard > PING_EVERY) {
+    const late = [...unacked.values()].some((sent) => now - sent.at > DeadAfter);
+    if (late || (pingSent && now - pingSent > DeadAfter)) drop();
+    else if (!pingSent && now - lastHeard > PingEvery) {
       pingSent = now;
       socket.send("ping");
     }
@@ -277,7 +269,7 @@ function tick() {
 function update() {
   const down = !socket || socket.readyState !== WebSocket.OPEN;
   if (signedOut) sync.status = "Sign in to sync";
-  else if (!down || Date.now() - downSince < DOWN_AFTER) sync.status = "";
+  else if (!down || Date.now() - downSince < DownAfter) sync.status = "";
   // Down with a network means the server can't be reached; without one, the device is offline.
   else sync.status = navigator.onLine ? "Not synced" : "Offline";
 }

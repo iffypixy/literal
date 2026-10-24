@@ -67,6 +67,11 @@ export function title(text: string): string {
   return split(text).first;
 }
 
+/** A note's title as a toast quotes it: short enough to fit on a phone. */
+export function quoted(text: string): string {
+  return shorten(title(text), 30);
+}
+
 /** A title cut to `length`: at the end of a word if one ends near enough, then "…". */
 export function shorten(name: string, length: number): string {
   const chars = [...name];
@@ -96,15 +101,15 @@ function split(text: string): { first: string; restAt: number } {
 }
 
 /** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
-const SNIPPET_REACH = 20;
+const SnippetReach = 20;
 
 /** One line of text around `at`: a little before it, more after, cut at spaces near enough to keep the hit in view. */
 function around(text: string, at: number, from: number): string {
-  let start = Math.max(from, at - SNIPPET_REACH);
+  let start = Math.max(from, at - SnippetReach);
   let end = Math.min(text.length, at + 60);
   if (start > from) {
     const space = text.lastIndexOf(" ", start);
-    if (space >= Math.max(from, start - SNIPPET_REACH)) start = space + 1;
+    if (space >= Math.max(from, start - SnippetReach)) start = space + 1;
   }
   if (end < text.length) end = Math.max(text.lastIndexOf(" ", end), at + 1);
   const line = text.slice(start, end).replace(/\s+/g, " ").trim();

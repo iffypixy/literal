@@ -24,3 +24,11 @@ export const shortcuts = {
   undo: mac ? ["⌘", "Z"] : ["Ctrl", "Z"],
   close: ["Esc"],
 };
+
+/** A shortcut drawn as key caps, like `Ctrl` `K`: see `.keys` and `kbd` in base.css. */
+export function caps(keys: string[]): HTMLElement {
+  const span = document.createElement("span");
+  span.className = "keys";
+  span.append(...keys.map((key) => Object.assign(document.createElement("kbd"), { textContent: key })));
+  return span;
+}

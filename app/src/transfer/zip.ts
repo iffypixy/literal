@@ -4,8 +4,8 @@ export type Entry = { name: string; text: string; modified: Date };
 
 export function zip(entries: Entry[]): Blob {
   const encoder = new TextEncoder();
-  const parts: Uint8Array[] = [];
-  const central: Uint8Array[] = [];
+  const parts: Uint8Array<ArrayBuffer>[] = [];
+  const central: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
   for (const entry of entries) {
     const name = encoder.encode(entry.name);
@@ -51,11 +51,15 @@ export function zip(entries: Entry[]): Blob {
     [12, 4, size],
     [16, 4, offset],
   ]);
-  return new Blob([...parts, ...central, end] as BlobPart[], { type: "application/zip" });
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
 }
 
 /** A record of `size` fixed bytes, with `fields` written little-endian at their offsets, followed by `name`. */
-function header(size: number, name: Uint8Array, fields: [offset: number, bytes: 2 | 4, value: number][]): Uint8Array {
+function header(
+  size: number,
+  name: Uint8Array,
+  fields: [offset: number, bytes: 2 | 4, value: number][],
+): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(size + name.length);
   const view = new DataView(out.buffer);
   for (const [at, bytes, value] of fields) {

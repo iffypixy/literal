@@ -1,4 +1,4 @@
-import "./Back.css";
+import "./back.css";
 
 export function Back(props: { onClick: () => void }) {
   return (

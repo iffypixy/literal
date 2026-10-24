@@ -1,28 +1,28 @@
 import { DurableObject } from "cloudflare:workers";
 import * as Y from "yjs";
-import { decode, encode, isNoteId, MAX_BYTES, MAX_NOTES, SIGNED_OUT, type Message } from "../../protocol/protocol.ts";
+import { decode, encode, isNoteId, MaxBytes, MaxNotes, SignedOut, type Message } from "../../protocol/protocol.ts";
 import type { Env } from "./index.ts";
 
 /**
- * A note's Yjs state can't outgrow a SQLite row (2 MB here). A note of MAX_LENGTH characters stays under this
+ * A note's Yjs state can't outgrow a SQLite row (2 MB here). A note of MaxLength characters stays under this
  * however it was written: typed a letter at a time, each in a new spot, in Chinese, its state comes to 1.8 MB.
  */
-const MAX_STATE = 1_900_000;
+const MaxState = 1_900_000;
 /**
  * Deleted notes don't count toward the limits, yet keep their text for 30 days. So that nobody can fill an account
  * with deleted notes, everything stored has a ceiling too: twice the limits, which using the app never reaches.
  */
-const CEILING_NOTES = 2 * MAX_NOTES;
-const CEILING_BYTES = 2 * MAX_BYTES;
+const CeilingNotes = 2 * MaxNotes;
+const CeilingBytes = 2 * MaxBytes;
 /** Merged updates keep deleted text around; every so often the state is rebuilt without it. */
-const COMPACT_EVERY = 200;
+const CompactEvery = 200;
 /** How long a deleted note's text is kept, in case a device that hasn't heard of the delete edits it again. */
-const KEEP_DELETED = 30 * 24 * 60 * 60 * 1000;
-const DAY = 24 * 60 * 60 * 1000;
+const KeepDeleted = 30 * 24 * 60 * 60 * 1000;
+const Day = 24 * 60 * 60 * 1000;
 /** The largest catch-up message, in bytes of updates; a new device gets several. */
-const BATCH = 2 * 1024 * 1024;
+const BatchSize = 2 * 1024 * 1024;
 /** An empty state vector (no clients), spelled out: Workers allow no random ids, like a new Y.Doc's, at load. */
-const NOTHING = new Uint8Array([0]);
+const EmptyVector = new Uint8Array([0]);
 
 type Row = { id: string; state: ArrayBuffer; vector: ArrayBuffer; updated_at: number };
 
@@ -33,7 +33,7 @@ export class UserNotes extends DurableObject<Env> {
   private merges = new Map<string, number>();
   /** The last `updated_at` given out: each write gets a later one, so `since` never misses a write. */
   private last = 0;
-  /** Bytes of every note's state, deleted ones too: while that's within MAX_BYTES, no write needs a closer look. */
+  /** Bytes of every note's state, deleted ones too: while that's within MaxBytes, no write needs a closer look. */
   private stored = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -61,9 +61,9 @@ export class UserNotes extends DurableObject<Env> {
   }
 
   override async fetch(): Promise<Response> {
-    const [client, server] = Object.values(new WebSocketPair()) as [WebSocket, WebSocket];
+    const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
-    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + DAY);
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + Day);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -99,7 +99,7 @@ export class UserNotes extends DurableObject<Env> {
     const ids: string[] = [];
     for (const row of this.sql.exec<{ id: string; state: ArrayBuffer }>("SELECT id, state FROM notes")) {
       const deletedAt = deletedSince(new Uint8Array(row.state));
-      if (deletedAt === null || now - deletedAt <= KEEP_DELETED) continue;
+      if (deletedAt === null || now - deletedAt <= KeepDeleted) continue;
       ids.push(row.id);
       this.stored -= row.state.byteLength;
     }
@@ -108,12 +108,12 @@ export class UserNotes extends DurableObject<Env> {
       this.sql.exec("INSERT OR IGNORE INTO purged (id) VALUES (?)", id);
     }
     if (ids.length) this.broadcast(encode({ type: "purge", ids }));
-    await this.ctx.storage.setAlarm(now + DAY);
+    await this.ctx.storage.setAlarm(now + Day);
   }
 
   /** Erases everything: the account is being deleted. */
   async wipe() {
-    for (const socket of this.ctx.getWebSockets()) socket.close(SIGNED_OUT, "account deleted");
+    for (const socket of this.ctx.getWebSockets()) socket.close(SignedOut, "account deleted");
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
@@ -143,7 +143,7 @@ export class UserNotes extends DurableObject<Env> {
       const update = changed ? (their ? Y.diffUpdate(state, their.vector) : state) : null;
       batch.push({ id: row.id, update, vector: their?.dirty ? new Uint8Array(row.vector) : null });
       size += update?.byteLength ?? 0;
-      if (size > BATCH) {
+      if (size > BatchSize) {
         socket.send(encode({ type: "catch-up", done: false, now, notes: batch }));
         batch = [];
         size = 0;
@@ -151,7 +151,7 @@ export class UserNotes extends DurableObject<Env> {
     }
     // Dirty notes the server has never seen: an empty state vector asks the device for all of each.
     for (const note of theirs.values()) {
-      if (note.dirty && !purged.has(note.id)) batch.push({ id: note.id, update: null, vector: NOTHING });
+      if (note.dirty && !purged.has(note.id)) batch.push({ id: note.id, update: null, vector: EmptyVector });
     }
     socket.send(encode({ type: "catch-up", done: true, now, notes: batch }));
   }
@@ -167,11 +167,7 @@ export class UserNotes extends DurableObject<Env> {
     let state = row ? Y.mergeUpdates([new Uint8Array(row.state), update]) : update;
     let merges = (this.merges.get(id) ?? 0) + 1;
     // Near a limit, the note is measured by what it holds, not by the deleted text that merging keeps around.
-    if (
-      merges >= COMPACT_EVERY ||
-      state.byteLength > MAX_STATE ||
-      this.stored - before + state.byteLength > MAX_BYTES
-    ) {
+    if (merges >= CompactEvery || state.byteLength > MaxState || this.stored - before + state.byteLength > MaxBytes) {
       state = compact(state);
       merges = 0;
     }
@@ -179,7 +175,7 @@ export class UserNotes extends DurableObject<Env> {
       socket.send(encode({ type: "refused", seq, reason: "too-many" }));
       return;
     }
-    if (state.byteLength > MAX_STATE) {
+    if (state.byteLength > MaxState) {
       socket.send(encode({ type: "refused", seq, reason: "too-large" }));
       return;
     }
@@ -208,21 +204,21 @@ export class UserNotes extends DurableObject<Env> {
   private tooMany(state: Uint8Array): boolean {
     const count = (query: string) => this.sql.exec<{ count: number }>(query).one().count;
     const all = count("SELECT COUNT(*) AS count FROM notes");
-    if (all < MAX_NOTES) return false;
-    if (all >= CEILING_NOTES) return true;
+    if (all < MaxNotes) return false;
+    if (all >= CeilingNotes) return true;
     if (deletedSince(state) !== null) return false;
     this.checkDeleted();
-    return count("SELECT COUNT(*) AS count FROM notes WHERE deleted = 0") >= MAX_NOTES;
+    return count("SELECT COUNT(*) AS count FROM notes WHERE deleted = 0") >= MaxNotes;
   }
 
   /**
-   * Whether the note, grown from `before` bytes to `state`, takes the account past MAX_BYTES. Only notes it still
+   * Whether the note, grown from `before` bytes to `state`, takes the account past MaxBytes. Only notes it still
    * has count: deleting one makes room, and goes through itself, as does any change that doesn't grow a note.
    */
   private tooFull(id: string, before: number, state: Uint8Array): boolean {
     const growth = state.byteLength - before;
-    if (growth <= 0 || this.stored + growth <= MAX_BYTES) return false;
-    if (this.stored + growth > CEILING_BYTES) return true;
+    if (growth <= 0 || this.stored + growth <= MaxBytes) return false;
+    if (this.stored + growth > CeilingBytes) return true;
     if (deletedSince(state) !== null) return false;
     this.checkDeleted();
     const others = this.sql
@@ -231,7 +227,7 @@ export class UserNotes extends DurableObject<Env> {
         id,
       )
       .one().bytes;
-    return others + state.byteLength > MAX_BYTES;
+    return others + state.byteLength > MaxBytes;
   }
 
   /**
@@ -277,5 +273,5 @@ function compact(state: Uint8Array): Uint8Array {
 }
 
 function buffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return new Uint8Array(bytes).buffer;
 }

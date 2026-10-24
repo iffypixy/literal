@@ -3,11 +3,11 @@
 import { createMutable } from "solid-js/store";
 import { wipe } from "../notes/notes.ts";
 
-const KEY = "literal:account";
+const AccountKey = "literal:account";
 /** Where signing out or deleting the account leaves its word, which App says after the reload. */
-export const FAREWELL = "literal:farewell";
+export const FarewellKey = "literal:farewell";
 /** How long a request may take before it counts as failed: a dead network would leave it waiting forever. */
-const TIMEOUT = 15_000;
+const RequestTimeout = 15_000;
 
 export const account = createMutable<{ email: string | null }>({ email: remembered() });
 
@@ -67,7 +67,7 @@ export async function deleteAccount(): Promise<string | null> {
     response = await fetch("/api/account", {
       method: "DELETE",
       credentials: "same-origin",
-      signal: AbortSignal.timeout(TIMEOUT),
+      signal: AbortSignal.timeout(RequestTimeout),
     });
   } catch {
     return unreachable();
@@ -82,7 +82,7 @@ export async function deleteAccount(): Promise<string | null> {
 async function forget(farewell: string) {
   remember(null);
   try {
-    localStorage.setItem(FAREWELL, farewell);
+    localStorage.setItem(FarewellKey, farewell);
   } catch {
     // Without storage it goes unsaid; the empty page still shows what happened.
   }
@@ -96,14 +96,14 @@ function post(path: string, body: unknown): Promise<Response> {
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT),
+    signal: AbortSignal.timeout(RequestTimeout),
   });
 }
 
 // Remembered so the app knows it's signed in before the server answers, or when it can't.
 function remembered(): string | null {
   try {
-    return localStorage.getItem(KEY);
+    return localStorage.getItem(AccountKey);
   } catch {
     return null;
   }
@@ -111,8 +111,8 @@ function remembered(): string | null {
 
 function remember(email: string | null) {
   try {
-    if (email) localStorage.setItem(KEY, email);
-    else localStorage.removeItem(KEY);
+    if (email) localStorage.setItem(AccountKey, email);
+    else localStorage.removeItem(AccountKey);
   } catch {
     // Without storage the app just won't know it's signed in until the server says so.
   }
