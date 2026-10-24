@@ -1,5 +1,6 @@
 /** Keeps this device's notes in sync with the account, over one WebSocket, for as long as it's signed in. */
 
+import * as Y from "yjs";
 import { decode, encode, SIGNED_OUT, type Message } from "../../../protocol/protocol.ts";
 import * as notes from "../notes/notes.svelte.ts";
 import { shorten, title } from "../notes/search.ts";
@@ -20,6 +21,11 @@ const PING_EVERY = 25_000;
 const DEAD_AFTER = 10_000;
 const RETRY_MIN = 1000;
 const RETRY_MAX = 30_000;
+/** A pause in typing this long sends what was typed; so does typing this long without one. */
+const SEND_DELAY = 1000;
+const SEND_AT_MOST = 5000;
+/** How long signing out waits for the server to take the last changes. */
+const DRAIN_FOR = 3000;
 
 let socket: WebSocket | null = null;
 let running = false;
@@ -27,6 +33,8 @@ let signedOut = false;
 let seq = 0;
 /** Updates sent and not yet acked: which note, and how far its changes went. */
 const unacked = new Map<number, { id: string; upTo: number; at: number }>();
+/** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
+const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
 let retry = RETRY_MIN;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let downSince = Date.now();
@@ -47,14 +55,16 @@ export function start() {
   }
   running = true;
   signedOut = false;
-  notes.onLocal(send);
+  notes.onLocal(post);
   // A connection from before the network dropped is usually dead even if it looks open: start over.
   addEventListener("online", () => {
     drop();
     reconnect();
   });
   addEventListener("offline", drop);
-  document.addEventListener("visibilitychange", () => !document.hidden && reconnect());
+  // Leaving the app sends what's waiting at once; coming back reconnects.
+  document.addEventListener("visibilitychange", () => (document.hidden ? sendAll() : reconnect()));
+  addEventListener("pagehide", sendAll);
   setInterval(tick, 1000);
   connect();
 }
@@ -158,6 +168,41 @@ async function handle(ws: WebSocket, message: Message) {
     case "hello":
       throw new Error("sync: the server said hello");
   }
+}
+
+/** Sends every change still waiting, then gives the server a moment to take them all: before signing out. */
+export async function drain() {
+  await notes.flush();
+  sendAll();
+  const until = Date.now() + DRAIN_FOR;
+  while (unacked.size && socket?.readyState === WebSocket.OPEN && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  // An ack is on disk once it's been handled.
+  await queue;
+}
+
+/** Holds a change made here until typing pauses, or has gone on for a while. */
+function post(id: string, update: Uint8Array) {
+  const now = Date.now();
+  const waiting = outbox.get(id) ?? { updates: [], since: now };
+  clearTimeout(waiting.timer);
+  waiting.updates.push(update);
+  waiting.timer = setTimeout(() => flush(id), Math.min(SEND_DELAY, waiting.since + SEND_AT_MOST - now));
+  outbox.set(id, waiting);
+}
+
+function sendAll() {
+  for (const id of [...outbox.keys()]) flush(id);
+}
+
+/** Sends the note's waiting changes, as one update. */
+function flush(id: string) {
+  const waiting = outbox.get(id);
+  if (!waiting) return;
+  clearTimeout(waiting.timer);
+  outbox.delete(id);
+  send(id, Y.mergeUpdates(waiting.updates));
 }
 
 /** Sends a change now if connected; otherwise the note stays dirty and goes with the next hello. */

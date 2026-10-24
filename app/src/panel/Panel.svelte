@@ -5,7 +5,7 @@
   import { list, notes, unsynced, type Note } from "../notes/notes.svelte.ts";
   import { describe, markStarts, parse, search, startsWords } from "../notes/search.ts";
   import { account, deleteAccount, signOut } from "../sync/account.svelte.ts";
-  import { sync } from "../sync/sync.svelte.ts";
+  import { drain, sync } from "../sync/sync.svelte.ts";
   import { exportAll, importFiles } from "../transfer/transfer.ts";
   import Keys from "../ui/Keys.svelte";
   import { tooltip } from "../ui/tooltip.ts";
@@ -514,8 +514,9 @@
   }
 
   /** Signs out at once if everything is synced; otherwise asks first. */
-  function leave() {
+  async function leave() {
     menu = false;
+    await drain();
     waiting = unsynced();
     if (waiting || sync.status) view = "sign-out";
     else void signOut();

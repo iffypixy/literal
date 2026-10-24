@@ -6,7 +6,8 @@
  * 2. The server answers `catch-up`, in one or more batches: for every note changed since `since`, what the
  *    device is missing; for every dirty note, the server's state vector, so the device can send what the
  *    server is missing as an `update`. State vectors don't capture deletions, hence the dirty flag.
- * 3. From then on, both sides send `update`s as they happen. The server stores each one, then `ack`s it.
+ * 3. From then on, both sides send `update`s: the server as they arrive, the device once typing pauses. The server
+ *    stores each one, then `ack`s it.
  */
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
