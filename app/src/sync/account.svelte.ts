@@ -34,6 +34,7 @@ export async function sendCode(email: string): Promise<string | null> {
   if (response.ok) return null;
   if (response.status === 429) return "Wait a few minutes, then try again";
   if (response.status === 400) return "That doesn't look like an email address";
+  if (response.status === 503) return "Can't send more codes today, please try again tomorrow";
   return "Couldn't send the code, please try again";
 }
 
