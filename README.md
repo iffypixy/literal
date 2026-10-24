@@ -29,11 +29,11 @@ You need a Cloudflare account on the Workers Paid plan, which sending email need
 1. `pnpm wrangler login`
 2. `pnpm wrangler d1 create literal`, then put the printed `database_id` in `wrangler.jsonc`.
 3. `pnpm wrangler email sending enable literal.ink`, so the Worker can email sign-in codes from the domain.
-4. In `wrangler.jsonc`, `APP_URL`, `EMAIL_FROM` and the email binding's allowed sender are set for literal.ink: change them for another domain.
+4. In `wrangler.jsonc`, the route, `APP_URL`, `EMAIL_FROM` and the email binding's allowed sender are set for literal.ink: change them for another domain.
 5. `pnpm wrangler d1 migrations apply literal --remote`
 6. `openssl rand -hex 32 | pnpm wrangler secret put BETTER_AUTH_SECRET`
-7. `pnpm run deploy` (not `pnpm deploy`, which is a different pnpm command).
-8. In the Cloudflare dashboard: add your domain to the Worker (Settings → Domains & Routes), and turn on Web Analytics for it.
+7. `pnpm run deploy` (not `pnpm deploy`, which is a different pnpm command). It attaches the domain to the Worker too.
+8. In the Cloudflare dashboard, turn on Web Analytics for the domain.
 9. Forward `hello@literal.ink`, the contact address in `app/public/privacy.html`, to a real inbox (Email → Email Routing).
 
 ## Before launch, check on real devices

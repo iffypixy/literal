@@ -10,7 +10,7 @@
     "build": "vite build",
     "preview": "vite preview --host --port 5390 --strictPort",
     "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p worker",
-    "deploy": "vite build && cd app && wrangler deploy",
+    "deploy": "vite build && wrangler deploy --config app/dist/literal/wrangler.json",
     "test": "playwright test",
     "format": "prettier --write ."
   },

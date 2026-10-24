@@ -4,6 +4,10 @@
   "main": "worker/src/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Served at literal.ink alone: sign-in and sync only work at APP_URL, so there's no workers.dev copy.
+  "routes": [{ "pattern": "literal.ink", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/sync"],
@@ -16,8 +20,8 @@
     {
       "binding": "DB",
       "database_name": "literal",
-      // Replace with the id `wrangler d1 create literal` prints.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // From `wrangler d1 create literal`: another deployment puts its own here.
+      "database_id": "bc547f81-639d-4ce6-a0fc-374a8d5d4b60",
       "migrations_dir": "worker/migrations",
     },
   ],
