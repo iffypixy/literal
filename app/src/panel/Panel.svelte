@@ -12,8 +12,8 @@
   import Back from "./Back.svelte";
   import SignIn from "./SignIn.svelte";
 
-  /** What the panel shows: the notes, signing in, a question before something that can't be undone, or the keys. */
-  export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys";
+  /** What the panel shows: the notes, signing in, a question before something that can't be undone, the keys, or about. */
+  export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
 
   /** Something Ctrl+K can do besides opening a note. `pointer`: whether a click (not a key) ran it. */
   type Command = { label: string; keys?: string[]; run: (pointer: boolean) => void };
@@ -97,6 +97,7 @@
     },
     account.email ? { label: "Sign out", run: leave } : { label: "Sync across devices", run: () => (view = "sign-in") },
     ...(touch.matches ? [] : [{ label: "Keyboard shortcuts", run: () => (view = "keys") }]),
+    { label: "About Literal", run: () => (view = "about") },
   ]);
 
   const words = $derived(parse(query));
@@ -607,6 +608,16 @@
           {/each}
         </dl>
       </div>
+    {:else if view === "about"}
+      <div class="ask">
+        <Back onclick={back} />
+        <h2 id="view-title" tabindex="-1">Literal</h2>
+        <p>Instant notes, on all your devices.</p>
+        <p class="section">Made by Ansat<br />Write to <a href="mailto:hello@literal.ink">hello@literal.ink</a></p>
+        <p class="section">
+          <a href="/terms" target="_blank">Terms</a> · <a href="/privacy" target="_blank">Privacy</a>
+        </p>
+      </div>
     {:else if view === "delete"}
       <div class="ask">
         <h2 id="view-title" tabindex="-1">Delete your account and all your notes?</h2>
@@ -758,8 +769,14 @@
                   view = "keys";
                 }}>Keyboard shortcuts</button
               >
-              <hr />
             {/if}
+            <button
+              onclick={() => {
+                menu = false;
+                view = "about";
+              }}>About Literal</button
+            >
+            <hr />
             <button onclick={() => picker?.click()}>Import .txt files</button>
             <button
               onclick={() => {
@@ -1121,6 +1138,24 @@
 
   .ask .problem {
     color: var(--danger);
+  }
+
+  /* Who made it, then the fine print: each a group of its own. */
+  .ask .section {
+    margin-top: var(--group);
+  }
+
+  .ask a {
+    color: inherit;
+  }
+
+  /* A finger needs more than a line of text to aim at: the links reach 44px tall without moving anything. */
+  @media (pointer: coarse) {
+    .ask a {
+      display: inline-block;
+      padding: 12px 0;
+      margin: -12px 0;
+    }
   }
 
   .link {

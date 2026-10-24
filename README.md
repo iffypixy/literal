@@ -1,6 +1,6 @@
 # Literal
 
-A blank page for your notes. Open it and type: it saves itself. Your notes are one keystroke away (⌘K), and sign-in is only for syncing them between devices.
+Instant notes, on all your devices. Open it and type; every note is one keystroke away (⌘K), and signing in syncs them. Made by Ansat.
 
 - **App:** Svelte 5 + Vite, an installable PWA that works fully offline (`app/`).
 - **Server:** one Cloudflare Worker (`worker/`): Better Auth on D1 for accounts, and a Durable Object per user that stores their notes and syncs them live.

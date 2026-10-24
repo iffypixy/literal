@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Literal",
   "short_name": "Literal",
-  "description": "A blank page for your notes. Open it and type.",
+  "description": "Instant notes, on all your devices.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
