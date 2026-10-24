@@ -3,7 +3,7 @@
   import { cubicOut } from "svelte/easing";
   import { mod, shortcuts } from "../keys.ts";
   import { list, notes, unsynced, type Note } from "../notes/notes.svelte.ts";
-  import { describe, parse, search } from "../notes/search.ts";
+  import { describe, markStarts, parse, search, startsWords } from "../notes/search.ts";
   import { account, deleteAccount, signOut } from "../sync/account.svelte.ts";
   import { sync } from "../sync/sync.svelte.ts";
   import { exportAll, importFiles } from "../transfer/transfer.ts";
@@ -15,22 +15,31 @@
   /** What the panel shows: the notes, signing in, a question before something that can't be undone, or the keys. */
   export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys";
 
+  /** Something Ctrl+K can do besides opening a note. `pointer`: whether a click (not a key) ran it. */
+  type Command = { label: string; keys?: string[]; run: (pointer: boolean) => void };
+
   type Props = {
     /** The note open behind the panel, if any. */
     current: string | null;
+    /** The note open before it: with nothing typed, the list starts there, so Enter goes back to it. */
+    previous: string | null;
     /** `pointer` says whether a click (not a key) chose it, which decides if the panel animates away. */
     onpick: (id: string, pointer: boolean) => void;
     ondelete: (id: string) => void;
     onclose: () => void;
+    /** Starts a new note: the New note command. */
+    onnew: () => void;
     onsignedin: (email: string) => void;
     /** Whether the panel is open: the page behind it goes inert meanwhile. */
     open?: boolean;
   };
 
-  let { current, onpick, ondelete, onclose, onsignedin, open = $bindable(false) }: Props = $props();
+  let { current, previous, onpick, ondelete, onnew, onclose, onsignedin, open = $bindable(false) }: Props = $props();
 
   /** Rows rendered at a time; more appear as the list scrolls. */
   const PAGE = 50;
+  /** Letters typed before commands show: with one, they'd come and go with every key, shoving the notes about. */
+  const COMMANDS_FROM = 2;
   const touch = matchMedia("(pointer: coarse)");
   // Safari erases a site's storage after 7 days without a visit, unless it's on the Home Screen.
   const fragile =
@@ -39,12 +48,13 @@
 
   let overlay: HTMLDivElement;
   let input = $state<HTMLInputElement>();
-  let rows = $state<HTMLUListElement>();
+  let rows = $state<HTMLDivElement>();
   let panel: HTMLDivElement;
   let picker = $state<HTMLInputElement>();
 
   let query = $state("");
-  let active = $state(0);
+  /** The row the arrows are on; -1 until they move. */
+  let active = $state(-1);
   let limit = $state(PAGE);
   let now = $state(Date.now());
   let menu = $state(false);
@@ -55,7 +65,7 @@
   let leaving = new Set<string>();
 
   const keyList: [string[], string][] = [
-    [shortcuts.notes, "Open or close your notes"],
+    [shortcuts.notes, "Notes and commands"],
     [shortcuts.new, "New note"],
     [shortcuts.move, "Choose a note"],
     [shortcuts.open, "Open note"],
@@ -64,13 +74,49 @@
     [shortcuts.close, "Close"],
   ];
 
+  const commands = $derived<Command[]>([
+    { label: "New note", keys: shortcuts.new, run: onnew },
+    { label: "Import .txt files", run: () => picker?.click() },
+    {
+      label: "Export all notes",
+      run: (pointer) => {
+        hide(pointer);
+        exportAll();
+      },
+    },
+    account.email ? { label: "Sign out", run: leave } : { label: "Sync across devices", run: () => (view = "sign-in") },
+    ...(touch.matches ? [] : [{ label: "Keyboard shortcuts", run: () => (view = "keys") }]),
+  ]);
+
   const words = $derived(parse(query));
+  /** The commands whose words what you type starts; none until you type, so the list opens on your notes. */
+  const found = $derived(
+    words.join("").length >= COMMANDS_FROM ? commands.filter((command) => startsWords(command.label, words)) : [],
+  );
   const results = $derived.by(() => {
     void notes.version;
     return open ? search(list(), words) : [];
   });
   const shown = $derived(results.slice(0, limit));
-  const selected = $derived(shown[active]);
+  /** Every row in order: the commands, then the notes. */
+  const entries = $derived<(Command | Note)[]>([...found, ...shown]);
+  /**
+   * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
+   * one), so Enter goes back. Typing, on the first note, or the first command if no note matches: so Enter after
+   * "new" still opens a note about New York, and Enter after "export" exports.
+   */
+  const first = $derived.by(() => {
+    if (words.length) return results.length ? found.length : 0;
+    const back = previous === null ? -1 : results.findIndex((note) => note.id === previous);
+    return back >= 0
+      ? back
+      : Math.max(
+          0,
+          results.findIndex((note) => note.id !== current),
+        );
+  });
+  const at = $derived(active >= 0 ? active : first);
+  const selected = $derived(entries[at]);
 
   export function toggle(pointer: boolean) {
     if (open) hide(pointer);
@@ -89,11 +135,7 @@
     limit = PAGE;
     menu = false;
     now = Date.now();
-    // The note you're in is the one you least want: start on the one before it.
-    active = Math.max(
-      0,
-      list().findIndex((note) => note.id !== current),
-    );
+    active = -1;
     delete overlay.dataset.closing;
     panel.style.transform = "";
     panel.style.transition = "";
@@ -131,30 +173,40 @@
     onclose();
   }
 
-  function pick(note: Note | undefined, pointer: boolean) {
-    if (!note) return;
-    onpick(note.id, pointer);
+  function pick(entry: Command | Note | undefined, pointer: boolean) {
+    if (!entry) return;
+    if (isCommand(entry)) return entry.run(pointer);
+    onpick(entry.id, pointer);
     hide(pointer);
+  }
+
+  function isCommand(entry: Command | Note): entry is Command {
+    return "run" in entry;
+  }
+
+  function rowId(entry: Command | Note): string {
+    return isCommand(entry) ? `command-${found.indexOf(entry)}` : `note-${entry.id}`;
   }
 
   /** Deletes the note. Its row collapses when a click or swipe deleted it; a key just takes it away, like any key. */
   function remove(note: Note | undefined, pointer: boolean) {
     if (!note) return;
     if (pointer) leaving.add(note.id);
-    const index = shown.indexOf(note);
+    const position = entries.indexOf(note);
     ondelete(note.id);
-    void tick().then(() => (active = Math.min(index, Math.max(0, results.length - 1))));
+    void tick().then(() => (active = Math.min(position, Math.max(0, found.length + results.length - 1))));
   }
 
   function move(by: number) {
-    if (!results.length) return;
-    active = Math.min(results.length - 1, Math.max(0, active + by));
-    if (active >= limit) limit += PAGE;
+    const total = found.length + results.length;
+    if (!total) return;
+    active = Math.min(total - 1, Math.max(0, at + by));
+    if (active - found.length >= limit) limit += PAGE;
     void tick().then(() => rows?.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" }));
   }
 
   function oninput() {
-    active = 0;
+    active = -1;
     limit = PAGE;
     if (rows) rows.scrollTop = 0;
   }
@@ -170,7 +222,7 @@
     } else if (event.key === "Enter") {
       event.preventDefault();
       pick(selected, false);
-    } else if (erasesNothing(event)) {
+    } else if (selected && !isCommand(selected) && erasesNothing(event)) {
       // A key with nothing to erase in the field means the note.
       event.preventDefault();
       remove(selected, false);
@@ -345,6 +397,9 @@
     const files = [...(picker.files ?? [])];
     picker.value = "";
     menu = false;
+    // The search that found "Import" would hide what was imported.
+    query = "";
+    active = -1;
     if (files.length) void importFiles(files);
   }
 
@@ -464,8 +519,8 @@
           role="combobox"
           aria-expanded="true"
           aria-controls="notes-list"
-          aria-activedescendant={selected ? `note-${selected.id}` : undefined}
-          aria-label="Search notes"
+          aria-activedescendant={selected ? rowId(selected) : undefined}
+          aria-label="Search notes and commands"
           placeholder="Search…"
           autocomplete="off"
           autocapitalize="off"
@@ -474,52 +529,95 @@
         />
       </div>
 
-      <ul class="rows" role="listbox" id="notes-list" aria-label="Notes" bind:this={rows} hidden={!shown.length}>
-        {#each shown as note, index (note.id)}
-          {@const parts = describe(note, words)}
-          <li
-            id="note-{note.id}"
-            role="option"
-            aria-selected={index === active}
-            aria-current={note.id === current ? "true" : undefined}
-            out:collapse={note.id}
-            onpointermove={(event) => event.pointerType === "mouse" && (active = index)}
-          >
-            <span class="behind" aria-hidden="true">Delete</span>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <div class="row" {@attach swipe(note)} onclick={() => pick(note, true)} role="presentation">
-              <div class="line">
-                <span class="title">
-                  {#each parts.title as part}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
-                </span>
-                <span class="time">{ago(note.editedAt)}</span>
-                <button
-                  class="delete"
-                  aria-label="Delete note"
-                  {@attach tooltip("Delete note", shortcuts.delete)}
-                  tabindex="-1"
-                  onclick={(event) => {
-                    event.stopPropagation();
-                    remove(note, true);
-                  }}
-                >
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
-                </button>
-              </div>
-              {#if parts.snippet.some((part) => part.text)}
-                <div class="snippet">
-                  {#each parts.snippet as part}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
+      <div
+        class="rows"
+        role="listbox"
+        id="notes-list"
+        aria-label="Notes and commands"
+        bind:this={rows}
+        hidden={!entries.length}
+      >
+        {#if found.length}
+          <div role="group" aria-labelledby="commands-label">
+            <div class="group" id="commands-label">Commands</div>
+            {#each found as command, index (command.label)}
+              <div
+                class="option"
+                id="command-{index}"
+                role="option"
+                tabindex="-1"
+                aria-selected={index === at}
+                onpointermove={(event) => event.pointerType === "mouse" && (active = index)}
+              >
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <div class="row" onclick={() => pick(command, true)} role="presentation">
+                  <div class="line">
+                    <span class="title">
+                      {#each markStarts(command.label, words) as part}{#if part.hit}<mark>{part.text}</mark
+                          >{:else}{part.text}{/if}{/each}
+                    </span>
+                    {#if command.keys}<Keys keys={command.keys} />{/if}
+                  </div>
                 </div>
-              {/if}
-            </div>
-          </li>
-        {/each}
-        {#if shown.length < results.length}
-          <li class="sentinel" aria-hidden="true" {@attach more}></li>
+              </div>
+            {/each}
+          </div>
         {/if}
-      </ul>
+        <div
+          role="group"
+          aria-labelledby={found.length ? "notes-label" : undefined}
+          aria-label={found.length ? undefined : "Notes"}
+        >
+          {#if found.length && shown.length}<div class="group" id="notes-label">Notes</div>{/if}
+          {#each shown as note, position (note.id)}
+            {@const index = found.length + position}
+            {@const parts = describe(note, words)}
+            <div
+              class="option"
+              id="note-{note.id}"
+              role="option"
+              tabindex="-1"
+              aria-selected={index === at}
+              aria-current={note.id === current ? "true" : undefined}
+              out:collapse={note.id}
+              onpointermove={(event) => event.pointerType === "mouse" && (active = index)}
+            >
+              <span class="behind" aria-hidden="true">Delete</span>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <div class="row" {@attach swipe(note)} onclick={() => pick(note, true)} role="presentation">
+                <div class="line">
+                  <span class="title">
+                    {#each parts.title as part}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
+                  </span>
+                  <span class="time">{ago(note.editedAt)}</span>
+                  <button
+                    class="delete"
+                    aria-label="Delete note"
+                    {@attach tooltip("Delete note", shortcuts.delete)}
+                    tabindex="-1"
+                    onclick={(event) => {
+                      event.stopPropagation();
+                      remove(note, true);
+                    }}
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 6 8 8M14 6l-8 8" /></svg>
+                  </button>
+                </div>
+                {#if parts.snippet.some((part) => part.text)}
+                  <div class="snippet">
+                    {#each parts.snippet as part}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}
+                  </div>
+                {/if}
+              </div>
+            </div>
+          {/each}
+          {#if shown.length < results.length}
+            <div class="sentinel" aria-hidden="true" {@attach more}></div>
+          {/if}
+        </div>
+      </div>
 
-      {#if notes.ready && !results.length}
+      {#if notes.ready && !entries.length}
         <p class="empty">{words.length ? "No matches" : "No notes yet"}</p>
       {/if}
 
@@ -648,7 +746,6 @@
     flex: 1;
     min-height: 0;
     margin: 0;
-    list-style: none;
     padding: calc(var(--edge) - var(--inset));
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -656,7 +753,7 @@
     scrollbar-color: var(--line) transparent;
   }
 
-  li {
+  .option {
     position: relative;
     border-radius: var(--radius-small);
     overflow: hidden;
@@ -673,7 +770,7 @@
     color: var(--surface);
   }
 
-  li:global([data-swiping]) .behind {
+  .option:global([data-swiping]) .behind {
     display: flex;
   }
 
@@ -759,11 +856,11 @@
   }
 
   @media (hover: hover) and (pointer: fine) {
-    li:hover .time {
+    .option:hover .time {
       display: none;
     }
 
-    li:hover .delete {
+    .option:hover .delete {
       display: block;
     }
 
@@ -790,6 +887,16 @@
 
   .sentinel {
     height: 1px;
+  }
+
+  /* Only when commands show: which rows do something, which rows are notes. Each label heads its own rows. */
+  .group {
+    padding: var(--group) var(--inset) var(--pair);
+    color: var(--muted);
+  }
+
+  [role="group"]:first-child .group {
+    padding-top: var(--gap);
   }
 
   /* Where the first row's text would be. */

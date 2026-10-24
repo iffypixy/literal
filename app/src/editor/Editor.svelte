@@ -1,3 +1,8 @@
+<script module lang="ts">
+  /** Where the cursor was in a note, and how far it was scrolled. */
+  export type Position = [start: number, end: number, scroll?: number];
+</script>
+
 <script lang="ts">
   import { tick } from "svelte";
   import type * as Y from "yjs";
@@ -19,21 +24,23 @@
     area.value = "";
   });
 
-  /** Puts the cursor in the page, at `selection` or where it was. */
-  export async function focus(selection?: [number, number]) {
+  /** Puts the cursor in the page, at `position` (scrolled back to where it was) or where it was. */
+  export async function focus(position?: Position) {
     // After pending updates: the page may still be inert from the panel closing, and inert can't take focus.
     await tick();
-    if (selection) area.setSelectionRange(...clamp(selection));
-    area.focus();
-  }
-
-  export function selection(): [number, number] {
-    return [area.selectionStart, area.selectionEnd];
-  }
-
-  function clamp([start, end]: [number, number]): [number, number] {
+    if (!position) {
+      area.focus();
+      return;
+    }
+    const [start, end, scroll] = position;
     const length = area.value.length;
-    return [Math.min(start, length), Math.min(end, length)];
+    area.focus({ preventScroll: true });
+    area.setSelectionRange(Math.min(start, length), Math.min(end, length));
+    if (scroll !== undefined) area.scrollTop = scroll;
+  }
+
+  export function position(): Position {
+    return [area.selectionStart, area.selectionEnd, area.scrollTop];
   }
 
   function oninput() {

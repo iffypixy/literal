@@ -2,7 +2,7 @@
   import { tick } from "svelte";
   import { fade } from "svelte/transition";
   import type * as Y from "yjs";
-  import Editor from "./editor/Editor.svelte";
+  import Editor, { type Position } from "./editor/Editor.svelte";
   import { letter, mod, shortcuts } from "./keys.ts";
   import {
     create,
@@ -39,6 +39,8 @@
   let panel: Panel;
 
   let current = $state<string | null>(null);
+  /** The note open before `current`: the panel starts on it, so ⌘K and Enter go back and forth between two notes. */
+  let previous = $state<string | null>(null);
   let text = $state<Y.Text | null>(null);
   /** On a device with a mouse, the corner buttons step aside while you type, and come back when the mouse moves. */
   let typing = $state(false);
@@ -49,7 +51,7 @@
   let drags = 0;
 
   const hover = matchMedia("(hover: hover) and (pointer: fine)").matches;
-  const cursors = new Map<string, [number, number]>(remembered());
+  const cursors = new Map<string, Position>(remembered());
 
   $effect(() => {
     void notes.version;
@@ -117,6 +119,7 @@
       editor.focus();
       return;
     }
+    if (current !== null) previous = current;
     leave();
     if (id === null) {
       current = null;
@@ -144,7 +147,7 @@
   function leave() {
     if (!current) return;
     cursors.delete(current);
-    cursors.set(current, editor.selection());
+    cursors.set(current, editor.position());
     while (cursors.size > CURSORS_KEPT) cursors.delete(cursors.keys().next().value ?? "");
     write("blank:cursors", JSON.stringify([...cursors]));
     discardIfEmpty(current);
@@ -302,9 +305,9 @@
     }
   }
 
-  function remembered(): [string, [number, number]][] {
+  function remembered(): [string, Position][] {
     try {
-      return JSON.parse(read("blank:cursors") ?? "[]") as [string, [number, number]][];
+      return JSON.parse(read("blank:cursors") ?? "[]") as [string, Position][];
     } catch {
       return []; // garbled: forget the cursors, keep the app
     }
@@ -359,8 +362,10 @@
   bind:this={panel}
   bind:open={browsing}
   {current}
+  {previous}
   onpick={(id) => void go(id, "push")}
   {ondelete}
+  onnew={newNote}
   {onsignedin}
   onclose={() => hover && editor.focus()}
 />

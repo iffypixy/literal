@@ -24,6 +24,12 @@ export function search(notes: Note[], words: string[]): Note[] {
   return [...matches.filter(inTitle), ...matches.filter((note) => !inTitle(note))];
 }
 
+/** Whether every one of `words` starts a word of `label`: "exp" and "all exp" both find "Export all notes". */
+export function startsWords(label: string, words: string[]): boolean {
+  const starts = fold(label).split(/\s+/);
+  return words.every((word) => starts.some((start) => start.startsWith(word)));
+}
+
 /**
  * The note's title, split into hits and misses; and when searching, the text around a match the title doesn't show,
  * so every row says why it's there.
@@ -52,6 +58,16 @@ export function shorten(name: string, length: number): string {
   const cut = chars.slice(0, length - 1).join("");
   const space = cut.lastIndexOf(" ");
   return `${space > length / 2 ? cut.slice(0, space) : cut}…`;
+}
+
+/** Splits `text` into the runs that hold one of `words` and the runs that don't. */
+export function mark(text: string, words: string[]): Segment[] {
+  return marked(text, words, () => true);
+}
+
+/** Like `mark`, but only where a word of `text` starts with one of `words`: the way commands match. */
+export function markStarts(text: string, words: string[]): Segment[] {
+  return marked(text, words, (folded, at) => at === 0 || /\s/.test(folded[at - 1] ?? ""));
 }
 
 /** The first non-blank line, and where the text after it starts. */
@@ -87,14 +103,13 @@ function folded(note: Note): string {
   return text;
 }
 
-/** Splits `text` into the runs that match one of `words` and the runs that don't. */
-function mark(text: string, words: string[]): Segment[] {
+function marked(text: string, words: string[], counts: (folded: string, at: number) => boolean): Segment[] {
   if (!words.length || !text) return [{ text, hit: false }];
   const { folded, origin } = foldWithOrigin(text);
   const hit = new Array<boolean>(text.length).fill(false);
   for (const word of words) {
     for (let at = folded.indexOf(word); at >= 0; at = folded.indexOf(word, at + 1)) {
-      hit.fill(true, origin[at] ?? 0, origin[at + word.length] ?? text.length);
+      if (counts(folded, at)) hit.fill(true, origin[at] ?? 0, origin[at + word.length] ?? text.length);
     }
   }
   const segments: Segment[] = [];
