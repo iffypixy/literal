@@ -3,6 +3,9 @@ import * as Y from "yjs";
 import { decode, encode, isNoteId, MaxBytes, MaxNotes, SignedOut, type Message } from "../../protocol/protocol.ts";
 import type { Env } from "./index.ts";
 
+/** Where the Worker says which session opens a socket. */
+export const SessionHeader = "Literal-Session";
+
 /**
  * A note's Yjs state can't outgrow a SQLite row (2 MB here). A note of MaxLength characters stays under this
  * however it was written: typed a letter at a time, each in a new spot, in Chinese, its state comes to 1.8 MB.
@@ -60,9 +63,12 @@ export class UserNotes extends DurableObject<Env> {
     this.stored = totals.stored;
   }
 
-  override async fetch(): Promise<Response> {
+  override async fetch(request: Request): Promise<Response> {
+    const session = request.headers.get(SessionHeader);
+    if (session === null) throw new Error("connect: no session");
     const { 0: client, 1: server } = new WebSocketPair();
-    this.ctx.acceptWebSocket(server);
+    // Tagged with the session that opens it, so that signing out closes it.
+    this.ctx.acceptWebSocket(server, [session]);
     if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + Day);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -116,6 +122,11 @@ export class UserNotes extends DurableObject<Env> {
     for (const socket of this.ctx.getWebSockets()) socket.close(SignedOut, "account deleted");
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
+  }
+
+  /** Closes the sockets `session` opened: it signed out, and they'd otherwise go on syncing. */
+  signOut(session: string) {
+    for (const socket of this.openSockets(session)) socket.close(SignedOut, "signed out");
   }
 
   private hello(socket: WebSocket, since: number, notes: { id: string; vector: Uint8Array; dirty: boolean }[]) {
@@ -249,6 +260,11 @@ export class UserNotes extends DurableObject<Env> {
 
   private broadcast(message: Uint8Array, except?: WebSocket) {
     for (const socket of this.ctx.getWebSockets()) if (socket !== except) socket.send(message);
+  }
+
+  /** The sockets still open: a closing one stays listed until it's gone, and sending to it throws. */
+  private openSockets(tag?: string): WebSocket[] {
+    return this.ctx.getWebSockets(tag).filter((socket) => socket.readyState === WebSocket.OPEN);
   }
 }
 
