@@ -5,7 +5,7 @@ import type { Env } from "./index.ts";
 const YEAR = 60 * 60 * 24 * 365;
 
 /**
- * What Google and Apple tell us beyond the email: nothing kept. Blank never shows a name or picture, and never
+ * What Google and Apple tell us beyond the email: nothing kept. Literal never shows a name or picture, and never
  * calls them on your behalf, so neither those nor their access tokens are stored (see privacy.html).
  */
 const nothingMore = { mapProfileToUser: () => ({ name: "", image: undefined }) };
@@ -13,7 +13,7 @@ const nothingMore = { mapProfileToUser: () => ({ name: "", image: undefined }) }
 /** Accounts exist only for sync: no passwords, just a code by email, or Google or Apple. */
 export function createAuth(env: Env) {
   return betterAuth({
-    appName: "Blank",
+    appName: "Literal",
     baseURL: env.APP_URL,
     basePath: "/api/auth",
     secret: env.BETTER_AUTH_SECRET,
@@ -84,8 +84,8 @@ async function sendCode(env: Env, email: string, code: string) {
     body: JSON.stringify({
       from: env.EMAIL_FROM,
       to: email,
-      subject: `${code} is your Blank sign-in code`,
-      text: `${code}\n\nEnter this code in Blank to sign in. It works for 10 minutes.\n\nDidn't ask for it? You can ignore this email.\n`,
+      subject: `${code} is your Literal sign-in code`,
+      text: `${code}\n\nEnter this code in Literal to sign in. It works for 10 minutes.\n\nDidn't ask for it? You can ignore this email.\n`,
     }),
   });
   if (!response.ok) throw new Error(`send code: Resend answered ${response.status}: ${await response.text()}`);

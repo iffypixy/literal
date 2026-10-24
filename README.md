@@ -1,4 +1,4 @@
-# Blank
+# Literal
 
 A blank page for your notes. Open it and type: it saves itself. Your notes are one keystroke away (⌘K), and sign-in is only for syncing them between devices.
 
@@ -11,7 +11,7 @@ A blank page for your notes. Open it and type: it saves itself. Your notes are o
 ```sh
 pnpm install
 cp .dev.vars.example .dev.vars          # then set BETTER_AUTH_SECRET to any long random string
-pnpm wrangler d1 migrations apply blank --local --persist-to .wrangler/state
+pnpm wrangler d1 migrations apply literal --local --persist-to .wrangler/state
 pnpm dev                                # http://localhost:5390
 ```
 
@@ -27,9 +27,9 @@ pnpm test    # end to end, against a production build served locally (stop `pnpm
 You need a Cloudflare account, a domain on it, and a [Resend](https://resend.com) account for the code emails.
 
 1. `pnpm wrangler login`
-2. `pnpm wrangler d1 create blank`, then put the printed `database_id` in `wrangler.jsonc`.
-3. In `wrangler.jsonc`, set `APP_URL` to your domain and `EMAIL_FROM` to a sender on a domain verified in Resend.
-4. `pnpm wrangler d1 migrations apply blank --remote`
+2. `pnpm wrangler d1 create literal`, then put the printed `database_id` in `wrangler.jsonc`.
+3. In `wrangler.jsonc`, `APP_URL` and `EMAIL_FROM` are set for literal.ink: change them for another domain. The sender's domain must be verified in Resend.
+4. `pnpm wrangler d1 migrations apply literal --remote`
 5. Secrets:
    ```sh
    openssl rand -hex 32 | pnpm wrangler secret put BETTER_AUTH_SECRET
@@ -37,7 +37,7 @@ You need a Cloudflare account, a domain on it, and a [Resend](https://resend.com
    ```
 6. `pnpm run deploy` (not `pnpm deploy`, which is a different pnpm command).
 7. In the Cloudflare dashboard: add your domain to the Worker (Settings → Domains & Routes), and turn on Web Analytics for it.
-8. In `app/public/privacy.html`, replace `hello@blank.example` with a real address.
+8. Forward `hello@literal.ink`, the contact address in `app/public/privacy.html`, to a real inbox (Email → Email Routing).
 
 ### Google and Apple sign-in (optional)
 

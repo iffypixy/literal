@@ -610,7 +610,7 @@
       <div class="ask">
         <h2 id="view-title" tabindex="-1">Delete your account and all your notes?</h2>
         <p>
-          Your notes will be erased from Blank and this device. This can't be undone.
+          Your notes will be erased from Literal and this device. This can't be undone.
           <button class="link" onclick={exportAll}>Export your notes</button> first.
         </p>
         {#if problem}<p class="problem" role="alert">{problem}</p>{/if}

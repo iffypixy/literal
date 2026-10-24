@@ -22,7 +22,7 @@
   } from "./notes/notes.svelte.ts";
   import { prepare, shorten, title } from "./notes/search.ts";
   import Panel from "./panel/Panel.svelte";
-  import { account, session, signedIn } from "./sync/account.svelte.ts";
+  import { FAREWELL, account, session, signedIn } from "./sync/account.svelte.ts";
   import { sync, start as startSync } from "./sync/sync.svelte.ts";
   import { importFiles } from "./transfer/transfer.ts";
   import Keys from "./ui/Keys.svelte";
@@ -30,8 +30,6 @@
   import { tooltip } from "./ui/tooltip.ts";
   import { act, quiet, toast, toasts } from "./ui/toast.svelte.ts";
 
-  /** Where signing out or deleting the account leaves its word for after the reload. */
-  const FAREWELL = "blank:farewell";
   /** Characters of a note's title a toast shows, and the window's title. */
   const NAME_SHOWN = 30;
   const TITLE_SHOWN = 60;
@@ -64,7 +62,7 @@
     void notes.version;
     const note = current ? find(current) : undefined;
     const name = note ? shorten(title(note.text), TITLE_SHOWN) : "";
-    document.title = name ? `${name} — Blank` : "Blank";
+    document.title = name ? `${name} — Literal` : "Literal";
   });
 
   // A farewell left by signing out or deleting the account, which ends with a reload: said once it's done.
@@ -116,7 +114,7 @@
   const explanations: Record<string, string> = {
     "Can't save here": "This browser can't save notes, so copy your text before closing",
     Offline: "Notes will sync when you're back online",
-    "Not synced": "Notes are saved on this device and will sync when Blank connects",
+    "Not synced": "Notes are saved on this device and will sync when Literal connects",
   };
 
   function explain() {
@@ -174,7 +172,7 @@
     cursors.delete(current);
     cursors.set(current, editor.position());
     while (cursors.size > CURSORS_KEPT) cursors.delete(cursors.keys().next().value ?? "");
-    write("blank:cursors", JSON.stringify([...cursors]));
+    write("literal:cursors", JSON.stringify([...cursors]));
     discardIfEmpty(current);
   }
 
@@ -359,7 +357,7 @@
 
   function remembered(): [string, Position][] {
     try {
-      return JSON.parse(read("blank:cursors") ?? "[]") as [string, Position][];
+      return JSON.parse(read("literal:cursors") ?? "[]") as [string, Position][];
     } catch {
       return []; // garbled: forget the cursors, keep the app
     }

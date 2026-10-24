@@ -21,7 +21,7 @@ export default defineConfig({
 /** Emits `sw.js`, which precaches every file of the app so it opens with no network at all. */
 function serviceWorker(): Plugin {
   return {
-    name: "blank:service-worker",
+    name: "literal:service-worker",
     apply: "build",
     enforce: "post",
     applyToEnvironment: (environment) => environment.name === "client",

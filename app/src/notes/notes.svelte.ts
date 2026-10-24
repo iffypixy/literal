@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import { get, openDb, readAll, write } from "./db.ts";
+import { deleteDb, get, openDb, readAll, write } from "./db.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc: its `text`, and its `meta` (the times). */
 export type Note = {
@@ -32,7 +32,7 @@ const TAB = "tab";
 const REMOTE = "remote";
 
 /** Where unsaved changes wait out a page closing, by note id: localStorage writes at once, IndexedDB may not finish. */
-const RESCUE = "blank:unsaved:";
+const RESCUE = "literal:unsaved:";
 
 const SAVE_DELAY = 250;
 /** However fast you keep typing, a change is on disk within this long. */
@@ -72,7 +72,7 @@ const listeners = new Set<(id: string, update: Uint8Array) => void>();
 let signedIn = false;
 
 const db = openDb();
-const channel = new BroadcastChannel("blank");
+const channel = new BroadcastChannel("literal");
 
 channel.onmessage = ({ data }: MessageEvent<Message>) => {
   if (data.type === "update") {
@@ -257,11 +257,7 @@ export function rescue() {
 export async function wipe() {
   channel.postMessage({ type: "wipe" } satisfies Message);
   (await db).close();
-  await new Promise<void>((resolve, reject) => {
-    const request = indexedDB.deleteDatabase("blank");
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(new Error(`wipe: ${request.error?.message}`));
-  });
+  await deleteDb();
 }
 
 // Sync. These are what sync.svelte.ts uses; nothing else should.

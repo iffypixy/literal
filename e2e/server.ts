@@ -7,7 +7,7 @@ export const LOG = "test-results/server.log";
 /** Builds the app, readies the local database, and serves the build for the tests; returns the teardown. */
 export default async function setup() {
   execSync("pnpm build", { stdio: "inherit" });
-  execSync("wrangler d1 migrations apply blank --local --persist-to .wrangler/state", { stdio: "inherit" });
+  execSync("wrangler d1 migrations apply literal --local --persist-to .wrangler/state", { stdio: "inherit" });
   mkdirSync("test-results", { recursive: true });
   const out = openSync(LOG, "w");
   const server = spawn("pnpm", ["preview"], { stdio: ["ignore", out, out], detached: true });

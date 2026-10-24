@@ -1,8 +1,8 @@
-/** The one IndexedDB database on the device, `blank`, with a store for each kind of record. */
+/** The one IndexedDB database on the device, `literal`, with a store for each kind of record. */
 
 export type Store = "notes" | "docs" | "meta";
 
-const NAME = "blank";
+const NAME = "literal";
 const VERSION = 1;
 
 export function openDb(): Promise<IDBDatabase> {
@@ -18,6 +18,15 @@ export function openDb(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(new Error(`open database: ${request.error?.message}`));
     request.onblocked = () => reject(new Error("open database: blocked by another tab"));
+  });
+}
+
+/** Deletes the database with everything in it. Every open connection must be closed first. */
+export function deleteDb(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(NAME);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(new Error(`delete database: ${request.error?.message}`));
   });
 }
 

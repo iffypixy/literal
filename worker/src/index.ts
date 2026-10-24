@@ -7,11 +7,11 @@ export { UserNotes } from "./user-notes.ts";
 export interface Env {
   DB: D1Database;
   NOTES: DurableObjectNamespace<UserNotes>;
-  /** Where the app is served, e.g. https://blank.example: auth callbacks and origin checks use it. */
+  /** Where the app is served, e.g. https://literal.ink: auth callbacks and origin checks use it. */
   APP_URL: string;
   BETTER_AUTH_SECRET: string;
   RESEND_API_KEY?: string;
-  /** The sender of code emails, e.g. "Blank <code@blank.example>". */
+  /** The sender of code emails, e.g. "Literal <code@literal.ink>". */
   EMAIL_FROM?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;

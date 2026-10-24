@@ -10,12 +10,12 @@ if (early) handOver(early);
 document.addEventListener("touchstart", () => {}, { passive: true });
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  // An update, not the first install: a page already had a version of Blank running it.
+  // An update, not the first install: a page already had a version of Literal running it.
   const updating = Boolean(navigator.serviceWorker.controller);
   // After load, so installing the cache never competes with the first paint.
   addEventListener("load", () => {
     void navigator.serviceWorker.register("/sw.js").then((registration) => {
-      // Coming back to Blank asks for a new version; one installs in the background.
+      // Coming back to Literal asks for a new version; one installs in the background.
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) void registration.update();
       });
@@ -31,7 +31,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
-// Installed, Blank asks to keep its storage even when the device runs short of space: the notes live there.
+// Installed, Literal asks to keep its storage even when the device runs short of space: the notes live there.
 if (matchMedia("(display-mode: standalone)").matches) void navigator.storage?.persist();
 
 /**

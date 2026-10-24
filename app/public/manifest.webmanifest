@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Blank",
-  "short_name": "Blank",
+  "name": "Literal",
+  "short_name": "Literal",
   "description": "A blank page for your notes. Open it and type.",
   "start_url": "/",
   "scope": "/",

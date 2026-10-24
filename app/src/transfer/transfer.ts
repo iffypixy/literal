@@ -22,7 +22,7 @@ export function exportAll() {
   });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(zip(entries));
-  link.download = `blank-notes-${new Date().toLocaleDateString("sv")}.zip`;
+  link.download = `literal-notes-${new Date().toLocaleDateString("sv")}.zip`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
 }

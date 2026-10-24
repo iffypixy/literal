@@ -2,9 +2,9 @@
 
 import { wipe } from "../notes/notes.svelte.ts";
 
-const KEY = "blank:account";
-/** Read by App after the reload that ends signing out or deleting the account (see App.svelte). */
-const FAREWELL = "blank:farewell";
+const KEY = "literal:account";
+/** Where signing out or deleting the account leaves its word, which App says after the reload. */
+export const FAREWELL = "literal:farewell";
 /** How long a request may take before it counts as failed: a dead network would leave it waiting forever. */
 const TIMEOUT = 15_000;
 
