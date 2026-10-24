@@ -1,10 +1,12 @@
 import { batch, createEffect, createMemo, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
-import { caps, mac, shortcuts } from "../keys.ts";
+import { installed, reducedMotion, touch } from "../device.ts";
+import { caps, composing, mac, shortcuts } from "../keys.ts";
 import { list, notes, unsynced, type Note } from "../notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "../notes/search.ts";
 import { account, deleteAccount, signOut } from "../sync/account.ts";
 import { drain, sync } from "../sync/sync.ts";
 import { exportAll, importFiles } from "../transfer/transfer.ts";
+import { toast } from "../ui/toast.tsx";
 import { tooltip } from "../ui/tooltip.ts";
 import { Back } from "./back.tsx";
 import { SignIn } from "./sign-in.tsx";
@@ -49,12 +51,8 @@ type Props = {
 const PageSize = 50;
 /** Letters typed before commands show: with one, they'd come and go with every key, shoving the notes about. */
 const CommandsFrom = 2;
-const touch = matchMedia("(pointer: coarse)");
-const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 // Safari erases a site's storage after 7 days without a visit, unless it's on the Home Screen.
-const fragile =
-  /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) &&
-  !matchMedia("(display-mode: standalone)").matches;
+const fragile = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) && !installed.matches;
 
 const KeyList: [string[], string][] = [
   [shortcuts.notes, "Notes and commands"],
@@ -69,6 +67,7 @@ const KeyList: [string[], string][] = [
 ];
 
 export function Panel(props: Props) {
+  // Set as the panel renders, before anything below runs.
   let overlay!: HTMLDivElement;
   let panel!: HTMLDivElement;
   let input: HTMLInputElement | undefined;
@@ -87,8 +86,12 @@ export function Panel(props: Props) {
   const [view, setView] = createSignal<View>("notes");
   const [waiting, setWaiting] = createSignal(0);
   const [problem, setProblem] = createSignal("");
+  /** A question's answer is on its way to the server. */
+  const [busy, setBusy] = createSignal(false);
   /** On screen: open, or still sliding away. The list stays until it's gone. */
   const [visible, setVisible] = createSignal(false);
+  /** Notes on their way out: their rows are closing, and can't be picked or deleted again meanwhile. */
+  const removing = new Set<string>();
   /** Whether a click or tap closed the panel, rather than a key: what `onClose` is told. */
   let closedByPointer = false;
   /** On a touch screen the sheet is a step in the browser's history, so Back closes it. True while the panel takes that step back itself. */
@@ -153,7 +156,7 @@ export function Panel(props: Props) {
   // A view other than the list puts the keyboard on its heading, so it's read out and Tab goes on from there.
   createEffect(() => {
     if (!props.open || view() === "notes" || view() === "sign-in") return;
-    panel.querySelector<HTMLElement>("#view-title")?.focus();
+    document.getElementById("view-title")?.focus();
   });
 
   function toggle(pointer: boolean) {
@@ -197,7 +200,7 @@ export function Panel(props: Props) {
     setMenu(false);
     closedByPointer = pointer;
     if (!opened) stepBack();
-    if (!pointer || reduced.matches) return finish();
+    if (!pointer) return finish();
     overlay.dataset.closing = "";
     panel.addEventListener("animationend", finish, { once: true });
   }
@@ -228,23 +231,30 @@ export function Panel(props: Props) {
   function pick(entry: Command | Note | undefined, pointer: boolean) {
     if (!entry) return;
     if (isCommand(entry)) return entry.run(pointer);
+    if (removing.has(entry.id)) return;
     // Tapped, the row stays marked while the sheet slides away, so it's clear which note opens.
     if (pointer) setActive(entries().indexOf(entry));
-    props.onPick(entry.id, pointer);
+    // Closed first: the page behind takes the cursor only once the panel is off it.
     hide(pointer, entry.id !== props.current);
+    props.onPick(entry.id, pointer);
   }
 
   function rowId(entry: Command | Note): string {
     return isCommand(entry) ? `command-${found().indexOf(entry)}` : `note-${entry.id}`;
   }
 
-  /** Deletes the note. Its row collapses first when a click or swipe deleted it; a key just takes it away. */
+  /**
+   * Deletes the note. A click or swipe closes its row first: a row has no way out once its note is gone from the
+   * list, so the note goes once the row has. A key just takes it away, like any key.
+   */
   async function remove(note: Note | undefined, row?: HTMLElement) {
-    if (!note) return;
-    if (row && !reduced.matches) await collapse(row);
+    if (!note || removing.has(note.id)) return;
+    removing.add(note.id);
+    if (row && !reducedMotion.matches) await collapse(row);
     // The highlight stays put: on the next note, or the one before when the last one went.
-    setActive(Math.min(entries().indexOf(note), entries().length - 2));
+    setActive(Math.min(entries().indexOf(note), found().length + results().length - 2));
     props.onDelete(note.id);
+    removing.delete(note.id);
   }
 
   /** Moves through the menu's items with the arrow keys. */
@@ -271,7 +281,6 @@ export function Panel(props: Props) {
     if (!touch.matches) input?.focus();
   }
 
-  /** From the menu to one of the panel's views. */
   function visit(next: View) {
     setMenu(false);
     setView(next);
@@ -302,7 +311,7 @@ export function Panel(props: Props) {
   }
 
   function onKeyDown(event: KeyboardEvent & { currentTarget: HTMLInputElement }) {
-    if (event.isComposing) return;
+    if (composing(event)) return;
     const entry = selected();
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -321,7 +330,7 @@ export function Panel(props: Props) {
 
   /** Esc goes back one step: out of the menu, out of a view, then out of the panel. */
   function onEscape(event: KeyboardEvent) {
-    if (!props.open || event.key !== "Escape" || event.defaultPrevented) return;
+    if (!props.open || event.key !== "Escape" || event.defaultPrevented || composing(event)) return;
     event.preventDefault();
     if (menu()) closeMenu();
     else if (view() !== "notes") back();
@@ -401,10 +410,8 @@ export function Panel(props: Props) {
   }
 
   function back() {
-    batch(() => {
-      setView("notes");
-      setProblem("");
-    });
+    setView("notes");
+    setProblem("");
     if (!touch.matches) input?.focus();
   }
 
@@ -413,12 +420,16 @@ export function Panel(props: Props) {
     setMenu(false);
     await drain();
     setWaiting(unsynced());
-    if (waiting() || sync.status) setView("sign-out");
-    else void signOut();
+    if (waiting() || sync.status) return setView("sign-out");
+    const problem = await signOut();
+    if (problem) toast(problem);
   }
 
-  async function erase() {
-    setProblem((await deleteAccount()) ?? "");
+  /** Does what a question's button says, once, saying so meanwhile; a problem shows under the question. */
+  async function confirm(action: () => Promise<string | null>) {
+    setBusy(true);
+    setProblem((await action()) ?? "");
+    setBusy(false);
   }
 
   function signedIn(email: string) {
@@ -432,7 +443,6 @@ export function Panel(props: Props) {
       ref={overlay}
       class="overlay"
       role="dialog"
-      aria-modal="true"
       aria-label={view() === "notes" ? "Notes" : undefined}
       aria-labelledby={view() === "notes" ? undefined : "view-title"}
       tabindex="-1"
@@ -461,12 +471,17 @@ export function Panel(props: Props) {
                 synced yet
               </h2>
               <p>Signing out removes notes from this device. Changes that haven't synced will be lost.</p>
+              <Show when={problem()}>
+                <p class="problem" role="alert">
+                  {problem()}
+                </p>
+              </Show>
               <div class="choices">
                 <button class="quiet" onClick={back}>
                   Cancel
                 </button>
-                <button class="danger" onClick={() => void signOut()}>
-                  Sign out anyway
+                <button class="danger" disabled={busy()} onClick={() => void confirm(signOut)}>
+                  {busy() ? "Signing out…" : "Sign out anyway"}
                 </button>
               </div>
             </div>
@@ -540,8 +555,8 @@ export function Panel(props: Props) {
                 <button class="quiet" onClick={back}>
                   Cancel
                 </button>
-                <button class="danger" onClick={erase}>
-                  Delete account
+                <button class="danger" disabled={busy()} onClick={() => void confirm(deleteAccount)}>
+                  {busy() ? "Deleting…" : "Delete account"}
                 </button>
               </div>
             </div>
@@ -712,9 +727,7 @@ export function Panel(props: Props) {
               </button>
               <Show when={menu()}>
                 <div ref={menuBox} class="menu" classList={{ below: below() }} id="more-menu" onKeyDown={onMenuKeyDown}>
-                  <Show when={!touch.matches}>
-                    <button onClick={() => visit("keys")}>Keyboard shortcuts</button>
-                  </Show>
+                  {!touch.matches && <button onClick={() => visit("keys")}>Keyboard shortcuts</button>}
                   <button onClick={() => visit("about")}>About Literal</button>
                   <hr />
                   <button onClick={() => picker?.click()}>Import .txt files</button>
@@ -781,7 +794,7 @@ function collapse(row: HTMLElement): Promise<unknown> {
       { opacity: 0, offset: 0.5 },
       { height: "0px", opacity: 0 },
     ],
-    { duration: 200, easing: "cubic-bezier(0.33, 1, 0.68, 1)", fill: "forwards" },
+    { duration: 200, easing: getComputedStyle(row).getPropertyValue("--ease-out").trim(), fill: "forwards" },
   ).finished;
 }
 
@@ -826,10 +839,10 @@ function swipe(row: HTMLElement, onSwiped: () => void) {
     if (!dragging) return;
     dragging = false;
     const velocity = -recent.velocity(event.timeStamp);
-    row.style.transition = reduced.matches ? "none" : "transform 200ms var(--ease-out)";
+    row.style.transition = reducedMotion.matches ? "none" : "transform 200ms var(--ease-out)";
     if (-dx > row.offsetWidth * 0.4 || (velocity > 0.5 && dx < -40)) {
       row.style.transform = "translateX(-100%)";
-      if (reduced.matches) onSwiped();
+      if (reducedMotion.matches) onSwiped();
       else row.addEventListener("transitionend", onSwiped, { once: true });
     } else {
       row.style.transform = "";

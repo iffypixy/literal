@@ -1,5 +1,6 @@
 import { createEffect, onCleanup } from "solid-js";
 import type * as Y from "yjs";
+import { composing } from "../keys.ts";
 import { bind } from "./binding.ts";
 
 /** Where the cursor was in a note, and how far it was scrolled. */
@@ -28,8 +29,14 @@ export function Editor(props: Props) {
   // Everything here needs the textarea, so it starts once the textarea exists.
   function attach(area: HTMLTextAreaElement) {
     createEffect(() => {
-      if (props.text) onCleanup(bind(area, props.text));
-      else area.value = "";
+      const text = props.text;
+      if (!text) return;
+      const unbind = bind(area, text);
+      // The next note starts on an empty page: only a blank page's words become the note bound to it.
+      onCleanup(() => {
+        unbind();
+        area.value = "";
+      });
     });
 
     props.ref({
@@ -60,7 +67,7 @@ export function Editor(props: Props) {
         props.onType();
         if (!props.text && event.currentTarget.value.trim()) props.onCreate();
       }}
-      onKeyDown={(event) => event.key === "Escape" && event.currentTarget.blur()}
+      onKeyDown={(event) => event.key === "Escape" && !composing(event) && event.currentTarget.blur()}
     />
   );
 }

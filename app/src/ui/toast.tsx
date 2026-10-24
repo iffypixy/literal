@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, on, Show } from "solid-js";
+import { batch, For, Show } from "solid-js";
 import { createMutable } from "solid-js/store";
 import { caps } from "../keys.ts";
 import "./toast.css";
@@ -13,8 +13,8 @@ type Toast = {
   onExpire?: () => void;
 };
 
-/** One toast at a time: a new one ends the last. */
-const shown = createMutable<{ toast: Toast | null }>({ toast: null });
+/** One toast at a time: a new one ends the last, which fades out beneath it. */
+const shown = createMutable<{ toast: Toast | null; leaving: Toast[] }>({ toast: null, leaving: [] });
 let timer: ReturnType<typeof setTimeout> | undefined;
 let remaining = 0;
 let since = 0;
@@ -31,74 +31,66 @@ export function toast(message: string, options: Omit<Toast, "message"> = {}) {
 
 /** Takes the toast's action, and ends it. */
 export function act() {
-  end()?.action?.run();
+  quiet()?.action?.run();
 }
 
-/** Ends the toast without its expiry: the next one takes over what it was about. */
-export function quiet() {
-  end();
+/** Ends the toast without its expiry, as the next one takes over what it was about. */
+export function quiet(): Toast | null {
+  const toast = shown.toast;
+  clearTimeout(timer);
+  running = false;
+  // At once, so its card stays on the page and fades, rather than being made anew.
+  batch(() => {
+    if (toast) shown.leaving.push(toast);
+    shown.toast = null;
+  });
+  return toast;
 }
 
-/** The toast, rising in; the one it replaced fades out beneath it. */
+/** The toast, rising in; the ones it replaced fade out beneath it, each from wherever it was. */
 export function Toasts() {
-  const [leaving, setLeaving] = createSignal<Toast[]>([]);
-
-  createEffect(
-    on(
-      () => shown.toast,
-      (_, last) => last && setLeaving((all) => [...all, last]),
-      { defer: true },
-    ),
-  );
+  const cards = () => (shown.toast ? [...shown.leaving, shown.toast] : shown.leaving);
 
   return (
     <div class="dock" role="status" aria-live="polite">
-      <For each={leaving()}>
-        {(toast) => <Card toast={toast} onGone={() => setLeaving((all) => all.filter((one) => one !== toast))} />}
+      <For each={cards()}>
+        {(toast) => {
+          const gone = () => toast !== shown.toast;
+          return (
+            <div
+              class="toast"
+              classList={{ leaving: gone() }}
+              inert={gone()}
+              onPointerEnter={pause}
+              onPointerLeave={resume}
+              onFocusIn={pause}
+              onFocusOut={resume}
+              onTransitionEnd={(event) => {
+                if (event.target === event.currentTarget && gone())
+                  shown.leaving = shown.leaving.filter((one) => one !== toast);
+              }}
+            >
+              <span>{toast.message}</span>
+              <Show when={toast.action}>
+                {(action) => (
+                  <span class="action">
+                    <button class="link" onClick={act}>
+                      {action().label}
+                    </button>
+                    <Show when={action().keys}>{(keys) => caps(keys())}</Show>
+                  </span>
+                )}
+              </Show>
+            </div>
+          );
+        }}
       </For>
-      <Show when={shown.toast} keyed>
-        {(toast) => <Card toast={toast} />}
-      </Show>
-    </div>
-  );
-}
-
-/** With `onGone`, it's on its way out: inert, and gone once it has faded. */
-function Card(props: { toast: Toast; onGone?: () => void }) {
-  return (
-    <div
-      class="toast"
-      classList={{ leaving: Boolean(props.onGone) }}
-      inert={Boolean(props.onGone)}
-      onPointerEnter={pause}
-      onPointerLeave={resume}
-      onFocusIn={pause}
-      onFocusOut={resume}
-      onAnimationEnd={() => props.onGone?.()}
-    >
-      <span>{props.toast.message}</span>
-      <Show when={props.toast.action}>
-        {(action) => (
-          <span class="action">
-            <button onClick={act}>{action().label}</button>
-            <Show when={action().keys}>{(keys) => caps(keys())}</Show>
-          </span>
-        )}
-      </Show>
     </div>
   );
 }
 
 function expire() {
-  end()?.onExpire?.();
-}
-
-function end(): Toast | null {
-  const toast = shown.toast;
-  clearTimeout(timer);
-  running = false;
-  shown.toast = null;
-  return toast;
+  quiet()?.onExpire?.();
 }
 
 /** Stops the clock while the pointer is on the toast or the page is hidden: nobody misses an Undo. */

@@ -12,7 +12,8 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 export default defineConfig({
   root: "app",
   plugins: [
-    solid(),
+    // A full reload on each edit: hot updates would run the app's page-wide listeners and modules twice.
+    solid({ hot: false }),
     cloudflare({ configPath: here("wrangler.jsonc"), persistState: { path: here(".wrangler/state") } }),
     serviceWorker(),
   ],

@@ -1,12 +1,14 @@
 import { createEffect, createMemo, createSignal, onMount, Show } from "solid-js";
 import type * as Y from "yjs";
 import { isNoteId, MaxLength } from "../../protocol/protocol.ts";
+import { mouse } from "./device.ts";
 import { Editor, type EditorApi, type Position } from "./editor/editor.tsx";
 import { caps, letter, mac, mod, shortcuts } from "./keys.ts";
 import {
   count,
   create,
   discardIfEmpty,
+  exists,
   find,
   flush,
   length,
@@ -27,12 +29,14 @@ import { sync, start as startSync } from "./sync/sync.ts";
 import { importFiles } from "./transfer/transfer.ts";
 import { act, quiet, toast, Toasts } from "./ui/toast.tsx";
 import { tooltip } from "./ui/tooltip.ts";
+import { stayUpToDate } from "./update.ts";
 import "./app.css";
 
 /** Characters of a note's title the window's title shows. */
 const TitleShown = 60;
 /** Cursor positions remembered on this device, newest last. */
 const CursorsKept = 200;
+const CursorsKey = "literal:cursors";
 /** What tapping the corner says about each problem it can show. */
 const Explanations = {
   "Can't save here": "This browser can't save notes, so copy your text before closing",
@@ -44,6 +48,7 @@ const Explanations = {
 type How = "push" | "replace" | "none";
 
 export function App() {
+  // Set by the components as they render, before anything here runs.
   let editor!: EditorApi;
   let panel!: PanelApi;
 
@@ -62,7 +67,6 @@ export function App() {
   let deleted: { id: string; wasOpen: boolean }[] = [];
   let drags = 0;
 
-  const hover = matchMedia("(hover: hover) and (pointer: fine)").matches;
   const cursors = new Map<string, Position>(remembered());
   const current = () => note()?.id ?? null;
 
@@ -89,6 +93,13 @@ export function App() {
     document.title = name ? `${name} — Literal` : "Literal";
   });
 
+  // A note erased while open, by the server or another tab, leaves a blank page behind.
+  createEffect(() => {
+    void notes.version;
+    const id = current();
+    if (id && !exists(id)) void go(null, "replace");
+  });
+
   onMount(() => {
     // A farewell left by signing out or deleting the account, which ends with a reload: said once it's done.
     const farewell = read(FarewellKey);
@@ -102,6 +113,7 @@ export function App() {
     void go(idFrom(location.pathname), "replace");
     if (account.email) startSync();
     void checkSession();
+    stayUpToDate(browsing);
   });
 
   /** Learns from the server whether this device is signed in, e.g. in another tab since this one opened. */
@@ -133,14 +145,14 @@ export function App() {
         action: { label: "Sync", run: () => panel.show(true, "sign-in") },
       });
     // A word of explanation, then back to writing: the click shouldn't take the cursor away.
-    if (hover) editor.focus();
+    if (mouse.matches) editor.focus();
   }
 
   /**
    * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
    * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
    */
-  async function go(id: string | null, how: How, focus = hover) {
+  async function go(id: string | null, how: How, focus = mouse.matches) {
     if (id !== null && id === current()) {
       if (focus) editor.focus();
       return;
@@ -156,7 +168,16 @@ export function App() {
       return;
     }
     setOpening(true);
-    const text = await open(id).finally(() => setOpening(false));
+    let text: Y.Text | null;
+    try {
+      text = await open(id);
+    } catch (error) {
+      console.error(error);
+      toast("Couldn't open this note, please try again");
+      return;
+    } finally {
+      setOpening(false);
+    }
     if (!text) {
       toast("Note not found");
       void go(null, "replace");
@@ -171,14 +192,18 @@ export function App() {
   function leave() {
     const id = current();
     if (!id) return;
+    keepCursor(id);
+    discardIfEmpty(id);
+  }
+
+  function keepCursor(id: string) {
     cursors.delete(id);
     cursors.set(id, editor.position());
     for (const oldest of cursors.keys()) {
       if (cursors.size <= CursorsKept) break;
       cursors.delete(oldest);
     }
-    write("literal:cursors", JSON.stringify([...cursors]));
-    discardIfEmpty(id);
+    write(CursorsKey, JSON.stringify([...cursors]));
   }
 
   function navigate(path: string, how: How) {
@@ -208,7 +233,8 @@ export function App() {
     const wasOpen = id === current();
     if (wasOpen) {
       setNote(null);
-      navigate("/", "replace");
+      // Under the phone's sheet, the address is set once the sheet has stepped back to the page beneath it.
+      if (!history.state?.sheet) navigate("/", "replace");
     }
     // Deletes in a row share one toast, so the earlier ones keep their Undo.
     if (deleted.length) quiet();
@@ -217,14 +243,15 @@ export function App() {
     toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted "${name}"` : "Deleted", {
       action: {
         label: "Undo",
-        keys: hover ? shortcuts.undo : undefined,
+        keys: mouse.matches ? shortcuts.undo : undefined,
         run: () => {
           deleted = [];
           undoable = false;
-          for (const note of batch) restore(note.id);
-          // Undo puts you back where you were: in the note, if you were in it.
-          const open = batch.find((note) => note.wasOpen);
-          if (open && current() === null) void go(open.id, "replace");
+          void Promise.all(batch.map((note) => restore(note.id))).then(() => {
+            // Undo puts you back where you were: in the note, if you were in it.
+            const open = batch.find((note) => note.wasOpen);
+            if (open && current() === null) void go(open.id, "replace");
+          });
         },
       },
       onExpire: () => {
@@ -314,15 +341,22 @@ export function App() {
   });
 
   addEventListener("popstate", () => {
-    // The panel stepping back by itself (closing on a phone) is nothing to act on.
-    if (panel.stepped()) return;
+    if (panel.stepped()) {
+      // The sheet stepped back to the page beneath it, whose note may have been deleted meanwhile.
+      const id = current();
+      navigate(id ? `/${id}` : "/", "replace");
+      return;
+    }
     // Back with the panel open closes it, as it would anything on top.
     if (browsing()) return panel.hide(true, true);
     void go(idFrom(location.pathname), "none");
   });
 
-  addEventListener("pagehide", () => {
-    leave();
+  addEventListener("pagehide", (event) => {
+    // Kept for the Back button, the page may come back as it was, its note still on it: nothing is discarded then.
+    const id = current();
+    if (event.persisted && id) keepCursor(id);
+    else leave();
     rescue();
     void flush();
   });
@@ -349,7 +383,7 @@ export function App() {
           text={note()?.text ?? null}
           readonly={opening()}
           onCreate={onCreate}
-          onType={() => setTyping(hover)}
+          onType={() => setTyping(mouse.matches)}
         />
 
         <div class="corner" classList={{ away: typing() }}>
@@ -383,12 +417,12 @@ export function App() {
         </div>
 
         {/* Only on a blank page, where it covers nothing: gone with the first word, back with every new page. */}
-        <Show when={hover}>
+        {mouse.matches && (
           <p class="hint" classList={{ gone: current() !== null }} aria-hidden="true">
             <span>{caps(shortcuts.new)} new note</span>
             <span>{caps(shortcuts.notes)} notes</span>
           </p>
-        </Show>
+        )}
       </div>
 
       <Panel
@@ -397,12 +431,12 @@ export function App() {
         onOpenChange={setBrowsing}
         current={current()}
         previous={previous()}
-        onPick={(id, pointer) => void go(id, "push", hover || !pointer)}
+        onPick={(id, pointer) => void go(id, "push", mouse.matches || !pointer)}
         onDelete={onDelete}
         onNew={newNote}
         onSignedIn={onSignedIn}
         onClose={(pointer) => {
-          if (!opening() && (hover || !pointer)) editor.focus();
+          if (!opening() && (mouse.matches || !pointer)) editor.focus();
         }}
       />
 
@@ -422,8 +456,38 @@ export function App() {
   );
 }
 
-function hasFiles(event: DragEvent): boolean {
-  return event.dataTransfer?.types.includes("Files") ?? false;
+// Conveniences kept for this device only: a browser that refuses storage just goes without them.
+
+function remembered(): [string, Position][] {
+  let saved: unknown;
+  try {
+    saved = JSON.parse(read(CursorsKey) ?? "[]");
+  } catch {
+    return []; // garbled: forget the cursors, keep the app
+  }
+  return Array.isArray(saved) ? saved.filter(isCursor) : [];
+}
+
+function isCursor(entry: unknown): entry is [string, Position] {
+  if (!Array.isArray(entry) || typeof entry[0] !== "string" || !Array.isArray(entry[1])) return false;
+  const position: unknown[] = entry[1];
+  return (position.length === 2 || position.length === 3) && position.every((at) => typeof at === "number");
+}
+
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function unset(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // no storage, so nothing to unset
+  }
 }
 
 /**
@@ -435,35 +499,14 @@ function idFrom(path: string): string | null {
   return [name, name.toLowerCase()].find(isNoteId) ?? null;
 }
 
-// These are conveniences for this device only: a browser that refuses storage just goes without them.
-function unset(key: string) {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // see read()
-  }
-}
-
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
 function write(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {
-    // see read()
+    // no storage, so nothing kept
   }
 }
 
-function remembered(): [string, Position][] {
-  try {
-    return JSON.parse(read("literal:cursors") ?? "[]") as [string, Position][];
-  } catch {
-    return []; // garbled: forget the cursors, keep the app
-  }
+function hasFiles(event: DragEvent): boolean {
+  return event.dataTransfer?.types.includes("Files") ?? false;
 }

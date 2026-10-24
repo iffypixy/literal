@@ -1,16 +1,18 @@
 import { onCleanup } from "solid-js";
+import { mouse } from "../device.ts";
 import { caps } from "../keys.ts";
 import "./tooltip.css";
 
 /**
  * A tooltip naming a button and its shortcut. The first one waits a moment, so passing over a button doesn't
  * flash it; moving on to the next button while one is up shows the next at once. Mouse only: touch has no hover.
+ * Set up from the button's ref, so it goes when the button does.
  */
 export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function enter() {
-    if (!fine.matches) return;
+    if (!mouse.matches) return;
     const instant = performance.now() < warmUntil;
     timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : Delay);
   }
@@ -33,7 +35,6 @@ const Warm = 300;
 /** Between the tooltip and its button, and the tooltip and the window's edge. */
 const Gap = 6;
 
-const fine = matchMedia("(hover: hover) and (pointer: fine)");
 let tip: HTMLElement | null = null;
 let owner: HTMLElement | null = null;
 let warmUntil = 0;

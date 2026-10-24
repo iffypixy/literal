@@ -26,12 +26,9 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== location.origin) return;
   if (url.pathname.startsWith("/api/") || url.pathname === "/sync") return;
-  // Every page of the app is the same single page.
-  const key = request.mode === "navigate" ? page(url.pathname) : request;
+  // Every address is the app's one page, but for the few pages of their own (the terms, the privacy policy).
+  const page = Files.includes(url.pathname) ? url.pathname : "/";
+  const key = request.mode === "navigate" ? page : request;
   // Scripts and fonts are requested with an Origin header the cached copies were fetched without.
   event.respondWith(caches.match(key, { cacheName: Version, ignoreVary: true }).then((hit) => hit ?? fetch(request)));
 });
-
-function page(path) {
-  return path === "/privacy" || path === "/terms" ? path : "/";
-}

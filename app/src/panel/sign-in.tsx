@@ -1,10 +1,11 @@
-import { createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { reducedMotion, touch } from "../device.ts";
+import { composing } from "../keys.ts";
 import { sendCode, unreachable, verify } from "../sync/account.ts";
 import { Back } from "./back.tsx";
 import "./sign-in.css";
 
 const ResendAfter = 30;
-const touch = matchMedia("(pointer: coarse)").matches;
 
 type Props = {
   /** Safari, not on the Home Screen: it may clear notes after a week away, which syncing guards against. */
@@ -15,7 +16,6 @@ type Props = {
 
 export function SignIn(props: Props) {
   let field: HTMLInputElement | undefined;
-  let timer: ReturnType<typeof setInterval> | undefined;
 
   const [step, setStep] = createSignal<"email" | "code">("email");
   const [email, setEmail] = createSignal("");
@@ -25,9 +25,16 @@ export function SignIn(props: Props) {
   const [wait, setWait] = createSignal(0);
 
   onMount(() => {
-    if (!touch) field?.focus();
+    if (!touch.matches) field?.focus();
   });
-  onCleanup(() => clearInterval(timer));
+
+  // The wait counts down a second at a time, for as long as the view is up.
+  createEffect(() => {
+    const left = wait();
+    if (!left) return;
+    const tick = setTimeout(() => setWait(left - 1), 1000);
+    onCleanup(() => clearTimeout(tick));
+  });
 
   async function send(event?: SubmitEvent) {
     event?.preventDefault();
@@ -43,8 +50,6 @@ export function SignIn(props: Props) {
     setStep("code");
     setCode("");
     setWait(ResendAfter);
-    clearInterval(timer);
-    timer = setInterval(() => setWait((left) => Math.max(0, left - 1)), 1000);
     field?.focus();
   }
 
@@ -59,6 +64,8 @@ export function SignIn(props: Props) {
     });
     setBusy(false);
     if (!problem) return props.onDone(email().trim());
+    // Gone back to the email meanwhile: the answer is about a code no longer asked for.
+    if (step() !== "code") return;
     setError(problem);
     setCode("");
     field?.focus();
@@ -67,7 +74,7 @@ export function SignIn(props: Props) {
   }
 
   function shake() {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion.matches) return;
     field?.animate(
       [
         { transform: "translateX(0)" },
@@ -92,13 +99,13 @@ export function SignIn(props: Props) {
   function restart() {
     setStep("email");
     setError("");
-    clearInterval(timer);
+    setWait(0);
     field?.focus();
   }
 
   // Esc on the code step goes back to the email; on the email step it's the panel's, which goes back to the list.
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key !== "Escape" || step() !== "code") return;
+    if (event.key !== "Escape" || step() !== "code" || composing(event)) return;
     event.preventDefault();
     restart();
   }

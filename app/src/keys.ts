@@ -32,3 +32,11 @@ export function caps(keys: string[]): HTMLElement {
   span.append(...keys.map((key) => Object.assign(document.createElement("kbd"), { textContent: key })));
   return span;
 }
+
+/**
+ * Whether the key belongs to an input method mid-word (Japanese, Chinese, Korean): its Enter or Esc is the word's,
+ * not the app's. Safari marks the Enter that ends one only with keyCode 229.
+ */
+export function composing(event: KeyboardEvent): boolean {
+  return event.isComposing || event.keyCode === 229;
+}

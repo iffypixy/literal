@@ -7,95 +7,61 @@
   justify-items: center;
   pointer-events: none;
   z-index: 30;
-}
 
-/* With the phone's sheet open, it sits above the sheet's footer rather than on it. */
-body:has(.overlay:not([hidden])) .dock {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 8px + var(--edge));
-}
-
-@media (min-width: 641px) {
-  body:has(.overlay:not([hidden])) .dock {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
+  /* With the phone's sheet open, it sits above the sheet's footer: a control, with 4px above and below. */
+  @media (max-width: 640px) {
+    body:has(.overlay:not([hidden])) & {
+      bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 8px + var(--edge));
+    }
   }
-}
 
-/* It floats like the panel and the menu, so it looks like them: their surface, corners and shadow. */
-.toast {
-  grid-area: 1 / 1;
-  display: flex;
-  align-items: baseline;
-  gap: 2ch;
-  max-width: calc(100vw - 2 * var(--edge));
-  box-sizing: border-box;
-  padding: var(--control-padding) var(--edge);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow);
-  pointer-events: auto;
-  animation: toast-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
-}
+  /* It floats like the panel and the menu, so it looks like them: their surface, corners and shadow. */
+  & .toast {
+    grid-area: 1 / 1;
+    display: flex;
+    align-items: baseline;
+    gap: 2ch;
+    max-width: calc(100vw - 2 * var(--edge));
+    box-sizing: border-box;
+    padding: var(--control-padding) var(--edge);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+    pointer-events: auto;
+    animation: toast-in 180ms var(--ease-out);
+  }
 
-.toast.leaving {
-  pointer-events: none;
-  animation: toast-out 150ms linear forwards;
-}
+  /* Replaced, it fades from wherever it had got to, the next one rising over it. */
+  & .toast.leaving {
+    opacity: 0;
+    pointer-events: none;
+    animation: none;
+    transition: opacity var(--brief) linear;
+  }
 
-/*
- * An action inside a line of text: underlined, like every other one in the app. Its target reaches past the
- * word, for a finger, without moving it or swelling its focus ring.
- */
-.toast button {
-  position: relative;
-  border-radius: var(--radius-small);
-  text-decoration: underline;
-  transition: transform var(--quick) var(--ease-out);
-}
+  & .action {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1ch;
+  }
 
-.toast button::after {
-  content: "";
-  position: absolute;
-  inset: -12px -10px;
-}
+  @media (prefers-reduced-motion: reduce) {
+    & .toast {
+      animation-name: fade-in;
+    }
+  }
 
-.toast button:active {
-  transform: scale(0.97);
-}
-
-.toast .action {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1ch;
+  @media (forced-colors: active) {
+    & .toast {
+      outline: 1px solid CanvasText;
+    }
+  }
 }
 
 @keyframes toast-in {
   from {
     opacity: 0;
     transform: translateY(8px);
-  }
-}
-
-@keyframes toast-out {
-  to {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toast {
-    animation-name: fade-in;
-  }
-
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-  }
-}
-
-@media (forced-colors: active) {
-  .toast {
-    outline: 1px solid CanvasText;
   }
 }
