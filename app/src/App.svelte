@@ -81,20 +81,15 @@
   if (account.email) startSync();
   void checkSession();
 
-  /** Learns from the server whether this device is signed in, e.g. back from signing in with Google or Apple. */
+  /** Learns from the server whether this device is signed in, e.g. in another tab since this one opened. */
   async function checkSession() {
-    const query = new URLSearchParams(location.search);
-    const returning = query.has("signed-in");
-    if (returning || query.has("sign-in-failed")) history.replaceState(null, "", location.pathname);
-    // Back from Google or Apple without an account: cancelled, or refused.
-    if (query.has("sign-in-failed")) toast("Couldn't sign in, please try again");
     let email: string | null;
     try {
       email = await session();
     } catch {
       return; // offline: what this device remembers stands
     }
-    if (email && email !== account.email) onsignedin(email, returning);
+    if (email && email !== account.email) onsignedin(email, false);
   }
 
   function onsignedin(email: string, announce = true) {

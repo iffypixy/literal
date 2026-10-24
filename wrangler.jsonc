@@ -21,10 +21,12 @@
       "migrations_dir": "worker/migrations",
     },
   ],
+  // Sign-in codes, sent from literal.ink once `wrangler email sending enable literal.ink` has set it up.
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["code@literal.ink"] }],
   "observability": { "enabled": true },
   "vars": {
-    // Secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, and Google or Apple keys) go in with `wrangler secret put`.
+    // The one secret, BETTER_AUTH_SECRET, goes in with `wrangler secret put`.
     "APP_URL": "https://literal.ink",
-    "EMAIL_FROM": "Literal <code@literal.ink>",
+    "EMAIL_FROM": "code@literal.ink",
   },
 }

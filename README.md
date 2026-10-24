@@ -15,7 +15,7 @@ pnpm wrangler d1 migrations apply literal --local --persist-to .wrangler/state
 pnpm dev                                # http://localhost:5390
 ```
 
-One dev server runs the app and the Worker. Without `RESEND_API_KEY`, sign-in codes are printed in the terminal.
+One dev server runs the app and the Worker. It sends no email: sign-in codes are printed in the terminal.
 
 ```sh
 pnpm check   # types: app and worker
@@ -24,27 +24,17 @@ pnpm test    # end to end, against a production build served locally (stop `pnpm
 
 ## Deploy
 
-You need a Cloudflare account, a domain on it, and a [Resend](https://resend.com) account for the code emails.
+You need a Cloudflare account on the Workers Paid plan, which sending email needs, and a domain on it.
 
 1. `pnpm wrangler login`
 2. `pnpm wrangler d1 create literal`, then put the printed `database_id` in `wrangler.jsonc`.
-3. In `wrangler.jsonc`, `APP_URL` and `EMAIL_FROM` are set for literal.ink: change them for another domain. The sender's domain must be verified in Resend.
-4. `pnpm wrangler d1 migrations apply literal --remote`
-5. Secrets:
-   ```sh
-   openssl rand -hex 32 | pnpm wrangler secret put BETTER_AUTH_SECRET
-   pnpm wrangler secret put RESEND_API_KEY
-   ```
-6. `pnpm run deploy` (not `pnpm deploy`, which is a different pnpm command).
-7. In the Cloudflare dashboard: add your domain to the Worker (Settings → Domains & Routes), and turn on Web Analytics for it.
-8. Forward `hello@literal.ink`, the contact address in `app/public/privacy.html`, to a real inbox (Email → Email Routing).
-
-### Google and Apple sign-in (optional)
-
-The buttons appear once the keys are set.
-
-- **Google:** create an OAuth client (Web application) with the redirect URI `https://<your domain>/api/auth/callback/google`, then `wrangler secret put` `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-- **Apple:** create a Services ID with the return URL `https://<your domain>/api/auth/callback/apple`, and generate its client secret (a signed JWT, valid at most 6 months: renew it before it expires). Then `wrangler secret put` `APPLE_CLIENT_ID` and `APPLE_CLIENT_SECRET`.
+3. `pnpm wrangler email sending enable literal.ink`, so the Worker can email sign-in codes from the domain.
+4. In `wrangler.jsonc`, `APP_URL`, `EMAIL_FROM` and the email binding's allowed sender are set for literal.ink: change them for another domain.
+5. `pnpm wrangler d1 migrations apply literal --remote`
+6. `openssl rand -hex 32 | pnpm wrangler secret put BETTER_AUTH_SECRET`
+7. `pnpm run deploy` (not `pnpm deploy`, which is a different pnpm command).
+8. In the Cloudflare dashboard: add your domain to the Worker (Settings → Domains & Routes), and turn on Web Analytics for it.
+9. Forward `hello@literal.ink`, the contact address in `app/public/privacy.html`, to a real inbox (Email → Email Routing).
 
 ## Before launch, check on real devices
 
@@ -53,4 +43,4 @@ The tests run in desktop Chromium. These need a real iPhone and a real Android p
 - the keyboard on iOS: the end of a long note stays visible above it,
 - the notes sheet: drag down to close, swipe a row left to delete,
 - installing to the Home Screen, and opening it with no network,
-- signing in with Apple from the installed app (redirects can bounce out to Safari).
+- the sign-in email: it arrives in Gmail, Outlook and iCloud, and not in spam.

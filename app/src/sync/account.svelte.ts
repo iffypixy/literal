@@ -10,8 +10,6 @@ const TIMEOUT = 15_000;
 
 export const account = $state<{ email: string | null }>({ email: remembered() });
 
-export type Providers = { google: boolean; apple: boolean };
-
 /** Asks the server who's signed in. Null when nobody is; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
   const response = await fetch("/api/auth/get-session", { credentials: "same-origin" });
@@ -23,17 +21,6 @@ export async function session(): Promise<string | null> {
 export function signedIn(email: string) {
   account.email = email;
   remember(email);
-}
-
-/** Which other ways to sign in the server offers. None, when it can't be asked. */
-export async function providers(): Promise<Providers> {
-  const none = { google: false, apple: false };
-  try {
-    const response = await fetch("/api/providers", { signal: AbortSignal.timeout(TIMEOUT) });
-    return response.ok ? ((await response.json()) as Providers) : none;
-  } catch {
-    return none; // offline: the email code still works once it's back
-  }
 }
 
 /** What to say when a request didn't reach the server, or never came back. */
@@ -62,19 +49,6 @@ export async function verify(email: string, code: string): Promise<string | null
   if (response.status === 403) return "Send a new code to try again";
   if (response.status === 400 || response.status === 401) return "That code didn't work";
   return "Couldn't sign in, please try again";
-}
-
-/** Leaves for Google or Apple; the app opens again signed in. */
-export async function signInWith(provider: "google" | "apple") {
-  const response = await post("/api/auth/sign-in/social", {
-    provider,
-    callbackURL: "/?signed-in",
-    // Cancelled or refused: back to the app, which says so, rather than the auth library's own error page.
-    errorCallbackURL: "/?sign-in-failed",
-  });
-  const body = (await response.json()) as { url?: string };
-  if (!body.url) throw new Error(`sign in with ${provider}: no redirect`);
-  location.assign(body.url);
 }
 
 /** Signs out and erases every note on this device: they stay in the account. */

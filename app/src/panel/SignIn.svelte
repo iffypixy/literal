@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { providers, sendCode, signInWith, unreachable, verify, type Providers } from "../sync/account.svelte.ts";
+  import { sendCode, unreachable, verify } from "../sync/account.svelte.ts";
   import Back from "./Back.svelte";
 
   type Props = {
@@ -20,13 +20,11 @@
   let code = $state("");
   let busy = $state(false);
   let error = $state("");
-  let offered = $state<Providers>({ google: false, apple: false });
   let wait = $state(0);
   let field = $state<HTMLInputElement>();
   let timer: ReturnType<typeof setInterval> | undefined;
 
   onMount(() => {
-    void providers().then((result) => (offered = result));
     if (!touch) field?.focus();
     return () => clearInterval(timer);
   });
@@ -102,14 +100,6 @@
     field?.focus();
   }
 
-  async function social(provider: "google" | "apple") {
-    busy = true;
-    await signInWith(provider).catch(() => {
-      busy = false;
-      error = unreachable();
-    });
-  }
-
   // Esc on the code step goes back to the email; on the email step it's the panel's, which goes back to the list.
   function onkeydown(event: KeyboardEvent) {
     if (event.key !== "Escape" || step !== "code") return;
@@ -128,18 +118,6 @@
       Sign in to keep your notes on all your devices.
       {#if fragile}Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them.{/if}
     </p>
-
-    {#if offered.google || offered.apple}
-      <div class="social">
-        {#if offered.google}
-          <button class="option" disabled={busy} onclick={() => social("google")}>Continue with Google</button>
-        {/if}
-        {#if offered.apple}
-          <button class="option" disabled={busy} onclick={() => social("apple")}>Continue with Apple</button>
-        {/if}
-      </div>
-      <p class="or"><span>or</span></p>
-    {/if}
 
     <form onsubmit={send}>
       <label class="visually-hidden" for="sign-in-email">Email</label>
@@ -215,27 +193,6 @@
     overflow-wrap: anywhere;
   }
 
-  .social {
-    display: grid;
-    gap: var(--gap);
-  }
-
-  .or {
-    display: flex;
-    align-items: center;
-    gap: 2ch;
-    margin: var(--gap) 0;
-    color: var(--muted);
-  }
-
-  .or::before,
-  .or::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: var(--line);
-  }
-
   form {
     display: grid;
     gap: var(--gap);
@@ -278,7 +235,6 @@
     border-color: var(--danger);
   }
 
-  .option,
   .primary {
     min-height: var(--control);
     border-radius: var(--radius-small);
@@ -288,11 +244,6 @@
       opacity var(--quick) ease;
   }
 
-  .option {
-    border: 1px solid var(--line);
-    background: var(--surface);
-  }
-
   /* The one main action in the view: the accent, filled. */
   .primary {
     border: 1px solid var(--accent);
@@ -300,7 +251,6 @@
     color: var(--on-accent);
   }
 
-  .option:active:not(:disabled),
   .primary:active:not(:disabled) {
     transform: scale(0.97);
   }
@@ -358,10 +308,6 @@
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .option:hover:not(:disabled) {
-      background: var(--hover);
-    }
-
     .primary:hover:not(:disabled) {
       background: var(--accent-hover);
     }

@@ -1,5 +1,5 @@
 import { SIGNED_OUT } from "../../protocol/protocol.ts";
-import { createAuth } from "./auth.ts";
+import { createAuth, handleAuth } from "./auth.ts";
 import type { UserNotes } from "./user-notes.ts";
 
 export { UserNotes } from "./user-notes.ts";
@@ -7,16 +7,13 @@ export { UserNotes } from "./user-notes.ts";
 export interface Env {
   DB: D1Database;
   NOTES: DurableObjectNamespace<UserNotes>;
-  /** Where the app is served, e.g. https://literal.ink: auth callbacks and origin checks use it. */
+  /** Sends the sign-in codes, through Cloudflare's email service. */
+  EMAIL: SendEmail;
+  /** Where the app is served, e.g. https://literal.ink: sign-in and origin checks use it. */
   APP_URL: string;
+  /** The address code emails come from, e.g. code@literal.ink: the only one EMAIL may send from. */
+  EMAIL_FROM: string;
   BETTER_AUTH_SECRET: string;
-  RESEND_API_KEY?: string;
-  /** The sender of code emails, e.g. "Literal <code@literal.ink>". */
-  EMAIL_FROM?: string;
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_CLIENT_SECRET?: string;
-  APPLE_CLIENT_ID?: string;
-  APPLE_CLIENT_SECRET?: string;
 }
 
 /** Everything but the static app: accounts, account deletion, and the sync socket. The app itself is static assets. */
@@ -24,11 +21,8 @@ export default {
   async fetch(request, env): Promise<Response> {
     const { pathname } = new URL(request.url);
     if (pathname === "/sync") return connect(request, env);
-    if (pathname === "/api/providers") {
-      return Response.json({ google: Boolean(env.GOOGLE_CLIENT_ID), apple: Boolean(env.APPLE_CLIENT_ID) });
-    }
     if (pathname === "/api/account" && request.method === "DELETE") return deleteAccount(request, env);
-    if (pathname.startsWith("/api/auth/")) return createAuth(env).handler(request);
+    if (pathname.startsWith("/api/auth/")) return handleAuth(request, env);
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
