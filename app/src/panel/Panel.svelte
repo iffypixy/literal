@@ -522,7 +522,7 @@
   }
 
   async function erase() {
-    problem = (await deleteAccount().catch(() => "Connect to the internet and try again")) ?? "";
+    problem = (await deleteAccount()) ?? "";
   }
 
   // A view other than the list puts the keyboard on its heading, so it's read out and Tab goes on from there.
@@ -729,7 +729,8 @@
         </div>
       </div>
 
-      {#if notes.ready && !entries.length}
+      <!-- Signed in on a device still waiting for its notes, "No notes yet" would look like they were lost. -->
+      {#if notes.ready && !entries.length && (words.length || !account.email || notes.synced)}
         <p class="empty">{words.length ? "No matches" : "No notes yet"}</p>
       {/if}
 

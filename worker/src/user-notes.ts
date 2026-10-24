@@ -31,9 +31,15 @@ export class UserNotes extends DurableObject<Env> {
     this.sql = ctx.storage.sql;
     // Answered without waking the object: devices ping to learn their connection is still alive.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+    // `deleted` and `checked_at`: whether the note was deleted as of when that was last read from its state.
     this.sql.exec(
-      "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, state BLOB NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, state BLOB NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, checked_at INTEGER NOT NULL DEFAULT 0)",
     );
+    const columns = this.sql.exec<{ name: string }>("SELECT name FROM pragma_table_info('notes')").toArray();
+    if (!columns.some((column) => column.name === "deleted")) {
+      this.sql.exec("ALTER TABLE notes ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0");
+      this.sql.exec("ALTER TABLE notes ADD COLUMN checked_at INTEGER NOT NULL DEFAULT 0");
+    }
     this.sql.exec("CREATE TABLE IF NOT EXISTS purged (id TEXT PRIMARY KEY)");
     this.last = this.sql.exec<{ last: number | null }>("SELECT MAX(updated_at) AS last FROM notes").one().last ?? 0;
   }
@@ -76,13 +82,8 @@ export class UserNotes extends DurableObject<Env> {
     const now = Date.now();
     const ids: string[] = [];
     for (const row of this.sql.exec<{ id: string; state: ArrayBuffer }>("SELECT id, state FROM notes")) {
-      const doc = new Y.Doc();
-      Y.applyUpdate(doc, new Uint8Array(row.state));
-      const meta = doc.getMap<number>("meta");
-      const deletedAt = meta.get("deletedAt");
-      if (deletedAt !== undefined && deletedAt >= (meta.get("editedAt") ?? 0) && now - deletedAt > KEEP_DELETED)
-        ids.push(row.id);
-      doc.destroy();
+      const deletedAt = deletedSince(row.state);
+      if (deletedAt !== null && now - deletedAt > KEEP_DELETED) ids.push(row.id);
     }
     for (const id of ids) {
       this.sql.exec("DELETE FROM notes WHERE id = ?", id);
@@ -144,7 +145,7 @@ export class UserNotes extends DurableObject<Env> {
       return;
     }
     const row = this.sql.exec<{ state: ArrayBuffer }>("SELECT state FROM notes WHERE id = ?", id).toArray()[0];
-    if (!row && this.sql.exec<{ count: number }>("SELECT COUNT(*) AS count FROM notes").one().count >= MAX_NOTES) {
+    if (!row && this.full()) {
       socket.send(encode({ type: "refused", seq, reason: "too-many" }));
       return;
     }
@@ -171,9 +172,41 @@ export class UserNotes extends DurableObject<Env> {
     this.broadcast(encode({ type: "update", seq: 0, id, update }), socket);
   }
 
+  /**
+   * Whether the account holds as many notes as it may. Only notes it still has count: a deleted one, kept 30 days
+   * so other devices hear of it, doesn't. Reading every note's state to know is slow, so it's done only near the
+   * limit, and only for notes changed since they were last read.
+   */
+  private full(): boolean {
+    const count = (query: string) => this.sql.exec<{ count: number }>(query).one().count;
+    if (count("SELECT COUNT(*) AS count FROM notes") < MAX_NOTES) return false;
+    for (;;) {
+      const stale = this.sql
+        .exec<{ id: string; state: ArrayBuffer }>("SELECT id, state FROM notes WHERE checked_at < updated_at LIMIT 100")
+        .toArray();
+      if (!stale.length) break;
+      for (const note of stale) {
+        const deleted = deletedSince(note.state) === null ? 0 : 1;
+        this.sql.exec("UPDATE notes SET deleted = ?, checked_at = updated_at WHERE id = ?", deleted, note.id);
+      }
+    }
+    return count("SELECT COUNT(*) AS count FROM notes WHERE deleted = 0") >= MAX_NOTES;
+  }
+
   private broadcast(message: Uint8Array, except?: WebSocket) {
     for (const socket of this.ctx.getWebSockets()) if (socket !== except) socket.send(message);
   }
+}
+
+/** When the note in `state` was deleted, or null if it wasn't (or was edited again since). */
+function deletedSince(state: ArrayBuffer): number | null {
+  const doc = new Y.Doc();
+  Y.applyUpdate(doc, new Uint8Array(state));
+  const meta = doc.getMap<number>("meta");
+  const deletedAt = meta.get("deletedAt");
+  const editedAt = meta.get("editedAt") ?? 0;
+  doc.destroy();
+  return deletedAt !== undefined && deletedAt >= editedAt ? deletedAt : null;
 }
 
 /** The same state, rebuilt without the text that was deleted from it. */

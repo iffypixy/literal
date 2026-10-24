@@ -43,7 +43,8 @@ const READ_BATCH = 500;
 const TOUCH_EVERY = 1000;
 const TAB_ID = crypto.randomUUID();
 
-export const notes = $state({ version: 0, ready: false, failed: false });
+/** `synced`: this device has caught up with its account at least once, so its list is the whole list. */
+export const notes = $state({ version: 0, ready: false, failed: false, synced: false });
 
 /** Every note on this device by id. Not reactive: `notes.version` ticks when it changes. */
 const all = new Map<string, Note>();
@@ -105,6 +106,7 @@ export async function start() {
       }
     }
     for (const id of rescuedIds()) await load(id);
+    notes.synced = Boolean(await get<number>(await db, "meta", "since"));
   } catch (error) {
     notes.failed = true;
     console.error(error);
@@ -303,6 +305,7 @@ export async function missing(id: string, vector: Uint8Array): Promise<Uint8Arra
 export async function caughtUp(now: number) {
   await flush();
   await write(await db, (tx) => tx.objectStore("meta").put(now, "since"));
+  notes.synced = true;
 }
 
 /** How many changes this device has made to the note so far. */

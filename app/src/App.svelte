@@ -30,6 +30,8 @@
   import { tooltip } from "./ui/tooltip.ts";
   import { act, quiet, toast, toasts } from "./ui/toast.svelte.ts";
 
+  /** Where signing out or deleting the account leaves its word for after the reload. */
+  const FAREWELL = "blank:farewell";
   /** Characters of a note's title a toast shows, and the window's title. */
   const NAME_SHOWN = 30;
   const TITLE_SHOWN = 60;
@@ -65,6 +67,13 @@
     document.title = name ? `${name} — Blank` : "Blank";
   });
 
+  // A farewell left by signing out or deleting the account, which ends with a reload: said once it's done.
+  const farewell = read(FAREWELL);
+  if (farewell) {
+    unset(FAREWELL);
+    toast(farewell);
+  }
+
   setSignedIn(Boolean(account.email));
   void start().then(() => prepare(list()));
   // "replace": an address that isn't a note becomes the blank page's own.
@@ -74,8 +83,11 @@
 
   /** Learns from the server whether this device is signed in, e.g. back from signing in with Google or Apple. */
   async function checkSession() {
-    const returning = new URLSearchParams(location.search).has("signed-in");
-    if (returning) history.replaceState(null, "", location.pathname);
+    const query = new URLSearchParams(location.search);
+    const returning = query.has("signed-in");
+    if (returning || query.has("sign-in-failed")) history.replaceState(null, "", location.pathname);
+    // Back from Google or Apple without an account: cancelled, or refused.
+    if (query.has("sign-in-failed")) toast("Couldn't sign in, please try again");
     let email: string | null;
     try {
       email = await session();
@@ -321,6 +333,14 @@
   }
 
   // These are conveniences for this device only: a browser that refuses storage just goes without them.
+  function unset(key: string) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // see read()
+    }
+  }
+
   function read(key: string): string | null {
     try {
       return localStorage.getItem(key);

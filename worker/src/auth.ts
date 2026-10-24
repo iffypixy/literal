@@ -4,6 +4,12 @@ import type { Env } from "./index.ts";
 
 const YEAR = 60 * 60 * 24 * 365;
 
+/**
+ * What Google and Apple tell us beyond the email: nothing kept. Blank never shows a name or picture, and never
+ * calls them on your behalf, so neither those nor their access tokens are stored (see privacy.html).
+ */
+const nothingMore = { mapProfileToUser: () => ({ name: "", image: undefined }) };
+
 /** Accounts exist only for sync: no passwords, just a code by email, or Google or Apple. */
 export function createAuth(env: Env) {
   return betterAuth({
@@ -23,11 +29,12 @@ export function createAuth(env: Env) {
               clientId: env.GOOGLE_CLIENT_ID,
               clientSecret: env.GOOGLE_CLIENT_SECRET,
               prompt: "select_account",
+              ...nothingMore,
             },
           }
         : {}),
       ...(env.APPLE_CLIENT_ID && env.APPLE_CLIENT_SECRET
-        ? { apple: { clientId: env.APPLE_CLIENT_ID, clientSecret: env.APPLE_CLIENT_SECRET } }
+        ? { apple: { clientId: env.APPLE_CLIENT_ID, clientSecret: env.APPLE_CLIENT_SECRET, ...nothingMore } }
         : {}),
     },
     plugins: [
@@ -48,9 +55,22 @@ export function createAuth(env: Env) {
         "/sign-in/email-otp": { window: 10 * 60, max: 10 },
       },
     },
+    // The IP address limits sign-in attempts for a few minutes; it isn't kept with the session afterwards.
     advanced: { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } },
+    databaseHooks: {
+      session: {
+        create: { before: async (session) => ({ data: { ...session, ipAddress: null, userAgent: null } }) },
+      },
+      account: {
+        create: { before: async (account) => ({ data: { ...account, ...noTokens } }) },
+        update: { before: async (account) => ({ data: { ...account, ...noTokens } }) },
+      },
+    },
+    telemetry: { enabled: false },
   });
 }
+
+const noTokens = { accessToken: null, refreshToken: null, idToken: null };
 
 /** Emails the sign-in code. Without a Resend key (in development), prints it instead. */
 async function sendCode(env: Env, email: string, code: string) {

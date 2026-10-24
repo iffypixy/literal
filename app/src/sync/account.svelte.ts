@@ -3,6 +3,10 @@
 import { wipe } from "../notes/notes.svelte.ts";
 
 const KEY = "blank:account";
+/** Read by App after the reload that ends signing out or deleting the account (see App.svelte). */
+const FAREWELL = "blank:farewell";
+/** How long a request may take before it counts as failed: a dead network would leave it waiting forever. */
+const TIMEOUT = 15_000;
 
 export const account = $state<{ email: string | null }>({ email: remembered() });
 
@@ -21,10 +25,15 @@ export function signedIn(email: string) {
   remember(email);
 }
 
+/** Which other ways to sign in the server offers. None, when it can't be asked. */
 export async function providers(): Promise<Providers> {
-  const response = await fetch("/api/providers");
-  if (!response.ok) return { google: false, apple: false };
-  return (await response.json()) as Providers;
+  const none = { google: false, apple: false };
+  try {
+    const response = await fetch("/api/providers", { signal: AbortSignal.timeout(TIMEOUT) });
+    return response.ok ? ((await response.json()) as Providers) : none;
+  } catch {
+    return none; // offline: the email code still works once it's back
+  }
 }
 
 /** What to say when a request didn't reach the server, or never came back. */
@@ -57,7 +66,12 @@ export async function verify(email: string, code: string): Promise<string | null
 
 /** Leaves for Google or Apple; the app opens again signed in. */
 export async function signInWith(provider: "google" | "apple") {
-  const response = await post("/api/auth/sign-in/social", { provider, callbackURL: "/?signed-in" });
+  const response = await post("/api/auth/sign-in/social", {
+    provider,
+    callbackURL: "/?signed-in",
+    // Cancelled or refused: back to the app, which says so, rather than the auth library's own error page.
+    errorCallbackURL: "/?sign-in-failed",
+  });
   const body = (await response.json()) as { url?: string };
   if (!body.url) throw new Error(`sign in with ${provider}: no redirect`);
   location.assign(body.url);
@@ -67,18 +81,35 @@ export async function signInWith(provider: "google" | "apple") {
 export async function signOut() {
   // Signed out even if the server can't hear it: the session is useless without the device's notes anyway.
   await post("/api/auth/sign-out", {}).catch((error: unknown) => console.error(error));
-  await forget();
+  await forget("Signed out, and your notes stay in your account");
 }
 
+/** Deletes the account and everything in it. Resolves to a message for the person when it didn't work. */
 export async function deleteAccount(): Promise<string | null> {
-  const response = await fetch("/api/account", { method: "DELETE", credentials: "same-origin" });
+  let response: Response;
+  try {
+    response = await fetch("/api/account", {
+      method: "DELETE",
+      credentials: "same-origin",
+      signal: AbortSignal.timeout(TIMEOUT),
+    });
+  } catch {
+    return unreachable();
+  }
+  if (response.status === 401) return "Sign in again to delete your account";
   if (!response.ok) return "Couldn't delete your account, please try again";
-  await forget();
+  await forget("Account deleted");
   return null;
 }
 
-async function forget() {
+/** Erases this device's notes and starts over, saying `farewell` once the page is back. */
+async function forget(farewell: string) {
   remember(null);
+  try {
+    localStorage.setItem(FAREWELL, farewell);
+  } catch {
+    // Without storage it goes unsaid; the empty page still shows what happened.
+  }
   await wipe();
   location.replace("/");
 }
@@ -89,6 +120,7 @@ function post(path: string, body: unknown): Promise<Response> {
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT),
   });
 }
 
