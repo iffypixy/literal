@@ -2,7 +2,7 @@
   import { tick } from "svelte";
   import { fade } from "svelte/transition";
   import type * as Y from "yjs";
-  import { MAX_LENGTH } from "../../protocol/protocol.ts";
+  import { isNoteId, MAX_LENGTH } from "../../protocol/protocol.ts";
   import Editor, { type Position } from "./editor/Editor.svelte";
   import { letter, mac, mod, shortcuts } from "./keys.ts";
   import {
@@ -164,7 +164,7 @@
     }
     current = id;
     text = next;
-    navigate(`/n/${id}`, how);
+    navigate(`/${id}`, how);
     await tick();
     if (focus) void editor.focus(cursors.get(id));
   }
@@ -192,7 +192,7 @@
     const note = create();
     current = note.id;
     text = note.text;
-    navigate(`/n/${note.id}`, "replace");
+    navigate(`/${note.id}`, "replace");
   }
 
   function newNote() {
@@ -329,8 +329,13 @@
     void flush();
   }
 
+  /**
+   * The note an address names: `/7k3qx9m2da`, in either case. An older note's id, in base64url, is case-sensitive;
+   * its address once began with `/n/`.
+   */
   function idFrom(path: string): string | null {
-    return /^\/n\/([\w-]{12})$/.exec(path)?.[1] ?? null;
+    const name = path.replace(/^\/(n\/)?/, "");
+    return [name, name.toLowerCase()].find(isNoteId) ?? null;
   }
 
   // These are conveniences for this device only: a browser that refuses storage just goes without them.

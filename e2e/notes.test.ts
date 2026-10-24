@@ -5,7 +5,7 @@ test("a note is saved as you type, and is there after a reload", async ({ page }
   const note = page.getByRole("textbox", { name: "Note" });
   await expect(note).toBeFocused();
   await page.keyboard.type("Groceries\neggs, milk");
-  await expect(page).toHaveURL(/\/n\/[\w-]{12}$/);
+  await expect(page).toHaveURL(/\/[0-9a-hjkmnp-tv-z]{10}$/);
   await page.reload();
   await expect(note).toHaveValue("Groceries\neggs, milk");
 });

@@ -515,8 +515,11 @@ function summarize(id: string, doc: Y.Doc): Note {
   };
 }
 
-/** 12 random URL-safe characters: 72 bits, and no bias, since 64 divides 256. */
+/**
+ * 10 random characters of Crockford's base32, in lowercase: no letter that passes for a digit, 50 bits, and no bias,
+ * since 32 divides 256.
+ */
 function newId(): string {
-  const alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_";
-  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (byte) => alphabet[byte & 63]).join("");
+  const alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (byte) => alphabet[byte & 31]).join("");
 }

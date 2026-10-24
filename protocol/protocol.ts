@@ -139,7 +139,10 @@ export function decode(data: Uint8Array): Message {
   }
 }
 
-/** Whether `id` has the shape of a note id, so nothing else ever becomes a key in storage. */
+/**
+ * Whether `id` has the shape of a note id, so nothing else ever becomes a key in storage: 10 characters of
+ * Crockford's base32, or, for a note made before those, 12 of base64url.
+ */
 export function isNoteId(id: string): boolean {
-  return /^[\w-]{12}$/.test(id);
+  return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id) || /^[\w-]{12}$/.test(id);
 }
