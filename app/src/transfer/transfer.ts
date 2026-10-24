@@ -1,7 +1,7 @@
 import { MAX_LENGTH } from "../../../protocol/protocol.ts";
-import { add, list } from "../notes/notes.svelte.ts";
+import { add, list } from "../notes/notes.ts";
 import { title } from "../notes/search.ts";
-import { toast } from "../ui/toast.svelte.ts";
+import { toast } from "../ui/toast.ts";
 import { zip, type Entry } from "./zip.ts";
 
 const MAX_FILES = 500;

@@ -1,33 +1,28 @@
+import { onCleanup } from "solid-js";
+
 /**
  * A tooltip naming a button and its shortcut. The first one waits a moment, so passing over a button doesn't
  * flash it; moving on to the next button while one is up shows the next at once. Mouse only: touch has no hover.
  */
-export function tooltip(label: string, keys?: string[]) {
-  return (node: HTMLElement) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
-    function enter() {
-      if (!fine.matches) return;
-      const instant = performance.now() < warmUntil;
-      timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : DELAY);
-    }
+  function enter() {
+    if (!fine.matches) return;
+    const instant = performance.now() < warmUntil;
+    timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : DELAY);
+  }
 
-    function leave() {
-      clearTimeout(timer);
-      if (owner === node) hide();
-    }
+  function leave() {
+    clearTimeout(timer);
+    if (owner === node) hide();
+  }
 
-    node.addEventListener("pointerenter", enter);
-    node.addEventListener("pointerleave", leave);
-    // Pressing the button is the answer; the question can go.
-    node.addEventListener("pointerdown", leave);
-    return () => {
-      leave();
-      node.removeEventListener("pointerenter", enter);
-      node.removeEventListener("pointerleave", leave);
-      node.removeEventListener("pointerdown", leave);
-    };
-  };
+  node.addEventListener("pointerenter", enter);
+  node.addEventListener("pointerleave", leave);
+  // Pressing the button is the answer; the question can go.
+  node.addEventListener("pointerdown", leave);
+  onCleanup(leave);
 }
 
 const DELAY = 500;

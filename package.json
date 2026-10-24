@@ -9,7 +9,7 @@
     "dev": "vite --host --port 5390 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host --port 5390 --strictPort",
-    "check": "svelte-check --tsconfig ./tsconfig.json && tsc -p worker",
+    "check": "tsc && tsc -p worker",
     "deploy": "vite build && wrangler deploy --config app/dist/literal/wrangler.json",
     "test": "playwright test",
     "format": "prettier --write ."
@@ -17,20 +17,18 @@
   "dependencies": {
     "better-auth": "1.7.12",
     "lib0": "0.2.119",
+    "solid-js": "1.9.17",
     "yjs": "13.6.33"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.65.0",
     "@cloudflare/workers-types": "5.20261023.1",
     "@playwright/test": "1.64.1",
-    "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/node": "24",
     "prettier": "3",
-    "prettier-plugin-svelte": "3",
-    "svelte": "5.57.2",
-    "svelte-check": "4.7.7",
     "typescript": "6.0.3",
     "vite": "8.3.5",
+    "vite-plugin-solid": "2.11.14",
     "wrangler": "4.152.0"
   }
 }

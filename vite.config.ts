@@ -1,10 +1,10 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+import solid from "vite-plugin-solid";
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
@@ -12,7 +12,7 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 export default defineConfig({
   root: "app",
   plugins: [
-    svelte(),
+    solid(),
     cloudflare({ configPath: here("wrangler.jsonc"), persistState: { path: here(".wrangler/state") } }),
     serviceWorker(),
   ],

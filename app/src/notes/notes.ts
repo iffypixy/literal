@@ -1,3 +1,4 @@
+import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
 import { deleteDb, get, openDb, readAll, write } from "./db.ts";
 
@@ -44,7 +45,7 @@ const TOUCH_EVERY = 1000;
 const TAB_ID = crypto.randomUUID();
 
 /** `synced`: this device has caught up with its account at least once, so its list is the whole list. */
-export const notes = $state({ version: 0, ready: false, failed: false, synced: false });
+export const notes = createMutable({ version: 0, ready: false, failed: false, synced: false });
 
 /** Every note on this device by id. Not reactive: `notes.version` ticks when it changes. */
 const all = new Map<string, Note>();
@@ -260,7 +261,7 @@ export async function wipe() {
   await deleteDb();
 }
 
-// Sync. These are what sync.svelte.ts uses; nothing else should.
+// Sync. These are what sync.ts uses; nothing else should.
 
 /** Calls `listener` with every change made on this device, as a Yjs update. */
 export function onLocal(listener: (id: string, update: Uint8Array) => void): () => void {

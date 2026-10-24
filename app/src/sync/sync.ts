@@ -1,5 +1,6 @@
 /** Keeps this device's notes in sync with the account, over one WebSocket, for as long as it's signed in. */
 
+import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
 import {
   decode,
@@ -10,14 +11,14 @@ import {
   SIGNED_OUT,
   type Message,
 } from "../../../protocol/protocol.ts";
-import * as notes from "../notes/notes.svelte.ts";
+import * as notes from "../notes/notes.ts";
 import { shorten, title } from "../notes/search.ts";
-import { toast } from "../ui/toast.svelte.ts";
+import { toast } from "../ui/toast.ts";
 
 /** What the corner says, if anything: nothing while all is well. */
 export type Status = "" | "Offline" | "Not synced" | "Sign in to sync";
 
-export const sync = $state<{ status: Status }>({ status: "" });
+export const sync = createMutable<{ status: Status }>({ status: "" });
 
 /** How long the connection may be down before the corner says so. */
 const DOWN_AFTER = 5000;

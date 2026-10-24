@@ -1,9 +1,11 @@
 /** One toast at a time: a new one ends the last. */
 
+import { createMutable } from "solid-js/store";
+
 /** `keys` is the shortcut that also takes the action, shown beside it. */
 type Action = { label: string; keys?: string[]; run: () => void };
 
-type Toast = {
+export type Toast = {
   id: number;
   message: string;
   action?: Action;
@@ -11,7 +13,7 @@ type Toast = {
   onexpire?: () => void;
 };
 
-export const toasts = $state<{ current: Toast | null }>({ current: null });
+export const toasts = createMutable<{ current: Toast | null }>({ current: null });
 
 let ids = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;

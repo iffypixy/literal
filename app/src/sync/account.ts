@@ -1,6 +1,7 @@
 /** The account, as far as this device knows: just the email it's signed in with, remembered across visits. */
 
-import { wipe } from "../notes/notes.svelte.ts";
+import { createMutable } from "solid-js/store";
+import { wipe } from "../notes/notes.ts";
 
 const KEY = "literal:account";
 /** Where signing out or deleting the account leaves its word, which App says after the reload. */
@@ -8,7 +9,7 @@ export const FAREWELL = "literal:farewell";
 /** How long a request may take before it counts as failed: a dead network would leave it waiting forever. */
 const TIMEOUT = 15_000;
 
-export const account = $state<{ email: string | null }>({ email: remembered() });
+export const account = createMutable<{ email: string | null }>({ email: remembered() });
 
 /** Asks the server who's signed in. Null when nobody is; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {

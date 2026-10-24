@@ -1,0 +1,43 @@
+/*
+ * At the top of a view: the chevron's ink, not the button around it, sits on the text's left edge and on the
+ * top padding, at any control size. The 20px icon draws its chevron 7px in from the left and 5px from the top,
+ * 10px tall; the heading's letters then start a group's space below it.
+ */
+.back {
+  flex: none;
+  align-self: flex-start;
+  display: grid;
+  place-items: center;
+  width: var(--control);
+  height: var(--control);
+  margin: calc((20px - var(--control)) / 2 - 5px) 0 calc(var(--group) + 1px - var(--control) / 2)
+    calc((20px - var(--control)) / 2 - 7px);
+  border-radius: var(--radius-small);
+  color: var(--muted);
+  transition: transform var(--quick) var(--ease-out);
+}
+
+.back:active {
+  transform: scale(0.97);
+}
+
+.back svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.back path {
+  stroke-width: var(--stroke);
+  vector-effect: non-scaling-stroke;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .back:hover {
+    color: var(--text);
+    background: var(--hover);
+  }
+}

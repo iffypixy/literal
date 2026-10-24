@@ -1,4 +1,4 @@
-import type { Note } from "./notes.svelte.ts";
+import type { Note } from "./notes.ts";
 
 /** A piece of displayed text, and whether it matches the search. */
 export type Segment = { text: string; hit: boolean };

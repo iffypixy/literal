@@ -1,9 +1,8 @@
-import { flushSync, mount } from "svelte";
-import App from "./App.svelte";
+import { render } from "solid-js/web";
+import { App } from "./App.tsx";
 
 const early = document.querySelector<HTMLTextAreaElement>(".early");
-mount(App, { target: document.body });
-flushSync();
+render(() => <App />, document.body);
 if (early) handOver(early);
 
 // iOS Safari only shows a button's :active press on a page that listens for touches.
