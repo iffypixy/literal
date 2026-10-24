@@ -30,10 +30,15 @@
         <strong>Deleted notes:</strong> kept on the server for 30 days, so your other devices learn they're gone, then
         erased.
       </li>
+      <li><strong>Deleted text:</strong> what you delete from a note is erased from the server within a day.</li>
       <li>
-        <strong>Your IP address:</strong> used for a few minutes to limit sign-in attempts, and not kept with your
-        account.
+        <strong>Sign-in codes:</strong> each is stored hashed, with the address it went to, and erased after it's used
+        or expires. To limit how many codes an address gets, a hash of it is kept for the day.
       </li>
+      <li>
+        <strong>Your IP address:</strong> kept briefly when you sign in, to limit attempts, and never with your account.
+      </li>
+      <li><strong>Backups:</strong> what's erased may stay in Cloudflare's automatic backups for up to 30 days.</li>
     </ul>
 
     <h2>What Literal doesn't do</h2>
@@ -46,10 +51,7 @@
     <h2>Your control</h2>
     <ul>
       <li>Export all your notes as .txt files anytime, from the notes list.</li>
-      <li>
-        Deleting your account erases your notes and your email from Literal at once. Copies may remain in Cloudflare's
-        automatic backups for up to 30 days.
-      </li>
+      <li>Deleting your account erases your notes and your email from Literal at once.</li>
     </ul>
 
     <h2>Questions</h2>
