@@ -35,6 +35,8 @@ const REMOTE = "remote";
 const RESCUE = "blank:unsaved:";
 
 const SAVE_DELAY = 250;
+/** However fast you keep typing, a change is on disk within this long. */
+const SAVE_AT_MOST = 1000;
 /** How often typing moves a note's `editedAt`: often enough to sort, rarely enough to stay out of the doc. */
 const TOUCH_EVERY = 1000;
 const TAB_ID = crypto.randomUUID();
@@ -50,6 +52,10 @@ const loaded = new Map<string, Y.Doc>();
 /** For each loaded note, the stored state it already holds (`writer:rev`). */
 const seen = new Map<string, string>();
 const pending = new Map<string, ReturnType<typeof setTimeout>>();
+/** When each pending note first changed since its last save. */
+const waitingSince = new Map<string, number>();
+/** Notes whose save is on its way to disk: until it lands, a closing page must rescue them too. */
+const saving = new Set<string>();
 const touched = new Map<string, number>();
 /** Notes changed here since their last save. */
 const changed = new Set<string>();
@@ -180,6 +186,7 @@ export function discardIfEmpty(id: string) {
 export async function purge(id: string) {
   clearTimeout(pending.get(id));
   pending.delete(id);
+  waitingSince.delete(id);
   all.delete(id);
   marks.delete(id);
   loaded.get(id)?.destroy();
@@ -204,7 +211,7 @@ export async function flush() {
 
 /** As the page goes away: keeps every unsaved change somewhere that's written at once, until the next start. */
 export function rescue() {
-  for (const id of pending.keys()) {
+  for (const id of new Set([...pending.keys(), ...saving])) {
     const doc = loaded.get(id);
     if (!doc) continue;
     try {
@@ -347,10 +354,14 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
       edits.set(id, generation(id) + 1);
       for (const listener of listeners) listener(id, update);
     }
+    // A pause in typing saves; so does a second of typing without one.
+    const now = Date.now();
+    const since = waitingSince.get(id) ?? now;
+    waitingSince.set(id, since);
     clearTimeout(pending.get(id));
     pending.set(
       id,
-      setTimeout(() => void save(id), SAVE_DELAY),
+      setTimeout(() => void save(id), Math.min(SAVE_DELAY, since + SAVE_AT_MOST - now)),
     );
   });
   doc.getText("text").observe((_, transaction) => {
@@ -371,11 +382,13 @@ function touch(id: string, doc: Y.Doc) {
 async function save(id: string) {
   clearTimeout(pending.get(id));
   pending.delete(id);
+  waitingSince.delete(id);
   const doc = loaded.get(id);
   if (!doc) return;
   const local = changed.has(id);
   changed.delete(id);
   let row: Row | undefined;
+  saving.add(id);
   try {
     await write(await db, (tx) => {
       const docs = tx.objectStore("docs");
@@ -396,6 +409,8 @@ async function save(id: string) {
     notes.failed = true;
     console.error(error);
     return;
+  } finally {
+    saving.delete(id);
   }
   if (!row || !loaded.has(id)) return;
   unrescue(id);

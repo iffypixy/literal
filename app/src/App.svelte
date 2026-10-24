@@ -27,7 +27,7 @@
   import Keys from "./ui/Keys.svelte";
   import Toast from "./ui/Toast.svelte";
   import { tooltip } from "./ui/tooltip.ts";
-  import { act, toast, toasts } from "./ui/toast.svelte.ts";
+  import { act, quiet, toast, toasts } from "./ui/toast.svelte.ts";
 
   /** Characters of a note's title a toast shows, and the window's title. */
   const NAME_SHOWN = 30;
@@ -46,6 +46,10 @@
   let typing = $state(false);
   /** A note was just deleted, and nothing typed since: ⌘Z means the note, wherever the cursor is. */
   let undoable = false;
+  /** Notes deleted under the toast now showing: one Undo brings them all back. */
+  let deleted: { id: string; wasOpen: boolean }[] = [];
+  /** A note is on its way from disk: until it's shown, keys would land in the page being left. */
+  let opening = $state(false);
   let dropping = $state(false);
   let browsing = $state(false);
   let drags = 0;
@@ -122,6 +126,9 @@
     if (current !== null) previous = current;
     leave();
     if (id === null) {
+      // From a blank page to a blank page: a few spaces typed there don't come along. (At startup, before the
+      // editor is there, there's nothing to clear.)
+      if (current === null) editor?.clear();
       current = null;
       text = null;
       navigate("/", how);
@@ -129,7 +136,8 @@
       editor.focus();
       return;
     }
-    const next = await open(id);
+    opening = true;
+    const next = await open(id).finally(() => (opening = false));
     if (!next) {
       toast("Note not found");
       void go(null, "replace");
@@ -181,19 +189,26 @@
       text = null;
       navigate("/", "replace");
     }
-    toast(name ? `Deleted "${name}"` : "Deleted", {
+    // Deletes in a row share one toast, so the earlier ones keep their Undo.
+    if (deleted.length) quiet();
+    deleted.push({ id, wasOpen });
+    const batch = deleted;
+    toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted "${name}"` : "Deleted", {
       action: {
         label: "Undo",
         keys: hover ? shortcuts.undo : undefined,
         run: () => {
-          restore(id);
+          deleted = [];
+          for (const note of batch) restore(note.id);
           // Undo puts you back where you were: in the note, if you were in it.
-          if (wasOpen && current === null) void go(id, "replace");
+          const open = batch.find((note) => note.wasOpen);
+          if (open && current === null) void go(open.id, "replace");
         },
       },
       onexpire: () => {
+        deleted = [];
         undoable = false;
-        settle(id);
+        for (const note of batch) settle(note.id);
       },
     });
     // After the toast: showing it ends the last one, whose expiry clears this.
@@ -225,6 +240,7 @@
       newNote();
     } else if (
       !browsing &&
+      !opening &&
       document.activeElement === document.body &&
       event.key.length === 1 &&
       !event.ctrlKey &&
@@ -335,7 +351,7 @@
 <svelte:document {onvisibilitychange} />
 
 <div class="page" inert={browsing}>
-  <Editor bind:this={editor} {text} {oncreate} ontype={() => (typing = hover)} />
+  <Editor bind:this={editor} {text} readonly={opening} {oncreate} ontype={() => (typing = hover)} />
 
   <div class="corner" class:away={typing}>
     {#if problem || calm}

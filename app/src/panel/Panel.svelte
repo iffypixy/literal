@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { cubicOut } from "svelte/easing";
-  import { mod, shortcuts } from "../keys.ts";
+  import { mac, shortcuts } from "../keys.ts";
   import { list, notes, unsynced, type Note } from "../notes/notes.svelte.ts";
   import { describe, markStarts, parse, search, startsWords } from "../notes/search.ts";
   import { account, deleteAccount, signOut } from "../sync/account.svelte.ts";
@@ -222,19 +222,22 @@
     } else if (event.key === "Enter") {
       event.preventDefault();
       pick(selected, false);
-    } else if (selected && !isCommand(selected) && erasesNothing(event)) {
-      // A key with nothing to erase in the field means the note.
+    } else if (selected && !isCommand(selected) && deletes(event)) {
       event.preventDefault();
       remove(selected, false);
     }
   }
 
-  /** ⌘⌫ with nothing before the cursor, or Delete (as on Windows) with nothing after it. */
-  function erasesNothing(event: KeyboardEvent): boolean {
-    if (!input || input.selectionStart !== input.selectionEnd || event.altKey || event.shiftKey) return false;
-    if (event.key === "Backspace") return mod(event) && input.selectionStart === 0;
-    if (event.key === "Delete") return !mod(event) && input.selectionEnd === input.value.length;
-    return false;
+  /**
+   * Whether the key deletes the highlighted note. Delete does, with nothing after the cursor to erase (fn⌫ on a
+   * Mac); and on a Mac ⌘⌫, as in Finder, with nothing before it. Not Ctrl+Backspace, which on Windows erases a
+   * word of the search. Held down, a key deletes one note, not every note it repeats over.
+   */
+  function deletes(event: KeyboardEvent): boolean {
+    if (!input || event.repeat || event.altKey || event.shiftKey) return false;
+    if (input.selectionStart !== input.selectionEnd) return false;
+    if (event.key === "Delete") return !event.ctrlKey && !event.metaKey && input.selectionEnd === input.value.length;
+    return mac && event.key === "Backspace" && event.metaKey && input.selectionStart === 0;
   }
 
   function onescape(event: KeyboardEvent) {

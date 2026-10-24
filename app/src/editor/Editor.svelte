@@ -11,12 +11,14 @@
   type Props = {
     /** The open note's text, or null on a blank page. */
     text: Y.Text | null;
+    /** True while another note is on its way: keys mustn't land in this one meanwhile. */
+    readonly: boolean;
     /** Called when a blank page gets its first non-space character. */
     oncreate: () => void;
     ontype: () => void;
   };
 
-  let { text, oncreate, ontype }: Props = $props();
+  let { text, readonly, oncreate, ontype }: Props = $props();
   let area: HTMLTextAreaElement;
 
   $effect(() => {
@@ -43,6 +45,11 @@
     return [area.selectionStart, area.selectionEnd, area.scrollTop];
   }
 
+  /** Empties a blank page of whatever was typed into it but never became a note (a few spaces). */
+  export function clear() {
+    if (!text) area.value = "";
+  }
+
   function oninput() {
     ontype();
     if (!text && area.value.trim()) oncreate();
@@ -53,7 +60,8 @@
   }
 </script>
 
-<textarea bind:this={area} {oninput} {onkeydown} class="page" aria-label="Note" autocapitalize="sentences"></textarea>
+<textarea bind:this={area} {oninput} {onkeydown} {readonly} class="page" aria-label="Note" autocapitalize="sentences"
+></textarea>
 
 <style>
   .page {

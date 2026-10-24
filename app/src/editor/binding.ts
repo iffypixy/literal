@@ -88,6 +88,12 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 
   // Undo from the menu, the context menu, or shaking the phone.
   function onBeforeInput(event: InputEvent) {
+    // A browser keeps one undo history for the whole page: ⌘Z in another field, once that field has nothing
+    // left to undo, arrives here. Only an undo meant for the note may touch it.
+    if (event.inputType.startsWith("history") && document.activeElement !== area) {
+      event.preventDefault();
+      return;
+    }
     if (event.inputType === "historyUndo") {
       event.preventDefault();
       undo.undo();

@@ -37,6 +37,11 @@ export function expire() {
   current?.onexpire?.();
 }
 
+/** Ends the toast without its expiry: the next one takes over what it was about. */
+export function quiet() {
+  end();
+}
+
 function end(): Toast | null {
   const current = toasts.current;
   clearTimeout(timer);

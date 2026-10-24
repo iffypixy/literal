@@ -31,7 +31,7 @@ test("search finds a note by any of its words, ignoring accents; Undo brings bac
 
   await page.keyboard.press("Control+a");
   await page.keyboard.press("Backspace");
-  await page.keyboard.press("Control+Backspace");
+  await page.keyboard.press("Delete");
   await expect(rows).toHaveCount(1);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(rows).toHaveCount(2);

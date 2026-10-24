@@ -86,8 +86,8 @@ test("a note deleted on one device comes back with words written offline on anot
 
   await a.keyboard.press("Control+k");
   await a.keyboard.type("written on a");
-  await a.keyboard.press("Control+Home");
-  await a.keyboard.press("Control+Backspace");
+  await a.keyboard.press("End");
+  await a.keyboard.press("Delete");
   // Gone, not just collapsing: a row on its way out still matches for a moment.
   await expect(a.getByRole("option").filter({ hasText: "Written on A" })).toHaveCount(0);
   await a.keyboard.press("Escape");
