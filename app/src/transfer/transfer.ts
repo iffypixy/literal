@@ -1,10 +1,15 @@
+import { MAX_LENGTH } from "../../../protocol/protocol.ts";
 import { add, list } from "../notes/notes.svelte.ts";
 import { title } from "../notes/search.ts";
 import { toast } from "../ui/toast.svelte.ts";
 import { zip, type Entry } from "./zip.ts";
 
 const MAX_FILES = 500;
-const MAX_BYTES = 1024 * 1024;
+/**
+ * A larger file can't hold a note that syncs, so it isn't read at all: UTF-8 takes at most 3 bytes a character,
+ * after a 3-byte mark at the start.
+ */
+const MAX_SIZE = 3 + 3 * MAX_LENGTH;
 
 /** Downloads every note as a .txt file, named after its title, in one .zip. */
 export function exportAll() {
@@ -37,20 +42,21 @@ export async function importFiles(files: File[]) {
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let imported = 0;
   for (const file of texts.slice(0, MAX_FILES)) {
-    if (file.size > MAX_BYTES) continue;
+    if (file.size > MAX_SIZE) continue;
     let text: string;
     try {
       text = decoder.decode(await file.arrayBuffer());
     } catch {
       continue; // not UTF-8: counted as skipped below
     }
-    if (!text.trim()) continue;
-    add(text.replace(/\r\n?/g, "\n"), file.lastModified || Date.now());
+    text = text.replace(/\r\n?/g, "\n");
+    if (!text.trim() || text.length > MAX_LENGTH) continue;
+    add(text, file.lastModified || Date.now());
     imported++;
   }
   const skipped = texts.length - imported;
   const count = (n: number, thing: string) => `${n.toLocaleString()} ${thing}${n === 1 ? "" : "s"}`;
-  if (!imported) toast("Only plain text files under 1 MB can be imported");
+  if (!imported) toast(`Only plain text files up to ${MAX_LENGTH.toLocaleString()} characters can be imported`);
   else if (skipped) toast(`Imported ${count(imported, "note")} and skipped ${count(skipped, "file")}`);
   else toast(`Imported ${count(imported, "note")}`);
 }

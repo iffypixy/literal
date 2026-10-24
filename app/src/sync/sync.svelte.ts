@@ -1,7 +1,7 @@
 /** Keeps this device's notes in sync with the account, over one WebSocket, for as long as it's signed in. */
 
 import * as Y from "yjs";
-import { decode, encode, SIGNED_OUT, type Message } from "../../../protocol/protocol.ts";
+import { decode, encode, MAX_LENGTH, SIGNED_OUT, type Message } from "../../../protocol/protocol.ts";
 import * as notes from "../notes/notes.svelte.ts";
 import { shorten, title } from "../notes/search.ts";
 import { toast } from "../ui/toast.svelte.ts";
@@ -37,8 +37,8 @@ const unacked = new Map<number, { id: string; upTo: number; at: number; whole: b
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
 /**
  * Notes the server may lack changes of that their next update alone wouldn't carry: an update was refused, or lost
- * with a connection. Each by the last `seq` that went without them: until a whole note sent after that is acked,
- * the note goes whole, and no other ack marks it synced.
+ * with a connection, or the note was too long to send. Each by the last `seq` that went without them: until a whole
+ * note sent after that is acked, the note goes whole, and no other ack marks it synced.
  */
 const behind = new Map<string, number>();
 let retry = RETRY_MIN;
@@ -229,9 +229,16 @@ async function flush(id: string) {
   if (whole) send(id, whole, true);
 }
 
-/** Sends a change now if connected; otherwise the note stays dirty and goes with the next hello. */
+/**
+ * Sends a change now if connected; otherwise the note stays dirty, and goes with the next hello. A note too long
+ * to sync stays on this device, dirty, until it's short enough again.
+ */
 function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (notes.length(id) > MAX_LENGTH) {
+    fallBehind(id, seq);
+    return;
+  }
   unacked.set(++seq, { id, upTo: notes.generation(id), at: Date.now(), whole });
   ws.send(encode({ type: "update", seq, id, update }));
 }

@@ -101,3 +101,25 @@ test("a note deleted on one device comes back with words written offline on anot
   await open(a, "written on a");
   await expect(note(a)).toHaveValue("Written on A\nbefore signing in\nkept writing");
 });
+
+test("a note too long to sync stays on its device, and syncs whole once it's shorter", async ({ browser }) => {
+  const [a, b] = await devices(browser);
+  await open(a, "written on a");
+  await open(b, "written on a");
+  const long = `\n${"x".repeat(100_000)}`;
+  await a.keyboard.press("Control+End");
+  await a.keyboard.insertText(long);
+  await expect(a.getByRole("button", { name: "Too long to sync" })).toBeVisible();
+  await a.keyboard.press("Control+Home");
+  await a.keyboard.type("A: ");
+  await a.waitForTimeout(2500);
+  await expect(note(b)).toHaveValue("Written on A\nbefore signing in");
+
+  await note(a).evaluate(
+    (area: HTMLTextAreaElement, n) => area.setSelectionRange(area.value.length - n, area.value.length),
+    long.length,
+  );
+  await a.keyboard.press("Backspace");
+  await expect(a.getByRole("button", { name: "Too long to sync" })).toBeHidden();
+  await expect(note(b)).toHaveValue("A: Written on A\nbefore signing in");
+});

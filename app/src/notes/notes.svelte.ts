@@ -297,6 +297,11 @@ export async function missing(id: string, vector?: Uint8Array): Promise<Uint8Arr
   return doc ? Y.encodeStateAsUpdate(doc, vector) : null;
 }
 
+/** How long the note is, in characters as Yjs counts them: what decides whether it syncs. */
+export function length(id: string): number {
+  return loaded.get(id)?.getText("text").length ?? all.get(id)?.text.length ?? 0;
+}
+
 /** Marks this device caught up to `now`, once everything that came with it is on disk. */
 export async function caughtUp(now: number) {
   await flush();

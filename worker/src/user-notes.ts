@@ -3,7 +3,10 @@ import * as Y from "yjs";
 import { decode, encode, isNoteId, SIGNED_OUT, type Message } from "../../protocol/protocol.ts";
 import type { Env } from "./index.ts";
 
-/** A note's Yjs state can't outgrow a SQLite row (2 MB here); about 1 MB of text with its history fits well within. */
+/**
+ * A note's Yjs state can't outgrow a SQLite row (2 MB here). A note of MAX_LENGTH characters stays under this
+ * however it was written: typed a letter at a time, each in a new spot, in Chinese, its state comes to 1.8 MB.
+ */
 const MAX_STATE = 1_900_000;
 const MAX_NOTES = 10_000;
 /** Merged updates keep deleted text around; every so often the state is rebuilt without it. */

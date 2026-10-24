@@ -31,6 +31,12 @@ export type Message =
 
 export type Refusal = "too-large" | "too-many";
 
+/**
+ * The longest note that syncs, in characters as Yjs counts them (UTF-16 code units). The device holds a longer
+ * one back itself; the server only refuses a note whose state outgrows its row, which one this long never does.
+ */
+export const MAX_LENGTH = 100_000;
+
 /** Close codes the server uses, so the device knows not to just reconnect. */
 export const SIGNED_OUT = 4001;
 

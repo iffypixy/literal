@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { fade } from "svelte/transition";
   import type * as Y from "yjs";
+  import { MAX_LENGTH } from "../../protocol/protocol.ts";
   import Editor, { type Position } from "./editor/Editor.svelte";
   import { letter, mac, mod, shortcuts } from "./keys.ts";
   import {
@@ -10,6 +11,7 @@
     count,
     find,
     flush,
+    length,
     list,
     notes,
     open,
@@ -102,8 +104,13 @@
     if (announce) toast(`Signed in as ${email}`);
   }
 
+  /** The open note is longer than sync takes: it stays on this device until it's shorter. */
+  const tooLong = $derived.by(() => {
+    void notes.version;
+    return Boolean(account.email && current && length(current) > MAX_LENGTH);
+  });
   /** A problem stays in the corner until it's solved. */
-  const problem = $derived(notes.failed ? "Can't save here" : sync.status);
+  const problem = $derived(notes.failed ? "Can't save here" : sync.status || (tooLong ? "Too long to sync" : ""));
   /** Otherwise the corner says, quietly, that the note is saved; or, on a blank page, that the others are still here. */
   const calm = $derived.by(() => {
     if (current) return "Saved";
@@ -115,6 +122,7 @@
     "Can't save here": "This browser can't save notes, so copy your text before closing",
     Offline: "Notes will sync when you're back online",
     "Not synced": "Notes are saved on this device and will sync when Literal connects",
+    "Too long to sync": `Notes sync up to ${MAX_LENGTH.toLocaleString()} characters, so split this one into shorter notes`,
   };
 
   function explain() {
