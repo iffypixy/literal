@@ -1,7 +1,15 @@
 /** Keeps this device's notes in sync with the account, over one WebSocket, for as long as it's signed in. */
 
 import * as Y from "yjs";
-import { decode, encode, MAX_LENGTH, SIGNED_OUT, type Message } from "../../../protocol/protocol.ts";
+import {
+  decode,
+  encode,
+  MAX_BYTES,
+  MAX_LENGTH,
+  MAX_NOTES,
+  SIGNED_OUT,
+  type Message,
+} from "../../../protocol/protocol.ts";
 import * as notes from "../notes/notes.svelte.ts";
 import { shorten, title } from "../notes/search.ts";
 import { toast } from "../ui/toast.svelte.ts";
@@ -172,11 +180,15 @@ async function handle(ws: WebSocket, message: Message) {
       const sent = unacked.get(message.seq);
       unacked.delete(message.seq);
       if (sent) fallBehind(sent.id, message.seq);
-      const about = message.reason === "too-many" ? message.reason : (sent?.id ?? message.reason);
+      // The note's own limit is said for each note; the account's, once.
+      const about = message.reason === "too-large" ? (sent?.id ?? message.reason) : message.reason;
       if (told.has(about)) break;
       told.add(about);
       const name = sent ? shorten(title(notes.find(sent.id)?.text ?? ""), 30) : "";
-      if (message.reason === "too-many") toast("Sync stops at 10,000 notes, so delete some to make room");
+      if (message.reason === "too-many")
+        toast(`Sync stops at ${MAX_NOTES.toLocaleString()} notes, so delete some to make room`);
+      else if (message.reason === "too-full")
+        toast(`Sync stops at ${MAX_BYTES / 1_000_000} MB, so delete some notes to make room`);
       else
         toast(name ? `Split "${name}" into shorter notes to sync it` : "Split this note into shorter notes to sync it");
       break;

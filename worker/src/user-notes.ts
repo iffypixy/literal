@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import * as Y from "yjs";
-import { decode, encode, isNoteId, SIGNED_OUT, type Message } from "../../protocol/protocol.ts";
+import { decode, encode, isNoteId, MAX_BYTES, MAX_NOTES, SIGNED_OUT, type Message } from "../../protocol/protocol.ts";
 import type { Env } from "./index.ts";
 
 /**
@@ -8,7 +8,12 @@ import type { Env } from "./index.ts";
  * however it was written: typed a letter at a time, each in a new spot, in Chinese, its state comes to 1.8 MB.
  */
 const MAX_STATE = 1_900_000;
-const MAX_NOTES = 10_000;
+/**
+ * Deleted notes don't count toward the limits, yet keep their text for 30 days. So that nobody can fill an account
+ * with deleted notes, everything stored has a ceiling too: twice the limits, which using the app never reaches.
+ */
+const CEILING_NOTES = 2 * MAX_NOTES;
+const CEILING_BYTES = 2 * MAX_BYTES;
 /** Merged updates keep deleted text around; every so often the state is rebuilt without it. */
 const COMPACT_EVERY = 200;
 /** How long a deleted note's text is kept, in case a device that hasn't heard of the delete edits it again. */
@@ -28,6 +33,8 @@ export class UserNotes extends DurableObject<Env> {
   private merges = new Map<string, number>();
   /** The last `updated_at` given out: each write gets a later one, so `since` never misses a write. */
   private last = 0;
+  /** Bytes of every note's state, deleted ones too: while that's within MAX_BYTES, no write needs a closer look. */
+  private stored = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -44,7 +51,13 @@ export class UserNotes extends DurableObject<Env> {
       this.sql.exec("ALTER TABLE notes ADD COLUMN checked_at INTEGER NOT NULL DEFAULT 0");
     }
     this.sql.exec("CREATE TABLE IF NOT EXISTS purged (id TEXT PRIMARY KEY)");
-    this.last = this.sql.exec<{ last: number | null }>("SELECT MAX(updated_at) AS last FROM notes").one().last ?? 0;
+    const totals = this.sql
+      .exec<{ last: number | null; stored: number }>(
+        "SELECT MAX(updated_at) AS last, COALESCE(SUM(LENGTH(state)), 0) AS stored FROM notes",
+      )
+      .one();
+    this.last = totals.last ?? 0;
+    this.stored = totals.stored;
   }
 
   override async fetch(): Promise<Response> {
@@ -85,8 +98,10 @@ export class UserNotes extends DurableObject<Env> {
     const now = Date.now();
     const ids: string[] = [];
     for (const row of this.sql.exec<{ id: string; state: ArrayBuffer }>("SELECT id, state FROM notes")) {
-      const deletedAt = deletedSince(row.state);
-      if (deletedAt !== null && now - deletedAt > KEEP_DELETED) ids.push(row.id);
+      const deletedAt = deletedSince(new Uint8Array(row.state));
+      if (deletedAt === null || now - deletedAt <= KEEP_DELETED) continue;
+      ids.push(row.id);
+      this.stored -= row.state.byteLength;
     }
     for (const id of ids) {
       this.sql.exec("DELETE FROM notes WHERE id = ?", id);
@@ -148,18 +163,28 @@ export class UserNotes extends DurableObject<Env> {
       return;
     }
     const row = this.sql.exec<{ state: ArrayBuffer }>("SELECT state FROM notes WHERE id = ?", id).toArray()[0];
-    if (!row && this.full()) {
-      socket.send(encode({ type: "refused", seq, reason: "too-many" }));
-      return;
-    }
+    const before = row?.state.byteLength ?? 0;
     let state = row ? Y.mergeUpdates([new Uint8Array(row.state), update]) : update;
     let merges = (this.merges.get(id) ?? 0) + 1;
-    if (merges >= COMPACT_EVERY || state.byteLength > MAX_STATE) {
+    // Near a limit, the note is measured by what it holds, not by the deleted text that merging keeps around.
+    if (
+      merges >= COMPACT_EVERY ||
+      state.byteLength > MAX_STATE ||
+      this.stored - before + state.byteLength > MAX_BYTES
+    ) {
       state = compact(state);
       merges = 0;
     }
+    if (!row && this.tooMany(state)) {
+      socket.send(encode({ type: "refused", seq, reason: "too-many" }));
+      return;
+    }
     if (state.byteLength > MAX_STATE) {
       socket.send(encode({ type: "refused", seq, reason: "too-large" }));
+      return;
+    }
+    if (this.tooFull(id, before, state)) {
+      socket.send(encode({ type: "refused", seq, reason: "too-full" }));
       return;
     }
     this.merges.set(id, merges);
@@ -171,29 +196,59 @@ export class UserNotes extends DurableObject<Env> {
       buffer(Y.encodeStateVectorFromUpdate(state)),
       this.last,
     );
+    this.stored += state.byteLength - before;
     socket.send(encode({ type: "ack", seq }));
     this.broadcast(encode({ type: "update", seq: 0, id, update }), socket);
   }
 
   /**
-   * Whether the account holds as many notes as it may. Only notes it still has count: a deleted one, kept 30 days
-   * so other devices hear of it, doesn't. Reading every note's state to know is slow, so it's done only near the
+   * Whether a new note, `state`, is one more than the account may hold. Only notes it still has count: a deleted
+   * one, kept 30 days so other devices hear of it, doesn't.
+   */
+  private tooMany(state: Uint8Array): boolean {
+    const count = (query: string) => this.sql.exec<{ count: number }>(query).one().count;
+    const all = count("SELECT COUNT(*) AS count FROM notes");
+    if (all < MAX_NOTES) return false;
+    if (all >= CEILING_NOTES) return true;
+    if (deletedSince(state) !== null) return false;
+    this.checkDeleted();
+    return count("SELECT COUNT(*) AS count FROM notes WHERE deleted = 0") >= MAX_NOTES;
+  }
+
+  /**
+   * Whether the note, grown from `before` bytes to `state`, takes the account past MAX_BYTES. Only notes it still
+   * has count: deleting one makes room, and goes through itself, as does any change that doesn't grow a note.
+   */
+  private tooFull(id: string, before: number, state: Uint8Array): boolean {
+    const growth = state.byteLength - before;
+    if (growth <= 0 || this.stored + growth <= MAX_BYTES) return false;
+    if (this.stored + growth > CEILING_BYTES) return true;
+    if (deletedSince(state) !== null) return false;
+    this.checkDeleted();
+    const others = this.sql
+      .exec<{ bytes: number }>(
+        "SELECT COALESCE(SUM(LENGTH(state)), 0) AS bytes FROM notes WHERE deleted = 0 AND id != ?",
+        id,
+      )
+      .one().bytes;
+    return others + state.byteLength > MAX_BYTES;
+  }
+
+  /**
+   * Brings every note's `deleted` up to date. Reading a note's state to know is slow, so it's done only near a
    * limit, and only for notes changed since they were last read.
    */
-  private full(): boolean {
-    const count = (query: string) => this.sql.exec<{ count: number }>(query).one().count;
-    if (count("SELECT COUNT(*) AS count FROM notes") < MAX_NOTES) return false;
+  private checkDeleted() {
     for (;;) {
       const stale = this.sql
         .exec<{ id: string; state: ArrayBuffer }>("SELECT id, state FROM notes WHERE checked_at < updated_at LIMIT 100")
         .toArray();
       if (!stale.length) break;
       for (const note of stale) {
-        const deleted = deletedSince(note.state) === null ? 0 : 1;
+        const deleted = deletedSince(new Uint8Array(note.state)) === null ? 0 : 1;
         this.sql.exec("UPDATE notes SET deleted = ?, checked_at = updated_at WHERE id = ?", deleted, note.id);
       }
     }
-    return count("SELECT COUNT(*) AS count FROM notes WHERE deleted = 0") >= MAX_NOTES;
   }
 
   private broadcast(message: Uint8Array, except?: WebSocket) {
@@ -202,9 +257,9 @@ export class UserNotes extends DurableObject<Env> {
 }
 
 /** When the note in `state` was deleted, or null if it wasn't (or was edited again since). */
-function deletedSince(state: ArrayBuffer): number | null {
+function deletedSince(state: Uint8Array): number | null {
   const doc = new Y.Doc();
-  Y.applyUpdate(doc, new Uint8Array(state));
+  Y.applyUpdate(doc, state);
   const meta = doc.getMap<number>("meta");
   const deletedAt = meta.get("deletedAt");
   const editedAt = meta.get("editedAt") ?? 0;

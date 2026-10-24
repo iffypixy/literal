@@ -24,24 +24,27 @@ export type Message =
   /** `seq` numbers a device's updates so the server can ack them; the server's own updates carry 0. */
   | { type: "update"; seq: number; id: string; update: Uint8Array }
   | { type: "ack"; seq: number }
-  /** The update was refused: the note grew past its limit, or the account has too many notes. */
+  /** The update was refused: the note grew past its limit, or the account would hold too many notes, or too much. */
   | { type: "refused"; seq: number; reason: Refusal }
   /** Notes deleted long ago, erased for good: devices erase them too. */
   | { type: "purge"; ids: string[] };
 
-export type Refusal = "too-large" | "too-many";
+export type Refusal = "too-large" | "too-many" | "too-full";
 
 /**
  * The longest note that syncs, in characters as Yjs counts them (UTF-16 code units). The device holds a longer
  * one back itself; the server only refuses a note whose state outgrows its row, which one this long never does.
  */
 export const MAX_LENGTH = 100_000;
+/** How many notes an account holds, and how many bytes of them. Deleted notes don't count. */
+export const MAX_NOTES = 10_000;
+export const MAX_BYTES = 100_000_000;
 
 /** Close codes the server uses, so the device knows not to just reconnect. */
 export const SIGNED_OUT = 4001;
 
 const TYPES = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
-const REFUSALS: Refusal[] = ["too-large", "too-many"];
+const REFUSALS: Refusal[] = ["too-large", "too-many", "too-full"];
 
 export function encode(message: Message): Uint8Array<ArrayBuffer> {
   const out = encoding.createEncoder();
