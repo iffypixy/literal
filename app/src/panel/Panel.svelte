@@ -794,12 +794,15 @@
 </div>
 
 <style>
-  /* As tall as what's visible: with a phone's keyboard up, the sheet ends above it. */
+  /*
+   * As tall as what's visible: with a phone's keyboard up, the sheet ends above it. It never scrolls: focusing the
+   * sheet while it's still below the screen would scroll it into view, and undo its slide up.
+   */
   .overlay {
     position: fixed;
     inset: 0 0 auto;
     height: var(--viewport-height, 100dvh);
-    overflow: hidden;
+    overflow: clip;
     z-index: 20;
   }
 
