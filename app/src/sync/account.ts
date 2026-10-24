@@ -13,10 +13,23 @@ export const account = createMutable<{ email: string | null }>({ email: remember
 
 /** Asks the server who's signed in. Null when nobody is; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
-  const response = await fetch("/api/auth/get-session", { credentials: "same-origin" });
+  const response = await fetch("/api/auth/get-session", {
+    credentials: "same-origin",
+    signal: AbortSignal.timeout(RequestTimeout),
+  });
   if (!response.ok) throw new Error(`get session: ${response.status}`);
-  const body = (await response.json()) as { user?: { email?: string } } | null;
-  return body?.user?.email ?? null;
+  const body: unknown = await response.json();
+  if (body === null) return null;
+  if (
+    typeof body === "object" &&
+    "user" in body &&
+    typeof body.user === "object" &&
+    body.user !== null &&
+    "email" in body.user &&
+    typeof body.user.email === "string"
+  )
+    return body.user.email;
+  throw new Error("get session: unexpected answer");
 }
 
 export function signedIn(email: string) {
@@ -53,11 +66,20 @@ export async function verify(email: string, code: string): Promise<string | null
   return "Couldn't sign in, please try again";
 }
 
-/** Signs out and erases every note on this device: they stay in the account. */
-export async function signOut() {
-  // Signed out even if the server can't hear it: the session is useless without the device's notes anyway.
-  await post("/api/auth/sign-out", {}).catch((error: unknown) => console.error(error));
+/**
+ * Signs out and erases every note on this device: they stay in the account. Resolves to a message for the person
+ * when it didn't work: erased while the server still knew the device, it would sign right back in.
+ */
+export async function signOut(): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await post("/api/auth/sign-out", {});
+  } catch {
+    return unreachable();
+  }
+  if (!response.ok) return "Couldn't sign out, please try again";
   await forget("Signed out, and your notes stay in your account");
+  return null;
 }
 
 /** Deletes the account and everything in it. Resolves to a message for the person when it didn't work. */
@@ -78,15 +100,15 @@ export async function deleteAccount(): Promise<string | null> {
   return null;
 }
 
-/** Erases this device's notes and starts over, saying `farewell` once the page is back. */
+/** Erases every trace of the account on this device and starts over, saying `farewell` once the page is back. */
 async function forget(farewell: string) {
-  remember(null);
+  await wipe();
   try {
+    for (const key of Object.keys(localStorage)) if (key.startsWith("literal:")) localStorage.removeItem(key);
     localStorage.setItem(FarewellKey, farewell);
   } catch {
-    // Without storage it goes unsaid; the empty page still shows what happened.
+    // Without storage nothing was kept, and the farewell goes unsaid; the empty page still shows what happened.
   }
-  await wipe();
   location.replace("/");
 }
 
@@ -109,10 +131,9 @@ function remembered(): string | null {
   }
 }
 
-function remember(email: string | null) {
+function remember(email: string) {
   try {
-    if (email) localStorage.setItem(AccountKey, email);
-    else localStorage.removeItem(AccountKey);
+    localStorage.setItem(AccountKey, email);
   } catch {
     // Without storage the app just won't know it's signed in until the server says so.
   }

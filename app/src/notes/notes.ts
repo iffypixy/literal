@@ -21,13 +21,11 @@ type Stored = { state: Uint8Array; writer: string; rev: number; dirty: boolean }
 /** A note's row in the list store: the note, plus what sync needs to say hello without loading every doc. */
 type Row = Note & { vector: Uint8Array; dirty: boolean };
 
+/** What tabs tell each other, so each one shows what any of them changed. */
 type Message =
-  | { type: "update"; id: string; update: Uint8Array }
-  | { type: "note"; row: Row }
-  | { type: "purge"; id: string }
-  | { type: "wipe" };
+  { type: "update"; id: string; update: Uint8Array } | { type: "note"; row: Row } | { type: "purge"; id: string };
 
-/** Origins of changes that arrive from outside this tab. Anything else is typed here. */
+/** Origins of changes that arrive from outside this tab. Any other change was made here. */
 const Disk = "disk";
 const Tab = "tab";
 const Remote = "remote";
@@ -35,8 +33,8 @@ const Remote = "remote";
 /** Where unsaved changes wait out a page closing, by note id: localStorage writes at once, IndexedDB may not finish. */
 const RescuePrefix = "literal:unsaved:";
 
+/** A pause in typing this long saves; so does typing this long without one. */
 const SaveDelay = 250;
-/** However fast you keep typing, a change is on disk within this long. */
 const SaveAtMost = 1000;
 /** Notes read from disk at a time when the app starts. */
 const ReadBatch = 500;
@@ -55,13 +53,13 @@ const loading = new Map<string, Promise<Y.Doc | null>>();
 const loaded = new Map<string, Y.Doc>();
 /** For each loaded note, the stored state it already holds (`writer:rev`). */
 const seen = new Map<string, string>();
-const pending = new Map<string, ReturnType<typeof setTimeout>>();
-/** When each pending note first changed since its last save. */
-const waitingSince = new Map<string, number>();
-/** Notes whose save is on its way to disk: until it lands, a closing page must rescue them too. */
-const saving = new Set<string>();
+/** Notes with changes waiting to be saved: the timer that saves them, and when the first of them came. */
+const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; since: number }>();
+/** Saves on their way to disk, counted by note: until they land, a closing page must rescue the note too. */
+const saving = new Map<string, number>();
 /** The live notes, last edited first, until a note changes. */
 let sorted: Note[] | null = null;
+/** When each note last moved its `editedAt`. */
 const touched = new Map<string, number>();
 /** Notes changed here since their last save. */
 const changed = new Set<string>();
@@ -71,25 +69,32 @@ const listeners = new Set<(id: string, update: Uint8Array) => void>();
 
 /** Signed in, deleted notes stay as tombstones so other devices learn of the delete; signed out, they're erased. */
 let signedIn = false;
+/** Everything on this device is being erased: nothing may be saved or rescued from now on. */
+let wiped = false;
+let started: Promise<void> | undefined;
 
-const db = openDb();
+const db = openDb((event) => {
+  // Another tab is erasing everything (signing out, deleting the account) or needs a newer database: this one
+  // starts over too. Only an erase forbids rescuing what's unsaved; after an upgrade, the new version saves it.
+  wiped ||= event.newVersion === null;
+  location.replace("/");
+});
 const channel = new BroadcastChannel("literal");
 
-channel.onmessage = ({ data }: MessageEvent<Message>) => {
-  if (data.type === "update") {
-    const doc = loaded.get(data.id);
-    if (doc) Y.applyUpdate(doc, data.update, Tab);
-  } else if (data.type === "note") {
-    keep(data.row);
-    notes.version++;
-  } else if (data.type === "purge") {
-    all.delete(data.id);
-    marks.delete(data.id);
-    sorted = null;
+channel.onmessage = ({ data }: MessageEvent<unknown>) => {
+  const message = parseMessage(data);
+  if (message.type === "update") {
+    void loading.get(message.id)?.then((doc) => {
+      if (doc) Y.applyUpdate(doc, message.update, Tab);
+    });
+  } else if (message.type === "note") {
+    keep(message.row);
     notes.version++;
   } else {
-    void db.then((database) => database.close());
-    location.replace("/");
+    all.delete(message.id);
+    marks.delete(message.id);
+    sorted = null;
+    notes.version++;
   }
 };
 
@@ -97,23 +102,12 @@ export function setSignedIn(value: boolean) {
   signedIn = value;
 }
 
-/** Reads every note's summary, and puts back changes a closing page left unsaved. Signed out, it also clears out deleted and empty notes. */
-export async function start() {
-  try {
-    for await (const rows of readAll<Row>(await db, "notes", ReadBatch)) {
-      for (const row of rows) {
-        if (!signedIn && (isDeleted(row) || !isWritten(row))) void purge(row.id);
-        else keep(row);
-      }
-    }
-    for (const id of rescuedIds()) await load(id);
-    notes.synced = Boolean(await get<number>(await db, "meta", "since"));
-  } catch (error) {
-    notes.failed = true;
-    console.error(error);
-  }
-  notes.ready = true;
-  notes.version++;
+/**
+ * Reads every note's summary, and puts back changes a closing page left unsaved. Signed out, it also clears out
+ * deleted and empty notes. Reads once: sync waits for it before telling the server what this device has.
+ */
+export function start(): Promise<void> {
+  return (started ??= readEverything());
 }
 
 /** Live notes, last edited first. The same array until a note changes: don't modify it. */
@@ -143,17 +137,13 @@ export function find(id: string): Note | undefined {
   return all.get(id);
 }
 
-export function isDeleted(note: Note): boolean {
+/** Whether the note is on this device: listed, opened, or just made. */
+export function exists(id: string): boolean {
+  return all.has(id) || loaded.has(id);
+}
+
+export function isDeleted(note: Pick<Note, "editedAt" | "deletedAt">): boolean {
   return note.deletedAt !== null && note.deletedAt >= note.editedAt;
-}
-
-function isLive(note: Note): boolean {
-  return !isDeleted(note) && isWritten(note);
-}
-
-/** Whether there's anything in it but whitespace. Stops at the first character that isn't. */
-function isWritten(note: Note): boolean {
-  return /\S/.test(note.text);
 }
 
 /** A new, empty note, in memory until its first save. */
@@ -180,19 +170,19 @@ export function add(text: string, at: number) {
 /** The note's text, loading it from disk if needed; null if there's no such note here. */
 export async function open(id: string): Promise<Y.Text | null> {
   const doc = await load(id);
-  if (!doc || isDeleted(summarize(id, doc))) return null;
+  if (!doc || deleted(doc)) return null;
   return doc.getText("text");
 }
 
 export async function remove(id: string) {
-  const doc = await load(id);
+  const doc = await load(id).catch(failed);
   if (!doc) return;
   doc.getMap<number>("meta").set("deletedAt", Date.now());
   refresh(id, doc);
 }
 
-export function restore(id: string) {
-  const doc = loaded.get(id);
+export async function restore(id: string) {
+  const doc = await load(id).catch(failed);
   if (!doc) return;
   doc.getMap<number>("meta").delete("deletedAt");
   refresh(id, doc);
@@ -214,9 +204,8 @@ export function discardIfEmpty(id: string) {
 
 /** Erases a note from this device for good. */
 export async function purge(id: string) {
-  clearTimeout(pending.get(id));
+  clearTimeout(pending.get(id)?.timer);
   pending.delete(id);
-  waitingSince.delete(id);
   all.delete(id);
   sorted = null;
   marks.delete(id);
@@ -227,9 +216,10 @@ export async function purge(id: string) {
   touched.delete(id);
   changed.delete(id);
   edits.delete(id);
+  unrescue(id);
   notes.version++;
   channel.postMessage({ type: "purge", id } satisfies Message);
-  await write(await db, (tx) => {
+  await store((tx) => {
     tx.objectStore("docs").delete(id);
     tx.objectStore("notes").delete(id);
   });
@@ -242,7 +232,8 @@ export async function flush() {
 
 /** As the page goes away: keeps every unsaved change somewhere that's written at once, until the next start. */
 export function rescue() {
-  for (const id of new Set([...pending.keys(), ...saving])) {
+  if (wiped) return;
+  for (const id of new Set([...pending.keys(), ...saving.keys()])) {
     const doc = loaded.get(id);
     if (!doc) continue;
     try {
@@ -254,14 +245,18 @@ export function rescue() {
   }
 }
 
-/** Erases every note on this device, in every tab, and starts over: after signing out or deleting the account. */
+/**
+ * Erases every note on this device, in every tab, and starts over: after signing out or deleting the account.
+ * Deleting the database sends every other tab back to the start.
+ */
 export async function wipe() {
-  channel.postMessage({ type: "wipe" } satisfies Message);
+  wiped = true;
   (await db).close();
   await deleteDb();
+  for (const id of rescuedIds()) unrescue(id);
 }
 
-// Sync. These are what sync.ts uses; nothing else should.
+// For sync.ts alone.
 
 /** Calls `listener` with every change made on this device, as a Yjs update. */
 export function onLocal(listener: (id: string, update: Uint8Array) => void): () => void {
@@ -271,8 +266,9 @@ export function onLocal(listener: (id: string, update: Uint8Array) => void): () 
 
 /** What the sync hello needs: when this device last caught up, and every note's state vector and dirty flag. */
 export async function hello(): Promise<{ since: number; notes: { id: string; vector: Uint8Array; dirty: boolean }[] }> {
+  await start();
   await flush();
-  const since = (await get<number>(await db, "meta", "since")) ?? 0;
+  const since = (await readSince()) ?? 0;
   return { since, notes: [...marks].map(([id, mark]) => ({ id, ...mark })) };
 }
 
@@ -282,14 +278,25 @@ export async function hello(): Promise<{ since: number; notes: { id: string; vec
  */
 export async function receive(id: string, update: Uint8Array) {
   const doc = (await load(id)) ?? loaded.get(id) ?? adopt(id, new Y.Doc());
-  const wasDeleted = all.has(id) && isDeleted(summarize(id, doc));
+  const wasDeleted = all.has(id) && deleted(doc);
   let wrote = false;
   const text = doc.getText("text");
   const watch = () => (wrote = true);
   text.observe(watch);
   Y.applyUpdate(doc, update, Remote);
   text.unobserve(watch);
-  if (wasDeleted && wrote && isDeleted(summarize(id, doc))) restore(id);
+  if (wasDeleted && wrote && deleted(doc)) await restore(id);
+}
+
+/**
+ * The server has erased the note, deleted long ago. Words written here that never reached it live on, as a note
+ * of their own.
+ */
+export async function forgotten(id: string) {
+  const doc = await load(id);
+  const unsent = changed.has(id) || marks.get(id)?.dirty;
+  if (doc && unsent && !deleted(doc)) add(doc.getText("text").toString(), summarize(id, doc).editedAt);
+  await purge(id);
 }
 
 /** What this device has that the server, at `vector`, doesn't, with every deletion; all of it, without one. */
@@ -306,8 +313,32 @@ export function length(id: string): number {
 /** Marks this device caught up to `now`, once everything that came with it is on disk. */
 export async function caughtUp(now: number) {
   await flush();
-  await write(await db, (tx) => tx.objectStore("meta").put(now, "since"));
-  notes.synced = true;
+  // A change that failed to save lives only in memory: claiming it caught up would keep the server from resending it.
+  if (notes.failed) return;
+  if (await store((tx) => tx.objectStore("meta").put(now, "since"))) notes.synced = true;
+}
+
+/**
+ * The account this device synced with is gone, deleted or signed out elsewhere. Whichever one it signs in to
+ * next must hear about every note here, and tell it everything it has.
+ */
+export async function unsync() {
+  const done = await store((tx) => {
+    tx.objectStore("meta").delete("since");
+    for (const name of ["notes", "docs"]) {
+      const records = tx.objectStore(name);
+      const cursor = records.openCursor();
+      cursor.onsuccess = () => {
+        if (!cursor.result) return;
+        const value = name === "notes" ? parseRow(cursor.result.value) : parseStored(cursor.result.value);
+        cursor.result.update({ ...value, dirty: true });
+        cursor.result.continue();
+      };
+    }
+  });
+  if (!done) return;
+  for (const mark of marks.values()) mark.dirty = true;
+  notes.synced = false;
 }
 
 /** How many changes this device has made to the note so far. */
@@ -318,20 +349,20 @@ export function generation(id: string): number {
 /** The server stored the note's changes up to `upTo`: if nothing was typed since, it's clean. */
 export async function acked(id: string, upTo: number) {
   if (generation(id) !== upTo || changed.has(id)) return;
-  await write(await db, (tx) => {
+  const done = await store((tx) => {
     const docs = tx.objectStore("docs");
     const rows = tx.objectStore("notes");
     const stored = docs.get(id);
     stored.onsuccess = () => {
-      if (stored.result) docs.put({ ...(stored.result as Stored), dirty: false }, id);
+      if (stored.result !== undefined) docs.put({ ...parseStored(stored.result), dirty: false }, id);
     };
     const row = rows.get(id);
     row.onsuccess = () => {
-      if (row.result) rows.put({ ...(row.result as Row), dirty: false });
+      if (row.result !== undefined) rows.put({ ...parseRow(row.result), dirty: false });
     };
   });
   const mark = marks.get(id);
-  if (mark) mark.dirty = false;
+  if (done && mark) mark.dirty = false;
 }
 
 /** How many notes have changes the server hasn't acked. */
@@ -339,6 +370,39 @@ export function unsynced(): number {
   return (
     [...marks.values()].filter((mark) => mark.dirty).length + [...changed].filter((id) => !marks.get(id)?.dirty).length
   );
+}
+
+async function readEverything() {
+  try {
+    for await (const values of readAll(await db, "notes", ReadBatch)) {
+      for (const row of values.map(parseRow)) {
+        if (!signedIn && (isDeleted(row) || !isWritten(row))) void purge(row.id);
+        // A save that landed while this read was under way knows better.
+        else if (!all.has(row.id)) keep(row);
+      }
+    }
+    for (const id of rescuedIds()) await load(id);
+    notes.synced = (await readSince()) !== undefined;
+  } catch (error) {
+    failed(error);
+  }
+  notes.ready = true;
+  notes.version++;
+}
+
+function isLive(note: Note): boolean {
+  return !isDeleted(note) && isWritten(note);
+}
+
+/** Whether there's anything in it but whitespace. */
+function isWritten(note: Note): boolean {
+  return /\S/.test(note.text);
+}
+
+/** Whether the note is deleted, from its times alone: summarizing it would copy out all of its text. */
+function deleted(doc: Y.Doc): boolean {
+  const meta = doc.getMap<number>("meta");
+  return isDeleted({ editedAt: meta.get("editedAt") ?? 0, deletedAt: meta.get("deletedAt") ?? null });
 }
 
 function load(id: string): Promise<Y.Doc | null> {
@@ -352,7 +416,8 @@ function load(id: string): Promise<Y.Doc | null> {
 
 /** Loads the note from disk, with any changes a closing page left unsaved. */
 async function read(id: string): Promise<Y.Doc | null> {
-  const stored = await get<Stored>(await db, "docs", id);
+  const value = await get(await db, "docs", id);
+  const stored = value === undefined ? undefined : parseStored(value);
   const unsaved = rescued(id);
   if (!stored && !unsaved) {
     loading.delete(id);
@@ -368,7 +433,7 @@ async function read(id: string): Promise<Y.Doc | null> {
   }
   adopt(id, doc);
   if (unsaved) {
-    // As typed here: saved, and synced.
+    // With no origin, the copy counts as a change made here: it gets saved, and sent.
     Y.applyUpdate(doc, unsaved);
     // Nothing new means the save had finished after all; only a save clears the copy, and it runs on changes.
     if (!pending.has(id)) unrescue(id);
@@ -387,20 +452,22 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
       edits.set(id, generation(id) + 1);
       for (const listener of listeners) listener(id, update);
     }
-    // A pause in typing saves; so does a second of typing without one.
-    const now = Date.now();
-    const since = waitingSince.get(id) ?? now;
-    waitingSince.set(id, since);
-    clearTimeout(pending.get(id));
-    pending.set(
-      id,
-      setTimeout(() => void save(id), Math.min(SaveDelay, since + SaveAtMost - now)),
-    );
+    schedule(id);
   });
   doc.getText("text").observe((_, transaction) => {
-    if (transaction.local) touch(id, doc);
+    if (!transaction.local) return;
+    touch(id, doc);
+    // Words written into a note deleted elsewhere bring it back, whatever either device's clock says.
+    if (doc.getMap("meta").has("deletedAt")) queueMicrotask(() => void restore(id));
   });
   return doc;
+}
+
+function schedule(id: string) {
+  const now = Date.now();
+  const since = pending.get(id)?.since ?? now;
+  clearTimeout(pending.get(id)?.timer);
+  pending.set(id, { since, timer: setTimeout(() => void save(id), Math.min(SaveDelay, since + SaveAtMost - now)) });
 }
 
 function touch(id: string, doc: Y.Doc) {
@@ -413,45 +480,69 @@ function touch(id: string, doc: Y.Doc) {
 
 /** Writes the note to disk, first merging in whatever another tab wrote there since this one last looked. */
 async function save(id: string) {
-  clearTimeout(pending.get(id));
+  clearTimeout(pending.get(id)?.timer);
   pending.delete(id);
-  waitingSince.delete(id);
   const doc = loaded.get(id);
-  if (!doc) return;
+  if (!doc || wiped) return;
   const local = changed.has(id);
   changed.delete(id);
   let row: Row | undefined;
-  saving.add(id);
-  try {
-    await write(await db, (tx) => {
-      const docs = tx.objectStore("docs");
-      const request = docs.get(id);
-      request.onsuccess = () => {
-        const stored = request.result as Stored | undefined;
-        if (stored && seen.get(id) !== `${stored.writer}:${stored.rev}`) Y.applyUpdate(doc, stored.state, Disk);
-        const rev = (stored?.rev ?? 0) + 1;
-        const dirty = local || (stored?.dirty ?? false);
-        docs.put({ state: Y.encodeStateAsUpdate(doc), writer: TabId, rev, dirty } satisfies Stored, id);
-        seen.set(id, `${TabId}:${rev}`);
-        row = { ...summarize(id, doc), vector: Y.encodeStateVector(doc), dirty };
-        tx.objectStore("notes").put(row);
-      };
-    });
-  } catch (error) {
-    if (local) changed.add(id);
-    notes.failed = true;
-    console.error(error);
-    return;
-  } finally {
-    saving.delete(id);
-  }
-  if (!row || !loaded.has(id)) return;
-  unrescue(id);
+  track(id, 1);
+  const saved = await store((tx) => {
+    const docs = tx.objectStore("docs");
+    const request = docs.get(id);
+    request.onsuccess = () => {
+      const stored = request.result === undefined ? undefined : parseStored(request.result);
+      if (stored && seen.get(id) !== `${stored.writer}:${stored.rev}`) Y.applyUpdate(doc, stored.state, Disk);
+      const rev = (stored?.rev ?? 0) + 1;
+      const dirty = local || (stored?.dirty ?? false);
+      docs.put({ state: Y.encodeStateAsUpdate(doc), writer: TabId, rev, dirty } satisfies Stored, id);
+      seen.set(id, `${TabId}:${rev}`);
+      row = { ...summarize(id, doc), vector: Y.encodeStateVector(doc), dirty };
+      tx.objectStore("notes").put(row);
+    };
+  });
+  track(id, -1);
+  if (!saved && local) changed.add(id);
+  if (!row || !saved || !loaded.has(id)) return;
+  // A rescued copy may be newer than what this save wrote: only the last save of the note clears it.
+  if (!pending.has(id) && !saving.has(id)) unrescue(id);
   // The note may have changed while the write was on its way (a sync, an undo): describe it as it is now.
   const fresh: Row = { ...summarize(id, doc), vector: row.vector, dirty: row.dirty };
   keep(fresh);
   notes.version++;
   channel.postMessage({ type: "note", row: fresh } satisfies Message);
+}
+
+function track(id: string, by: 1 | -1) {
+  const count = (saving.get(id) ?? 0) + by;
+  if (count) saving.set(id, count);
+  else saving.delete(id);
+}
+
+/** Writes to disk; a failure shows in the corner, since every later write would fail too. */
+async function store(work: (tx: IDBTransaction) => void): Promise<boolean> {
+  // Erased, there's no database left to write to.
+  if (wiped) return false;
+  try {
+    await write(await db, work);
+    return true;
+  } catch (error) {
+    failed(error);
+    return false;
+  }
+}
+
+function failed(error: unknown): null {
+  notes.failed = true;
+  console.error(error);
+  return null;
+}
+
+async function readSince(): Promise<number | undefined> {
+  const since = await get(await db, "meta", "since");
+  if (since === undefined || typeof since === "number") return since;
+  throw new Error("read since: not a number");
 }
 
 /** Notes with changes left by a page that closed before saving them. */
@@ -461,15 +552,23 @@ function rescuedIds(): string[] {
       .filter((key) => key.startsWith(RescuePrefix))
       .map((key) => key.slice(RescuePrefix.length));
   } catch {
-    return [];
+    return []; // no storage, so nothing was rescued
   }
 }
 
 function rescued(id: string): Uint8Array | null {
+  let text: string | null;
   try {
-    const text = localStorage.getItem(RescuePrefix + id);
-    return text ? fromBase64(text) : null;
+    text = localStorage.getItem(RescuePrefix + id);
   } catch {
+    return null; // no storage, so nothing was rescued
+  }
+  if (!text) return null;
+  try {
+    return fromBase64(text);
+  } catch (error) {
+    console.error(error);
+    unrescue(id);
     return null;
   }
 }
@@ -514,6 +613,51 @@ function summarize(id: string, doc: Y.Doc): Note {
     editedAt: meta.get("editedAt") ?? 0,
     deletedAt: meta.get("deletedAt") ?? null,
   };
+}
+
+// What's read back from disk, or from another tab, was written by this app; but maybe by an older version of it.
+
+function parseRow(value: unknown): Row {
+  if (!isRecord(value)) throw new Error("read note: not a record");
+  const { id, text, createdAt, editedAt, deletedAt, vector, dirty } = value;
+  if (
+    typeof id !== "string" ||
+    typeof text !== "string" ||
+    typeof createdAt !== "number" ||
+    typeof editedAt !== "number" ||
+    (deletedAt !== null && typeof deletedAt !== "number") ||
+    !(vector instanceof Uint8Array) ||
+    typeof dirty !== "boolean"
+  )
+    throw new Error("read note: unexpected fields");
+  return { id, text, createdAt, editedAt, deletedAt, vector, dirty };
+}
+
+function parseStored(value: unknown): Stored {
+  if (!isRecord(value)) throw new Error("read note state: not a record");
+  const { state, writer, rev, dirty } = value;
+  if (
+    !(state instanceof Uint8Array) ||
+    typeof writer !== "string" ||
+    typeof rev !== "number" ||
+    typeof dirty !== "boolean"
+  )
+    throw new Error("read note state: unexpected fields");
+  return { state, writer, rev, dirty };
+}
+
+function parseMessage(data: unknown): Message {
+  if (isRecord(data)) {
+    const { type, id, update, row } = data;
+    if (type === "update" && typeof id === "string" && update instanceof Uint8Array) return { type, id, update };
+    if (type === "note") return { type, row: parseRow(row) };
+    if (type === "purge" && typeof id === "string") return { type, id };
+  }
+  throw new Error("tab message: unexpected shape");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 /**

@@ -47,14 +47,14 @@ export async function importFiles(files: File[]) {
     try {
       text = decoder.decode(await file.arrayBuffer());
     } catch {
-      continue; // not UTF-8: counted as skipped below
+      continue; // unreadable, or not UTF-8: counted as skipped below
     }
     text = text.replace(/\r\n?/g, "\n");
     if (!text.trim() || text.length > MaxLength) continue;
     add(text, file.lastModified || Date.now());
     imported++;
   }
-  const skipped = texts.length - imported;
+  const skipped = files.length - imported;
   const count = (n: number, thing: string) => `${n.toLocaleString()} ${thing}${n === 1 ? "" : "s"}`;
   if (!imported) toast(`Only plain text files up to ${MaxLength.toLocaleString()} characters can be imported`);
   else if (skipped) toast(`Imported ${count(imported, "note")} and skipped ${count(skipped, "file")}`);

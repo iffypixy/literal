@@ -14,6 +14,8 @@ const Typed = Symbol("typed");
  * If the text is empty and the textarea isn't, the textarea's content counts as typed: that's how a new note starts.
  */
 export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
+  if (!text.doc) throw new Error("bind: the text is in no document");
+  const doc = text.doc;
   const undo = new Y.UndoManager(text, { trackedOrigins: new Set([Typed]), captureTimeout: 600 });
   /** What the textarea showed when it was last in step with the text. */
   let shown = "";
@@ -34,7 +36,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     if (!change) return;
     // Text that arrived mid-composition sits in the Yjs text but not yet on screen.
     const at = held.reduce((index, delta) => shift(index, delta), change.at);
-    text.doc?.transact(() => {
+    doc.transact(() => {
       if (change.removed) text.delete(at, change.removed);
       if (change.inserted) text.insert(at, change.inserted);
     }, Typed);
@@ -110,9 +112,11 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function onCompositionEnd() {
-    composing = false;
-    // Some browsers send the composition's last input right after this event; let it land first.
-    setTimeout(release);
+    // Some browsers send the composition's last input right after this event: changes keep waiting until it lands.
+    setTimeout(() => {
+      composing = false;
+      release();
+    });
   }
 
   function onVisibilityChange() {

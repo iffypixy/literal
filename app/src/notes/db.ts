@@ -5,7 +5,8 @@ export type Store = "notes" | "docs" | "meta";
 const Name = "literal";
 const Version = 1;
 
-export function openDb(): Promise<IDBDatabase> {
+/** `onVersionChange`: another tab is deleting or upgrading the database, which this connection has already let go. */
+export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(Name, Version);
     request.onupgradeneeded = () => {
@@ -15,7 +16,15 @@ export function openDb(): Promise<IDBDatabase> {
       request.result.createObjectStore("docs");
       request.result.createObjectStore("meta");
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Held open, the database would block the other tab until this one closed.
+      db.onversionchange = (event) => {
+        db.close();
+        onVersionChange(event);
+      };
+      resolve(db);
+    };
     request.onerror = () => reject(new Error(`open database: ${request.error?.message}`));
     request.onblocked = () => reject(new Error("open database: blocked by another tab"));
   });
@@ -30,8 +39,8 @@ export function deleteDb(): Promise<void> {
   });
 }
 
-/** Every record in `store`, `size` at a time: between batches the page stays free to take keystrokes. */
-export async function* readAll<T>(db: IDBDatabase, store: Store, size: number): AsyncGenerator<T[]> {
+/** Every record in `store`, `size` at a time, as stored: the caller checks them. Between batches the page stays free. */
+export async function* readAll(db: IDBDatabase, store: Store, size: number): AsyncGenerator<unknown[]> {
   let after: IDBValidKey | undefined;
   for (;;) {
     const range = after === undefined ? undefined : IDBKeyRange.lowerBound(after, true);
@@ -40,17 +49,21 @@ export async function* readAll<T>(db: IDBDatabase, store: Store, size: number): 
       done(records.getAll(range, size)),
       done(records.getAllKeys(range, size)),
     ]);
-    if (values.length) yield values as T[];
+    if (values.length) yield values;
     if (values.length < size) return;
     after = keys.at(-1);
   }
 }
 
-export function get<T>(db: IDBDatabase, store: Store, key: string): Promise<T | undefined> {
+/** The record under `key`, as stored: the caller checks it. */
+export function get(db: IDBDatabase, store: Store, key: string): Promise<unknown> {
   return done(db.transaction(store).objectStore(store).get(key));
 }
 
-/** Runs `work` in one read-write transaction over every store, and resolves once it's on disk. */
+/**
+ * Runs `work` in one read-write transaction over every store, and resolves once it's on disk: strict durability,
+ * so a note that counts as saved survives the device losing power right after.
+ */
 export function write(db: IDBDatabase, work: (tx: IDBTransaction) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["notes", "docs", "meta"], "readwrite", { durability: "strict" });

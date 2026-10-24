@@ -116,11 +116,12 @@ function around(text: string, at: number, from: number): string {
   return `${start > from ? "…" : ""}${line}${end < text.length ? "…" : ""}`;
 }
 
-/** Lowercase, without accents: "Café" and "cafe" fold the same. */
+/** Lowercase, without accents: "Café" and "cafe" fold the same. Positions hold: a letter stays one letter. */
 function fold(text: string): string {
   // Plain ASCII has nothing to fold but case, and most notes are plain ASCII: the quick way, then.
   if (/^[\x00-\x7f]*$/.test(text)) return text.toLowerCase();
-  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  // Composed again after the accents go: Korean syllables come apart into letters that aren't accents.
+  return text.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC").toLowerCase();
 }
 
 function folded(note: Note): { text: string; title: string } {

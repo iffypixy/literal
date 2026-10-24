@@ -32,7 +32,7 @@ let socket: WebSocket | null = null;
 let running = false;
 let signedOut = false;
 let seq = 0;
-/** Updates sent and not yet acked: which note, how far its changes went, and whether it carried all of the note. */
+/** Updates sent and not yet acked: which note, how far its changes went, and whether the update alone left the server lacking none of it. */
 const unacked = new Map<number, { id: string; upTo: number; at: number; whole: boolean }>();
 /** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
@@ -44,8 +44,11 @@ const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: R
 const behind = new Map<string, number>();
 let retry = RetryMin;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
-let downSince = Date.now();
-let lastHeard = Date.now();
+/** When the connection went down; null while it's up. Down from the start, until the first one opens. */
+let downSince: number | null = Date.now();
+/** When the current connection was started. */
+let tried = 0;
+let lastHeard = 0;
 let pingSent = 0;
 /** Messages are handled one at a time, in order: each may wait on disk. */
 let queue = Promise.resolve();
@@ -54,14 +57,13 @@ const told = new Set<string>();
 
 /** Starts syncing; called again after signing in anew, it tries again at once. */
 export function start() {
+  signedOut = false;
   if (running) {
-    signedOut = false;
     reconnect();
     update();
     return;
   }
   running = true;
-  signedOut = false;
   notes.onLocal(post);
   // A connection from before the network dropped is usually dead even if it looks open: start over.
   addEventListener("online", () => {
@@ -81,23 +83,22 @@ function connect() {
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/sync`);
   ws.binaryType = "arraybuffer";
   socket = ws;
-  ws.onopen = async () => {
-    retry = RetryMin;
-    lastHeard = Date.now();
-    const hello = await notes.hello();
-    if (ws.readyState === WebSocket.OPEN) ws.send(encode({ type: "hello", ...hello }));
-  };
-  ws.onmessage = (event: MessageEvent<ArrayBuffer | string>) => {
+  tried = Date.now();
+  ws.onopen = () => {
+    downSince = null;
     lastHeard = Date.now();
     pingSent = 0;
-    if (typeof event.data === "string") return; // a pong
-    const message = decode(new Uint8Array(event.data));
-    queue = queue
-      .then(() => handle(ws, message))
-      .catch((error: unknown) => {
-        console.error(error);
-        ws.close();
-      });
+    run(ws, async () => {
+      const hello = await notes.hello();
+      if (ws.readyState === WebSocket.OPEN) ws.send(encode({ type: "hello", ...hello }));
+    });
+  };
+  ws.onmessage = (event) => {
+    lastHeard = Date.now();
+    pingSent = 0;
+    if (!(event.data instanceof ArrayBuffer)) return; // a pong
+    const data = new Uint8Array(event.data);
+    run(ws, () => handle(ws, decode(data)));
   };
   ws.onclose = (event) => {
     if (socket !== ws) return;
@@ -106,10 +107,19 @@ function connect() {
       abandon();
       signedOut = true;
       update();
+      void notes.unsync();
       return;
     }
     drop();
   };
+}
+
+/** Runs `work` after everything before it on this connection, which goes down if anything fails. */
+function run(ws: WebSocket, work: () => Promise<void>) {
+  queue = queue.then(work).catch((error: unknown) => {
+    console.error(error);
+    ws.close();
+  });
 }
 
 /** Gives up on the connection, without waiting for a close that a dead network never delivers, and retries later. */
@@ -118,7 +128,7 @@ function drop() {
   if (!ws) return;
   socket = null;
   abandon();
-  downSince = Date.now();
+  downSince ??= Date.now();
   ws.close();
   clearTimeout(retryTimer);
   // Without a network, the `online` event is the time to try again.
@@ -147,12 +157,15 @@ async function handle(ws: WebSocket, message: Message) {
     case "catch-up":
       for (const note of message.notes) {
         if (note.update) await notes.receive(note.id, note.update);
-        if (note.vector) {
+        if (note.vector && !tooLong(note.id)) {
           const update = await notes.missing(note.id, note.vector);
           if (update) send(note.id, update, true, ws);
         }
       }
-      if (message.done) await notes.caughtUp(message.now);
+      if (!message.done) break;
+      await notes.caughtUp(message.now);
+      // The connection has proved itself: if it drops now, trying again soon is right.
+      retry = RetryMin;
       break;
     case "update":
       await notes.receive(message.id, message.update);
@@ -187,7 +200,7 @@ async function handle(ws: WebSocket, message: Message) {
       break;
     }
     case "purge":
-      for (const id of message.ids) await notes.purge(id);
+      for (const id of message.ids) await notes.forgotten(id);
       break;
     case "hello":
       throw new Error("sync: the server said hello");
@@ -226,6 +239,7 @@ async function flush(id: string) {
   if (!waiting) return;
   clearTimeout(waiting.timer);
   outbox.delete(id);
+  if (tooLong(id)) return;
   if (!behind.has(id)) {
     send(id, Y.mergeUpdates(waiting.updates), false);
     return;
@@ -234,18 +248,18 @@ async function flush(id: string) {
   if (whole) send(id, whole, true);
 }
 
-/**
- * Sends a change now if connected; otherwise the note stays dirty, and goes with the next hello. A note too long
- * to sync stays on this device, dirty, until it's short enough again.
- */
+/** Sends a change now if connected; otherwise the note stays dirty, and goes with the next hello. */
 function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  if (notes.length(id) > MaxLength) {
-    fallBehind(id, seq);
-    return;
-  }
   unacked.set(++seq, { id, upTo: notes.generation(id), at: Date.now(), whole });
   ws.send(encode({ type: "update", seq, id, update }));
+}
+
+/** A note too long to sync stays on this device, dirty, until it's short enough again. Checked before encoding it. */
+function tooLong(id: string): boolean {
+  if (notes.length(id) <= MaxLength) return false;
+  fallBehind(id, seq);
+  return true;
 }
 
 function fallBehind(id: string, since: number) {
@@ -255,8 +269,12 @@ function fallBehind(id: string, since: number) {
 /** Once a second: checks the connection is alive, and updates the status. */
 function tick() {
   const now = Date.now();
-  if (socket?.readyState === WebSocket.OPEN) {
-    const late = [...unacked.values()].some((sent) => now - sent.at > DeadAfter);
+  if (socket?.readyState === WebSocket.CONNECTING && now - tried > DeadAfter) drop();
+  else if (socket?.readyState === WebSocket.OPEN) {
+    // Hearing anything counts: acks queue behind the messages before them. And an upload still under way isn't late.
+    const late =
+      socket.bufferedAmount === 0 &&
+      [...unacked.values()].some((sent) => now - Math.max(sent.at, lastHeard) > DeadAfter);
     if (late || (pingSent && now - pingSent > DeadAfter)) drop();
     else if (!pingSent && now - lastHeard > PingEvery) {
       pingSent = now;
@@ -267,9 +285,8 @@ function tick() {
 }
 
 function update() {
-  const down = !socket || socket.readyState !== WebSocket.OPEN;
   if (signedOut) sync.status = "Sign in to sync";
-  else if (!down || Date.now() - downSince < DownAfter) sync.status = "";
+  else if (downSince === null || Date.now() - downSince < DownAfter) sync.status = "";
   // Down with a network means the server can't be reached; without one, the device is offline.
   else sync.status = navigator.onLine ? "Not synced" : "Offline";
 }
