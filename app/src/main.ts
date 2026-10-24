@@ -10,9 +10,29 @@ if (early) handOver(early);
 document.addEventListener("touchstart", () => {}, { passive: true });
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  // An update, not the first install: a page already had a version of Blank running it.
+  const updating = Boolean(navigator.serviceWorker.controller);
   // After load, so installing the cache never competes with the first paint.
-  addEventListener("load", () => void navigator.serviceWorker.register("/sw.js"));
+  addEventListener("load", () => {
+    void navigator.serviceWorker.register("/sw.js").then((registration) => {
+      // Coming back to Blank asks for a new version; one installs in the background.
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) void registration.update();
+      });
+    });
+  });
+  // Installed, the new version waits for the page to be hidden to swap in, so nobody sees it happen. App saves and
+  // rescues everything as the page hides (its listener was added first, so it runs first).
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!updating) return;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) location.reload();
+    });
+  });
 }
+
+// Installed, Blank asks to keep its storage even when the device runs short of space: the notes live there.
+if (matchMedia("(display-mode: standalone)").matches) void navigator.storage?.persist();
 
 /**
  * Moves what was typed on index.html's stand-in page into the editor, as if typed there, and puts the cursor
