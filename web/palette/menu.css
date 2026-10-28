@@ -1,0 +1,59 @@
+.more {
+  --icon-size: 20px;
+}
+
+.menu {
+  position: absolute;
+  right: 6px;
+  bottom: calc(100% + 2px);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: calc(var(--edge) - var(--inset));
+  transform-origin: bottom right;
+  animation: pop var(--brief) var(--ease-out);
+
+  &.below {
+    top: calc(100% + 2px);
+    bottom: auto;
+    transform-origin: top right;
+  }
+
+  & hr {
+    margin: 4px var(--inset);
+    border: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  & button {
+    padding: var(--control-padding) var(--inset);
+    border-radius: var(--radius-small);
+    text-align: left;
+    color: var(--text);
+  }
+
+  & button:active {
+    transform: scale(0.97);
+  }
+
+  & .danger {
+    color: var(--danger);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    & button:hover {
+      background: var(--hover);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-name: fade-in;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}

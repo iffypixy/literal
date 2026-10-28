@@ -101,7 +101,7 @@ export function SignIn(props: Props) {
     field?.focus();
   }
 
-  // Esc on the code step goes back to the email; on the email step it's the panel's.
+  // Esc on the code step goes back to the email; on the email step it's the palette's.
   function onKeyDown(event: KeyboardEvent) {
     if (event.key !== "Escape" || step() !== "code" || composing(event)) return;
     event.preventDefault();

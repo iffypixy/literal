@@ -22,7 +22,7 @@ import {
   start,
 } from "./notes/notes.ts";
 import { prepare, quoted, shorten, title } from "./notes/search.ts";
-import { Panel, type PanelApi } from "./panel/panel.tsx";
+import { closePalette, onSheet, openPalette, Palette, palette, togglePalette } from "./palette/palette.tsx";
 import { letter, mod, Shortcuts } from "./shortcuts.ts";
 import * as storage from "./storage.ts";
 import { FarewellKey, account, session, signedIn } from "./sync/account.ts";
@@ -48,18 +48,16 @@ const Explanations = {
 type How = "push" | "replace" | "none";
 
 export function App() {
-  // Set by the components as they render, before anything here runs.
+  // Set by Editor as it renders, before anything here runs.
   let editor!: EditorApi;
-  let panel!: PanelApi;
 
   const [note, setNote] = createSignal<{ id: string; text: Y.Text } | null>(null);
-  /** The panel starts on it, so ⌘K and Enter go back and forth between two notes. */
+  /** The palette starts on it, so ⌘K and Enter go back and forth between two notes. */
   const [previous, setPrevious] = createSignal<string | null>(null);
   /** With a mouse, the corner buttons step aside while you type, and come back when the mouse moves. */
   const [typing, setTyping] = createSignal(false);
   /** A note is on its way from disk: until it's shown, keys would land in the page being left. */
   const [opening, setOpening] = createSignal(false);
-  const [browsing, setBrowsing] = createSignal(false);
   const [dropping, setDropping] = createSignal(false);
   /** A note was just deleted, and nothing typed since: ⌘Z means the note, wherever the cursor is. */
   let undoable = false;
@@ -110,7 +108,7 @@ export function App() {
     void go(idFrom(location.pathname), "replace");
     if (account.email) startSync();
     void checkSession();
-    stayUpToDate(browsing);
+    stayUpToDate(() => palette.open);
   });
 
   /** Signed in elsewhere, e.g. in another tab since this one opened. */
@@ -133,13 +131,13 @@ export function App() {
 
   function explain() {
     const shown = problem();
-    if (shown === "Sign in to sync") return panel.show(true, "sign-in");
-    if (!shown && !current()) return togglePanel(true);
+    if (shown === "Sign in to sync") return openPalette(true, "sign-in");
+    if (!shown && !current()) return browse(true);
     if (shown) toast(Explanations[shown]);
     else if (account.email) toast("Notes save and sync as you type");
     else
       toast("Notes save on this device as you type", {
-        action: { label: "Sync", run: () => panel.show(true, "sign-in") },
+        action: { label: "Sync", run: () => openPalette(true, "sign-in") },
       });
     // A word of explanation, then back to writing: the click shouldn't take the cursor away.
     if (mouse.matches) editor.focus();
@@ -205,7 +203,7 @@ export function App() {
   function navigate(path: string, how: How) {
     if (how === "none") return;
     // The phone's sheet is a step in history (so Back closes it): a note it opens takes that step's place.
-    const sheet = Boolean(history.state?.sheet);
+    const sheet = onSheet();
     if (location.pathname === path && !sheet) return;
     if (how === "push" && !sheet) history.pushState(null, "", path);
     else history.replaceState(null, "", path);
@@ -218,7 +216,7 @@ export function App() {
   }
 
   function newNote() {
-    panel.hide(false, true);
+    closePalette(false, true);
     void go(null, "push");
   }
 
@@ -230,7 +228,7 @@ export function App() {
     if (wasOpen) {
       setNote(null);
       // Under the phone's sheet, the address is set once the sheet has stepped back to the page beneath it.
-      if (!history.state?.sheet) navigate("/", "replace");
+      if (!onSheet()) navigate("/", "replace");
     }
     // Deletes in a row share one toast, so the earlier ones keep their Undo.
     if (deleted.length) quiet();
@@ -260,8 +258,8 @@ export function App() {
     undoable = true;
   }
 
-  function togglePanel(pointer: boolean) {
-    panel.toggle(pointer);
+  function browse(pointer: boolean) {
+    togglePalette(pointer);
     setTyping(false);
   }
 
@@ -284,13 +282,13 @@ export function App() {
   addEventListener("keydown", (event) => {
     if (mod(event) && !event.altKey && !event.shiftKey && letter(event, "k")) {
       event.preventDefault();
-      togglePanel(false);
+      browse(false);
     } else if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && letter(event, "n")) {
       // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
       newNote();
     } else if (
-      !browsing() &&
+      !palette.open &&
       !opening() &&
       document.activeElement === document.body &&
       event.key.length === 1 &&
@@ -336,17 +334,7 @@ export function App() {
     void importFiles([...(event.dataTransfer?.files ?? [])]);
   });
 
-  addEventListener("popstate", () => {
-    if (panel.stepped()) {
-      // The sheet stepped back to the page beneath it, whose note may have been deleted meanwhile.
-      const id = current();
-      navigate(id ? `/${id}` : "/", "replace");
-      return;
-    }
-    // Back with the panel open closes it, as it would anything on top.
-    if (browsing()) return panel.hide(true, true);
-    void go(idFrom(location.pathname), "none");
-  });
+  addEventListener("popstate", () => void go(idFrom(location.pathname), "none"));
 
   addEventListener("pagehide", (event) => {
     // Kept for the Back button, the page may come back as it was, its note still on it: nothing is discarded then.
@@ -373,7 +361,7 @@ export function App() {
 
   return (
     <>
-      <div class="page" inert={browsing()}>
+      <div class="page" inert={palette.open}>
         <Editor
           ref={(api) => (editor = api)}
           text={note()?.text ?? null}
@@ -396,7 +384,7 @@ export function App() {
             icon="list"
             keys={Shortcuts.notes}
             aria-keyshortcuts={Mac ? "Meta+K" : "Control+K"}
-            onClick={() => togglePanel(true)}
+            onClick={() => browse(true)}
           />
         </div>
 
@@ -413,10 +401,7 @@ export function App() {
         )}
       </div>
 
-      <Panel
-        ref={(api) => (panel = api)}
-        open={browsing()}
-        onOpenChange={setBrowsing}
+      <Palette
         current={current()}
         previous={previous()}
         onPick={(id, pointer) => void go(id, "push", mouse.matches || !pointer)}
@@ -425,6 +410,10 @@ export function App() {
         onSignedIn={onSignedIn}
         onClose={(pointer) => {
           if (!opening() && (mouse.matches || !pointer)) editor.focus();
+        }}
+        onStepBack={() => {
+          const id = current();
+          navigate(id ? `/${id}` : "/", "replace");
         }}
       />
 

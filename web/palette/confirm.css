@@ -1,0 +1,6 @@
+.choices {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--gap);
+  margin-top: var(--group);
+}

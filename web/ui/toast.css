@@ -10,7 +10,7 @@
 
   /* Above the phone sheet's footer: a control, with 4px above and below. */
   @media (max-width: 640px) {
-    body:has(.overlay:not([hidden])) & {
+    body:has(.palette:not([hidden])) & {
       bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 8px + var(--edge));
     }
   }
