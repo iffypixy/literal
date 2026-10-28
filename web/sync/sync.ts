@@ -2,7 +2,7 @@
 
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "../../../protocol/protocol.ts";
+import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "../../protocol.ts";
 import * as notes from "../notes/notes.ts";
 import { quoted } from "../notes/search.ts";
 import { toast } from "../ui/toast.tsx";

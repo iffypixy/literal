@@ -1,4 +1,4 @@
-import { MaxLength } from "../../../protocol/protocol.ts";
+import { MaxLength } from "../../protocol.ts";
 import { add, list } from "../notes/notes.ts";
 import { title } from "../notes/search.ts";
 import { toast } from "../ui/toast.tsx";

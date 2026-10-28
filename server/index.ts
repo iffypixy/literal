@@ -1,8 +1,8 @@
-import { SignedOut } from "../../protocol/protocol.ts";
+import { SignedOut } from "../protocol.ts";
 import { createAuth, forgetSignIns, handleAuth } from "./auth.ts";
-import { SessionHeader, type UserNotes } from "./user-notes.ts";
+import { SessionHeader, type UserNotes } from "./notes.ts";
 
-export { UserNotes } from "./user-notes.ts";
+export { UserNotes } from "./notes.ts";
 
 export interface Env {
   DB: D1Database;

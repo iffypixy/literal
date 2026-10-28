@@ -11,9 +11,9 @@ Open [literal.ink](https://literal.ink) and start typing. Your notes save as you
 
 ## How it works
 
-- **App:** Solid, an installable PWA that works offline (`app/`).
-- **Server:** a Cloudflare Worker, with D1 for accounts and a Durable Object per person for their notes (`worker/`).
-- **Sync:** each note is a Yjs document, so edits from any device merge without conflicts.
+- **App:** Solid, an installable PWA that works offline (`web/`).
+- **Server:** a Cloudflare Worker, with D1 for accounts and a Durable Object per person for their notes (`server/`).
+- **Sync:** each note is a Yjs document, so edits from any device merge without conflicts (`protocol.ts`).
 
 ## Develop
 

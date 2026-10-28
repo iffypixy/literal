@@ -8,9 +8,9 @@ import solid from "vite-plugin-solid";
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
-// The app lives in app/, the Worker behind it in worker/; one dev server runs both.
+// One dev server runs both the web app and the server behind it.
 export default defineConfig({
-  root: "app",
+  root: "web",
   plugins: [
     // A full reload on each edit: hot updates would run the app's page-wide listeners and modules twice.
     solid({ hot: false }),
@@ -35,7 +35,7 @@ function serviceWorker(): Plugin {
         files.push(url(name));
         hash.update(chunk.type === "chunk" ? chunk.code : chunk.source);
       }
-      const publicDir = here("app/public");
+      const publicDir = here("web/public");
       for (const name of readdirSync(publicDir, { recursive: true, encoding: "utf8" })) {
         const path = join(publicDir, name);
         // `_headers` is read by Cloudflare, not served.
@@ -43,7 +43,7 @@ function serviceWorker(): Plugin {
         files.push(url(name.replaceAll("\\", "/")));
         hash.update(readFileSync(path));
       }
-      const source = readFileSync(here("app/sw.js"), "utf8")
+      const source = readFileSync(here("web/sw.js"), "utf8")
         .replace('"__VERSION__"', JSON.stringify(hash.digest("hex").slice(0, 12)))
         .replace('["__FILES__"]', JSON.stringify(files));
       this.emitFile({ type: "asset", fileName: "sw.js", source });

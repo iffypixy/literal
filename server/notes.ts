@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import * as Y from "yjs";
-import { decode, encode, MaxBytes, MaxNotes, SignedOut, type Message, type Refusal } from "../../protocol/protocol.ts";
+import { decode, encode, MaxBytes, MaxNotes, SignedOut, type Message, type Refusal } from "../protocol.ts";
 import type { Env } from "./index.ts";
 
 /** Where the Worker says which session opens a socket. */

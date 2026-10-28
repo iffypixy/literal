@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, onMount, Show } from "solid-js";
 import type * as Y from "yjs";
-import { isNoteId, MaxLength } from "../../protocol/protocol.ts";
+import { isNoteId, MaxLength } from "../protocol.ts";
 import { mouse } from "./device.ts";
 import { Editor, type EditorApi, type Position } from "./editor/editor.tsx";
 import { caps, letter, mac, mod, shortcuts } from "./keys.ts";
