@@ -386,8 +386,8 @@ function collapse(row: HTMLElement): Promise<unknown> {
 
 const Minute = 60_000;
 // In English like every other word here, with the clock (12 or 24 hours) this computer uses.
-const hourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-const clock = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hourCycle });
+const HourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
+const clock = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hourCycle: HourCycle });
 const day = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
 const dayAndYear = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" });
 

@@ -37,6 +37,9 @@ export const MaxBytes = 100_000_000;
 /** The close code that tells a device to stop reconnecting and ask to sign in. */
 export const SignedOut = 4001;
 
+/** Digits in an emailed sign-in code. */
+export const CodeLength = 6;
+
 /** The order of Types and Refusals is the wire format: only ever append. */
 const Types = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
 const Refusals = ["too-large", "too-many", "too-full"] as const;

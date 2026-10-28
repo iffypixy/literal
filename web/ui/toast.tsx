@@ -14,6 +14,11 @@ type Toast = {
   onExpire?: () => void;
 };
 
+const Shown = 4000;
+const ShownWithAction = 5000;
+/** What's left after a pause, at least: a toast never vanishes the moment it's back in view. */
+const ShownAfterPause = 1000;
+
 /** One toast at a time: a new one ends the last, which fades out beneath it. */
 const shown = createMutable<{ toast: Toast | null; leaving: Toast[] }>({ toast: null, leaving: [] });
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -26,7 +31,7 @@ document.addEventListener("visibilitychange", () => (document.hidden ? pause() :
 export function toast(message: string, options: Omit<Toast, "message"> = {}) {
   expire();
   shown.toast = { message, ...options };
-  remaining = options.action ? 5000 : 4000;
+  remaining = options.action ? ShownWithAction : Shown;
   resume();
 }
 
@@ -104,5 +109,5 @@ function resume() {
   if (running || !shown.toast || document.hidden) return;
   running = true;
   since = Date.now();
-  timer = setTimeout(expire, Math.max(remaining, 1000));
+  timer = setTimeout(expire, Math.max(remaining, ShownAfterPause));
 }

@@ -1,10 +1,14 @@
 import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
+import { CodeLength } from "../protocol.ts";
 import type { Env } from "./index.ts";
 
-const Year = 60 * 60 * 24 * 365;
-/** How long an IP address's sign-in attempts count toward its limits, in seconds. */
-const AttemptWindow = 10 * 60;
+// In seconds, as the library takes them.
+const Minute = 60;
+const Day = 24 * 60 * Minute;
+/** How long a code works, and how long an IP address's attempts count toward its limits. */
+const CodeLife = 10 * Minute;
+const AttemptWindow = 10 * Minute;
 /**
  * Codes emailed a day, across everyone. Cloudflare bills each email past the plan's 3,000 a month and caps
  * nothing itself, so this keeps a flood of sign-ins to a few dollars a month.
@@ -46,13 +50,12 @@ export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
     baseURL: env.APP_URL,
     secret: env.BETTER_AUTH_SECRET,
     database: env.DB,
-    // Signed in until you sign out, or for a year without using it: renewed once a day as it's used.
-    session: { expiresIn: Year, updateAge: 60 * 60 * 24 },
+    // Signed in until you sign out, or for a year without using it.
+    session: { expiresIn: 365 * Day, updateAge: Day },
     plugins: [
       emailOTP({
-        // The app's code field takes six digits, as do its tests.
-        otpLength: 6,
-        expiresIn: 10 * 60,
+        otpLength: CodeLength,
+        expiresIn: CodeLife,
         allowedAttempts: 5,
         storeOTP: "hashed",
         sendVerificationOTP: ({ email, otp, type }) =>
@@ -96,7 +99,7 @@ async function sendCode(env: Env, email: string, code: string, type: string) {
     from: { name: "Literal", email: env.EMAIL_FROM },
     to: email,
     subject: `${code} is your Literal sign-in code`,
-    text: `${code}\n\nEnter this code in Literal to sign in. It works for 10 minutes.\n\nDidn't ask for it? You can ignore this email.\n`,
+    text: `${code}\n\nEnter this code in Literal to sign in. It works for ${CodeLife / Minute} minutes.\n\nDidn't ask for it? You can ignore this email.\n`,
   });
 }
 

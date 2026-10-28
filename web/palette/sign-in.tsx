@@ -1,4 +1,5 @@
 import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { CodeLength } from "../../protocol.ts";
 import { Fragile, reducedMotion, touch } from "../device.ts";
 import { composing } from "../shortcuts.ts";
 import { sendCode, unreachable, verify } from "../sync/account.ts";
@@ -53,7 +54,7 @@ export function SignIn(props: Props) {
   }
 
   async function check() {
-    if (busy() || code().length !== 6) return;
+    if (busy() || code().length !== CodeLength) return;
     setBusy(true);
     setError("");
     let reached = true;
@@ -87,11 +88,11 @@ export function SignIn(props: Props) {
   }
 
   function onCode(input: HTMLInputElement) {
-    const digits = input.value.replace(/\D/g, "").slice(0, 6);
+    const digits = input.value.replace(/\D/g, "").slice(0, CodeLength);
     input.value = digits;
     setCode(digits);
     setError("");
-    if (digits.length === 6) void check();
+    if (digits.length === CodeLength) void check();
   }
 
   function restart() {
@@ -146,7 +147,7 @@ export function SignIn(props: Props) {
               {error()}
             </p>
           </Show>
-          <p class="note">No password. We'll email you a 6-digit code.</p>
+          <p class="note">No password. We'll email you a {CodeLength}-digit code.</p>
           <p class="note fine">
             <a href="/terms" target="_blank">
               Terms
@@ -175,8 +176,8 @@ export function SignIn(props: Props) {
             onInput={(event) => onCode(event.currentTarget)}
             inputmode="numeric"
             autocomplete="one-time-code"
-            maxlength="6"
-            placeholder="000000"
+            maxlength={CodeLength}
+            placeholder={"0".repeat(CodeLength)}
             readOnly={busy()}
           />
           <Show when={error()}>
