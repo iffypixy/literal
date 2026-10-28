@@ -75,3 +75,24 @@ test("an empty note opened right after another stays empty", async ({ page, cont
   await expect(page).toHaveURL(second);
   await expect(note).toHaveValue("");
 });
+
+test("words from another tab don't move the cursor, or split an emoji", async ({ page, context }) => {
+  const note = page.getByRole("textbox", { name: "Note" });
+  await page.goto("/");
+  await page.keyboard.type("Hello world");
+  await expect(page).toHaveTitle("Hello world — Literal");
+
+  await note.evaluate((area: HTMLTextAreaElement) => area.setSelectionRange(5, 5));
+
+  const other = await context.newPage();
+  await other.goto(page.url());
+  const theirs = other.getByRole("textbox", { name: "Note" });
+  await expect(theirs).toHaveValue("Hello world");
+  await other.keyboard.press("Control+Home");
+  await other.keyboard.type("👋 Hi\n");
+
+  await expect(note).toHaveValue("👋 Hi\nHello world");
+  await page.keyboard.type(",");
+  await expect(note).toHaveValue("👋 Hi\nHello, world");
+  await expect(theirs).toHaveValue("👋 Hi\nHello, world");
+});
