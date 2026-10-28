@@ -13,20 +13,17 @@ import {
   find,
   flush,
   list,
-  notes,
   open,
   remove,
   rescue,
   restore,
-  setSignedIn,
   settle,
   start,
 } from "./notes/notes.ts";
 import { prepare, quoted, shorten, title } from "./notes/search.ts";
 import { closePalette, onSheet, Palette, palette, togglePalette } from "./palette/palette.tsx";
 import { letter, mod, Shortcuts } from "./shortcuts.ts";
-import * as storage from "./storage.ts";
-import { account, FarewellKey, session, signedIn } from "./sync/account.ts";
+import { account, farewell, session, signedIn } from "./sync/account.ts";
 import { start as startSync } from "./sync/sync.ts";
 import { act, quiet, toast, Toasts } from "./ui/toast.tsx";
 import { stayUpToDate } from "./update.ts";
@@ -52,7 +49,6 @@ export function App() {
   const current = () => note()?.id ?? null;
 
   createEffect(() => {
-    void notes.version;
     const id = current();
     const name = id ? shorten(title(find(id)?.text ?? ""), TitleShown) : "";
     document.title = name ? `${name} — Literal` : "Literal";
@@ -60,19 +56,13 @@ export function App() {
 
   // A note erased while open, by the server or another tab, leaves a blank page behind.
   createEffect(() => {
-    void notes.version;
     const id = current();
     if (id && !exists(id)) void go(null, "replace");
   });
 
   onMount(() => {
-    // A farewell left by signing out or deleting the account, which ends with a reload: said once it's done.
-    const farewell = storage.read(FarewellKey);
-    if (farewell) {
-      storage.remove(FarewellKey);
-      toast(farewell);
-    }
-    setSignedIn(Boolean(account.email));
+    const said = farewell();
+    if (said) toast(said);
     void start().then(() => prepare(list()));
     // "replace": an address that isn't a note becomes the blank page's own.
     void go(idFrom(location.pathname), "replace");
@@ -89,14 +79,14 @@ export function App() {
     } catch {
       return; // offline: what this device remembers stands
     }
-    if (email && email !== account.email) onSignedIn(email, false);
+    if (!email || email === account.email) return;
+    signedIn(email);
+    startSync();
   }
 
-  function onSignedIn(email: string, announce = true) {
-    signedIn(email);
-    setSignedIn(true);
+  function onSignedIn(email: string) {
     startSync();
-    if (announce) toast(`Signed in as ${email}`);
+    toast(`Signed in as ${email}`);
   }
 
   /**
