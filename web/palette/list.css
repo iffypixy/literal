@@ -1,0 +1,203 @@
+.list {
+  display: contents;
+
+  /* The search above and the footer below are the same height: a control's, plus 4px above and below. */
+  & .search {
+    display: flex;
+    align-items: center;
+    padding: 0 var(--edge);
+    border-bottom: 1px solid var(--line);
+  }
+
+  & .search input {
+    flex: 1;
+    min-width: 0;
+    padding: calc(var(--control-padding) + 4px) 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+  }
+
+  & .rows {
+    flex: 1;
+    min-height: 0;
+    margin: 0;
+    padding: calc(var(--edge) - var(--inset));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+
+  & .option {
+    position: relative;
+    border-radius: var(--radius-small);
+    overflow: hidden;
+  }
+
+  & .behind {
+    display: none;
+    position: absolute;
+    inset: 0;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 var(--edge);
+    background: var(--danger);
+    color: var(--surface);
+  }
+
+  & .option[data-swiping] .behind {
+    display: flex;
+  }
+
+  /* A row is a control: its height, and its text on the palette's 16px edge (the list's 4px gutter, then 12px). */
+  & .row {
+    position: relative;
+    padding: var(--control-padding) var(--inset);
+    background: var(--surface);
+    cursor: default;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  & .rows[data-highlighted] [aria-selected="true"] .row {
+    background: color-mix(in srgb, var(--text) 6%, var(--surface));
+  }
+
+  /* The wash alone (1.13:1) isn't enough to find: the accent's edge marks the row. */
+  @media (prefers-contrast: more) {
+    & .rows[data-highlighted] [aria-selected="true"] .row {
+      box-shadow: inset 2px 0 var(--accent);
+    }
+  }
+
+  & .row:active {
+    background: color-mix(in srgb, var(--text) 10%, var(--surface));
+  }
+
+  & .line {
+    display: flex;
+    align-items: baseline;
+    gap: 2ch;
+  }
+
+  & .title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  & .time {
+    flex: none;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & .snippet {
+    margin-top: var(--pair);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--muted);
+  }
+
+  & mark {
+    background: var(--highlight);
+    color: var(--text);
+    border-radius: var(--radius-small);
+  }
+
+  & .delete {
+    --icon-size: 16px;
+    display: none;
+    align-self: center;
+    width: 24px;
+    height: 24px;
+    margin: -4px -6px -4px 0;
+  }
+
+  & .sentinel {
+    height: 1px;
+  }
+
+  /* Only when commands show: which rows do something, which rows are notes. */
+  & .group {
+    padding: var(--group) var(--inset) var(--pair);
+    color: var(--muted);
+  }
+
+  & [role="group"]:first-child .group {
+    padding-top: var(--gap);
+  }
+
+  /* Where the first row's text would be. */
+  & .empty {
+    margin: 0;
+    padding: calc(var(--edge) - var(--inset) + var(--control-padding)) var(--edge);
+    color: var(--muted);
+  }
+
+  & footer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2ch;
+    padding: 4px 6px 4px var(--edge);
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+  }
+
+  & .account {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  & .sync {
+    margin: 0 calc(-1 * var(--inset));
+    padding: var(--control-padding) var(--inset);
+    border-radius: var(--radius-small);
+    color: var(--muted);
+    transition:
+      color var(--quick) ease,
+      background-color var(--quick) ease,
+      transform var(--quick) var(--ease-out);
+  }
+
+  & .sync:active {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    & .option:hover .time {
+      display: none;
+    }
+
+    & .option:hover .delete {
+      display: grid;
+    }
+
+    & .sync:hover {
+      color: var(--text);
+      background: var(--hover);
+    }
+  }
+
+  /* Windows High Contrast drops washes: the highlighted row and hits are drawn in system colors. */
+  @media (forced-colors: active) {
+    & .rows[data-highlighted] [aria-selected="true"] .row {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+
+    & mark {
+      background: Mark;
+      color: MarkText;
+    }
+  }
+}

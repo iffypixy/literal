@@ -199,7 +199,7 @@ a,
   }
 }
 
-/* Floating things (the panel, the menu, the toast, the tooltip) sit on their own surface, not behind a hard line. */
+/* Floating things (the palette, the menu, the toast, the tooltip) sit on their own surface, not behind a hard line. */
 .surface {
   background: var(--surface);
   color: var(--text);

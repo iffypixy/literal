@@ -1,0 +1,168 @@
+/*
+ * As tall as what's visible: with a phone's keyboard up, the sheet ends above it. It never scrolls: focusing the
+ * sheet while it's still below the screen would scroll it into view, and undo its slide up.
+ */
+.palette {
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--viewport-height, 100dvh);
+  overflow: clip;
+  z-index: 20;
+
+  & .scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--scrim);
+  }
+
+  & .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(560px, calc(100vw - 2 * var(--edge)));
+    max-height: 70vh;
+    margin: 12vh auto 0;
+    outline: none;
+  }
+
+  /* The page's size, which also keeps iOS from zooming into fields. */
+  @media (pointer: coarse) {
+    & .card {
+      font-size: 16px;
+    }
+  }
+
+  & .grab {
+    display: none;
+  }
+
+  & .view {
+    min-height: 0;
+    padding: var(--edge);
+    overflow-y: auto;
+  }
+
+  & .view p {
+    margin: var(--gap) 0 0;
+    color: var(--muted);
+  }
+
+  & .view h2 + p {
+    margin-top: var(--pair);
+  }
+
+  & .view .error {
+    color: var(--danger);
+  }
+
+  & .view .section {
+    margin-top: var(--group);
+  }
+
+  & .shortcuts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--gap) 2ch;
+    margin: var(--group) 0 0;
+  }
+
+  & .shortcuts dd {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  /* Opened by a click or tap: a short rise. Opened by a key: no animation at all. */
+  &[data-motion] .card {
+    animation: rise 160ms var(--ease-out);
+  }
+
+  &[data-motion] .scrim {
+    animation: fade-in 160ms var(--ease-out);
+  }
+
+  &[data-closing] .card {
+    animation: sink var(--quick) var(--ease-out) forwards;
+  }
+
+  &[data-closing] .scrim {
+    animation: fade-in var(--quick) var(--ease-out) reverse forwards;
+  }
+
+  @media (max-width: 640px) {
+    & .card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
+      max-height: none;
+      box-sizing: border-box;
+      margin: 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    & .grab {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 100%;
+      height: var(--control);
+      touch-action: none;
+    }
+
+    & .grab span {
+      width: 36px;
+      height: 5px;
+      border-radius: var(--radius-small);
+      background: var(--line);
+    }
+
+    &[data-motion] .card {
+      animation: sheet-in 320ms var(--ease-drawer);
+    }
+
+    &[data-closing] .card {
+      animation: sheet-out 220ms var(--ease-drawer) forwards;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &[data-motion] .card,
+    &[data-closing] .card {
+      animation-name: fade-in;
+      animation-duration: 100ms;
+    }
+
+    &[data-closing] .card {
+      animation-direction: reverse;
+    }
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+
+@keyframes sink {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
