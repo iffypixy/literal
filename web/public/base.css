@@ -101,29 +101,6 @@ body {
   outline-offset: 1px;
 }
 
-/* A shortcut as key caps, like `Ctrl` `K`: see caps() in keys.ts. */
-.keys {
-  display: inline-flex;
-  gap: 2px;
-  white-space: nowrap;
-}
-
-kbd {
-  display: inline-block;
-  min-width: 1.5em;
-  box-sizing: border-box;
-  padding: 0 0.3em;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-small);
-  font: inherit;
-  font-size: 0.85em;
-  line-height: 1.45;
-  /* A cap is a little taller than the line: this keeps rows at their height and caps on the text's baseline. */
-  margin-block: -1px;
-  text-align: center;
-  color: var(--muted);
-}
-
 button {
   font: inherit;
   color: inherit;
@@ -219,6 +196,19 @@ a,
     --faint: var(--muted);
     --line: var(--field);
     --highlight: color-mix(in srgb, var(--text) 28%, transparent);
+  }
+}
+
+/* Floating things (the panel, the menu, the toast, the tooltip) sit on their own surface, not behind a hard line. */
+.surface {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+
+  /* Windows High Contrast drops shadows: floating things keep an edge. */
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
   }
 }
 

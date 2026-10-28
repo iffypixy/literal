@@ -5,14 +5,16 @@
 
 import { createMutable } from "solid-js/store";
 import { wipe } from "../notes/notes.ts";
+import * as storage from "../storage.ts";
 
-const AccountKey = "literal:account";
+/** Remembered, so the app knows it's signed in before the server answers, or when it can't. */
+const AccountKey = "account";
 /** What signing out or deleting the account says once the page has reloaded. */
-export const FarewellKey = "literal:farewell";
+export const FarewellKey = "farewell";
 /** A dead network would leave a request waiting forever. */
 const RequestTimeout = 15_000;
 
-export const account = createMutable<{ email: string | null }>({ email: remembered() });
+export const account = createMutable<{ email: string | null }>({ email: storage.read(AccountKey) });
 
 /** Null when nobody is signed in; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
@@ -37,7 +39,7 @@ export async function session(): Promise<string | null> {
 
 export function signedIn(email: string) {
   account.email = email;
-  remember(email);
+  storage.write(AccountKey, email);
 }
 
 /** For a request that didn't reach the server, or never came back. */
@@ -103,12 +105,9 @@ export async function deleteAccount(): Promise<string | null> {
 /** Erases every trace of the account on this device and starts over. */
 async function forget(farewell: string) {
   await wipe();
-  try {
-    for (const key of Object.keys(localStorage)) if (key.startsWith("literal:")) localStorage.removeItem(key);
-    localStorage.setItem(FarewellKey, farewell);
-  } catch {
-    // Without storage nothing was kept, and the farewell goes unsaid; the empty page still shows what happened.
-  }
+  storage.clear();
+  // Without storage it goes unsaid; the empty page still shows what happened.
+  storage.write(FarewellKey, farewell);
   location.replace("/");
 }
 
@@ -120,21 +119,4 @@ function post(path: string, body: unknown): Promise<Response> {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(RequestTimeout),
   });
-}
-
-// Remembered so the app knows it's signed in before the server answers, or when it can't.
-function remembered(): string | null {
-  try {
-    return localStorage.getItem(AccountKey);
-  } catch {
-    return null;
-  }
-}
-
-function remember(email: string) {
-  try {
-    localStorage.setItem(AccountKey, email);
-  } catch {
-    // Without storage the app just won't know it's signed in until the server says so.
-  }
 }

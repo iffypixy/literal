@@ -1,5 +1,6 @@
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
+import * as storage from "../storage.ts";
 import { deleteDb, get, openDb, readAll, write } from "./db.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc: its `text`, and its `meta` (the times). */
@@ -32,7 +33,7 @@ const Tab = "tab";
 const Remote = "remote";
 
 /** Where unsaved changes wait out a page closing: localStorage writes at once, IndexedDB may not finish. */
-const RescuePrefix = "literal:unsaved:";
+const Rescued = "unsaved:";
 
 /** A pause in typing this long saves; so does typing this long without one. */
 const SaveDelay = 250;
@@ -208,7 +209,7 @@ export async function purge(id: string) {
   touched.delete(id);
   changed.delete(id);
   edits.delete(id);
-  unrescue(id);
+  storage.remove(Rescued + id);
   notes.version++;
   channel.postMessage({ type: "purge", id } satisfies Message);
   await store((tx) => {
@@ -226,13 +227,9 @@ export function rescue() {
   if (wiped) return;
   for (const id of new Set([...pending.keys(), ...saving.keys()])) {
     const doc = loaded.get(id);
-    if (!doc) continue;
-    try {
-      localStorage.setItem(RescuePrefix + id, toBase64(Y.encodeStateAsUpdate(doc)));
-    } catch (error) {
-      // Full or blocked storage: the IndexedDB save started alongside is all there is.
-      console.error(error);
-    }
+    // Without storage, the IndexedDB save started alongside is all there is.
+    if (doc && !storage.write(Rescued + id, toBase64(Y.encodeStateAsUpdate(doc))))
+      console.error(`rescue ${id}: no storage`);
   }
 }
 
@@ -241,7 +238,7 @@ export async function wipe() {
   wiped = true;
   (await db).close();
   await deleteDb();
-  for (const id of rescuedIds()) unrescue(id);
+  for (const id of storage.keys(Rescued)) storage.remove(Rescued + id);
 }
 
 // For sync.ts alone.
@@ -368,7 +365,7 @@ async function readEverything() {
         else if (!all.has(row.id)) keep(row);
       }
     }
-    for (const id of rescuedIds()) await load(id);
+    for (const id of storage.keys(Rescued)) await load(id);
     notes.synced = (await readSince()) !== undefined;
   } catch (error) {
     failed(error);
@@ -422,7 +419,7 @@ async function read(id: string): Promise<Y.Doc | null> {
     // With no origin, the copy counts as a change made here: it gets saved, and sent.
     Y.applyUpdate(doc, unsaved);
     // Nothing new means the save had finished after all; only a save clears the copy, and it runs on changes.
-    if (!pending.has(id)) unrescue(id);
+    if (!pending.has(id)) storage.remove(Rescued + id);
   }
   return doc;
 }
@@ -492,7 +489,7 @@ async function save(id: string) {
   if (!saved && local) changed.add(id);
   if (!row || !saved || !loaded.has(id)) return;
   // A rescued copy may be newer than what this save wrote: only the last save of the note clears it.
-  if (!pending.has(id) && !saving.has(id)) unrescue(id);
+  if (!pending.has(id) && !saving.has(id)) storage.remove(Rescued + id);
   // The note may have changed while the write was on its way (a sync, an undo): describe it as it is now.
   const fresh: Row = { ...summarize(id, doc), vector: row.vector, dirty: row.dirty };
   keep(fresh);
@@ -530,39 +527,15 @@ async function readSince(): Promise<number | undefined> {
   throw new Error("read since: not a number");
 }
 
-/** Notes with changes left by a page that closed before saving them. */
-function rescuedIds(): string[] {
-  try {
-    return Object.keys(localStorage)
-      .filter((key) => key.startsWith(RescuePrefix))
-      .map((key) => key.slice(RescuePrefix.length));
-  } catch {
-    return []; // no storage, so nothing was rescued
-  }
-}
-
 function rescued(id: string): Uint8Array | null {
-  let text: string | null;
-  try {
-    text = localStorage.getItem(RescuePrefix + id);
-  } catch {
-    return null; // no storage, so nothing was rescued
-  }
+  const text = storage.read(Rescued + id);
   if (!text) return null;
   try {
     return fromBase64(text);
   } catch (error) {
     console.error(error);
-    unrescue(id);
+    storage.remove(Rescued + id);
     return null;
-  }
-}
-
-function unrescue(id: string) {
-  try {
-    localStorage.removeItem(RescuePrefix + id);
-  } catch {
-    // Nothing was rescued where there's no storage.
   }
 }
 

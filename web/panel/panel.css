@@ -22,9 +22,6 @@
     width: min(560px, calc(100vw - 2 * var(--edge)));
     max-height: 70vh;
     margin: 12vh auto 0;
-    background: var(--surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
     outline: none;
   }
 
@@ -39,13 +36,8 @@
     display: none;
   }
 
-  /* Windows High Contrast drops shadows and washes: edges and the highlighted row are drawn in system colors. */
+  /* Windows High Contrast drops washes: the highlighted row and hits are drawn in system colors. */
   @media (forced-colors: active) {
-    & .panel,
-    & .menu {
-      outline: 1px solid CanvasText;
-    }
-
     & .rows[data-highlighted] [aria-selected="true"] .row {
       outline: 2px solid Highlight;
       outline-offset: -2px;
@@ -167,28 +159,12 @@
   }
 
   & .delete {
+    --icon-size: 16px;
     display: none;
-    flex: none;
     align-self: center;
     width: 24px;
     height: 24px;
     margin: -4px -6px -4px 0;
-    border-radius: var(--radius-small);
-    color: var(--muted);
-  }
-
-  & .delete svg {
-    width: 16px;
-    height: 16px;
-    margin: 4px;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-  }
-
-  & .delete path {
-    stroke-width: var(--stroke);
-    vector-effect: non-scaling-stroke;
   }
 
   @media (hover: hover) and (pointer: fine) {
@@ -197,22 +173,11 @@
     }
 
     & .option:hover .delete {
-      display: block;
+      display: grid;
     }
 
-    & .delete:hover {
-      color: var(--text);
-      background: var(--hover);
-    }
-
-    & .more:hover,
     & .sync:hover {
       color: var(--text);
-      background: var(--hover);
-    }
-
-    & .quiet:hover,
-    & .danger:hover {
       background: var(--hover);
     }
 
@@ -323,41 +288,8 @@
     margin-top: var(--group);
   }
 
-  & .choices button {
-    min-height: var(--control);
-    padding: 0 var(--inset);
-    border-radius: var(--radius-small);
-    transition:
-      transform var(--quick) var(--ease-out),
-      background-color var(--quick) ease;
-  }
-
-  & .choices button:active {
-    transform: scale(0.97);
-  }
-
-  & .quiet {
-    border: 1px solid var(--line);
-  }
-
-  & .danger {
-    border: 1px solid var(--danger);
-    color: var(--danger);
-  }
-
   & .more {
-    display: grid;
-    place-items: center;
-    width: var(--control);
-    height: var(--control);
-    border-radius: var(--radius-small);
-    color: var(--muted);
-  }
-
-  & .more svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
+    --icon-size: 20px;
   }
 
   & .menu {
@@ -368,9 +300,6 @@
     flex-direction: column;
     min-width: 180px;
     padding: calc(var(--edge) - var(--inset));
-    background: var(--surface);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
     transform-origin: bottom right;
     animation: pop var(--brief) var(--ease-out);
   }
@@ -389,9 +318,7 @@
   }
 
   & .menu button:active,
-  & .more:active,
-  & .sync:active,
-  & .delete:active {
+  & .sync:active {
     transform: scale(0.97);
   }
 

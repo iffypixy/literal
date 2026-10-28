@@ -4,40 +4,8 @@
  * then start a group's space below it.
  */
 .back {
-  flex: none;
+  --icon-size: 20px;
   align-self: flex-start;
-  display: grid;
-  place-items: center;
-  width: var(--control);
-  height: var(--control);
   margin: calc((20px - var(--control)) / 2 - 5px) 0 calc(var(--group) + 1px - var(--control) / 2)
     calc((20px - var(--control)) / 2 - 7px);
-  border-radius: var(--radius-small);
-  color: var(--muted);
-  transition: transform var(--quick) var(--ease-out);
-
-  &:active {
-    transform: scale(0.97);
-  }
-
-  & svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-
-  & path {
-    stroke-width: var(--stroke);
-    vector-effect: non-scaling-stroke;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    &:hover {
-      color: var(--text);
-      background: var(--hover);
-    }
-  }
 }

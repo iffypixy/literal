@@ -1,43 +1,9 @@
-/* The privacy and terms pages: plain text, like the app. */
-:root {
-  --bg: #ffffff;
-  --text: #17181c;
-  --muted: #696c75;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111215;
-    --text: #ececf0;
-    --muted: #9b9ea7;
-    color-scheme: dark;
-  }
-}
-
-html {
-  background: var(--bg);
-  color: var(--text);
-  font:
-    400 0.8125rem/1.5 ui-monospace,
-    "SF Mono",
-    SFMono-Regular,
-    Menlo,
-    Consolas,
-    "Cascadia Mono",
-    "Liberation Mono",
-    monospace;
-  -webkit-text-size-adjust: 100%;
-}
-
 /*
- * Laid out like a note in the app: text from the top-left at the app's 16px edge, as wide as the window, so lines
- * break only where the window ends. Like a .txt file: a heading's text follows on the next line, a blank line
- * separates everything else, and lists are dashes.
+ * The privacy and terms pages, laid out like a .txt file: from the top-left, as wide as the window; a heading's text
+ * on the next line, a blank line between the rest, and lists in dashes.
  */
 body {
-  margin: 0;
-  padding: 16px 16px 4lh;
+  padding: var(--edge) var(--edge) 4lh;
 }
 
 h1,
@@ -66,10 +32,6 @@ ul {
 strong {
   color: var(--text);
   font-weight: 400;
-}
-
-a {
-  color: inherit;
 }
 
 .back {

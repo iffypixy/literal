@@ -51,30 +51,6 @@
     border-color: var(--danger);
   }
 
-  /* The one main action in the view: the accent, filled. */
-  & .primary {
-    min-height: var(--control);
-    border: 1px solid var(--accent);
-    border-radius: var(--radius-small);
-    background: var(--accent);
-    color: var(--on-accent);
-    transition:
-      transform var(--quick) var(--ease-out),
-      background-color var(--quick) ease,
-      opacity var(--quick) ease;
-  }
-
-  & .primary:active:not(:disabled) {
-    transform: scale(0.97);
-  }
-
-  /* Disabled, every button looks the same: a grey outline. The main one takes the accent once it can act. */
-  & .primary:disabled {
-    border-color: var(--line);
-    background: transparent;
-    color: var(--muted);
-  }
-
   & .error {
     margin: var(--gap) 0 0;
     color: var(--danger);
@@ -95,11 +71,5 @@
     gap: 1ch;
     margin: var(--group) 0 0;
     color: var(--muted);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    & .primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-    }
   }
 }

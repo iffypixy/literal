@@ -15,7 +15,6 @@
     }
   }
 
-  /* It floats like the panel and the menu, so it looks like them: their surface, corners and shadow. */
   & .toast {
     grid-area: 1 / 1;
     display: flex;
@@ -24,10 +23,6 @@
     max-width: calc(100vw - 2 * var(--edge));
     box-sizing: border-box;
     padding: var(--control-padding) var(--edge);
-    border-radius: var(--radius);
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow);
     pointer-events: auto;
     animation: toast-in 180ms var(--ease-out);
   }
@@ -49,12 +44,6 @@
   @media (prefers-reduced-motion: reduce) {
     & .toast {
       animation-name: fade-in;
-    }
-  }
-
-  @media (forced-colors: active) {
-    & .toast {
-      outline: 1px solid CanvasText;
     }
   }
 }

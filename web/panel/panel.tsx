@@ -1,13 +1,15 @@
 import { batch, createEffect, createMemo, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
-import { installed, reducedMotion, touch } from "../device.ts";
-import { caps, composing, mac, shortcuts } from "../keys.ts";
+import { Fragile, Mac, reducedMotion, touch } from "../device.ts";
 import { list, notes, unsynced, type Note } from "../notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "../notes/search.ts";
 import { account, deleteAccount, signOut } from "../sync/account.ts";
 import { drain, sync } from "../sync/sync.ts";
+import { composing, Shortcuts } from "../shortcuts.ts";
 import { exportAll, importFiles } from "../transfer/transfer.ts";
+import { Button } from "../ui/button.tsx";
+import { IconButton } from "../ui/icon.tsx";
+import { Keys } from "../ui/keys.ts";
 import { toast } from "../ui/toast.tsx";
-import { tooltip } from "../ui/tooltip.ts";
 import { Back } from "./back.tsx";
 import { SignIn } from "./sign-in.tsx";
 import "./panel.css";
@@ -47,17 +49,15 @@ type Props = {
 const PageSize = 50;
 /** Letters typed before commands show: with one, they'd come and go with every key, shoving the notes about. */
 const CommandsFrom = 2;
-// Safari erases a site's storage after 7 days without a visit, unless it's on the Home Screen.
-const fragile = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) && !installed.matches;
 
 const KeyList: [string[], string][] = [
-  [shortcuts.notes, "Notes and commands"],
-  [shortcuts.new, "New note"],
-  [shortcuts.move, "Choose a note"],
-  [shortcuts.open, "Open note"],
-  [shortcuts.delete, "Delete note"],
-  [shortcuts.undo, "Undo delete"],
-  [shortcuts.close, "Close"],
+  [Shortcuts.notes, "Notes and commands"],
+  [Shortcuts.new, "New note"],
+  [Shortcuts.move, "Choose a note"],
+  [Shortcuts.open, "Open note"],
+  [Shortcuts.delete, "Delete note"],
+  [Shortcuts.undo, "Undo delete"],
+  [Shortcuts.close, "Close"],
   // Tab types a tab in a note: Esc first lets Tab move on, out of it.
   [["Esc", "Tab"], "Leave the note"],
 ];
@@ -93,7 +93,7 @@ export function Panel(props: Props) {
   let stepping = false;
 
   const commands = createMemo<Command[]>(() => [
-    { label: "New note", keys: shortcuts.new, run: () => props.onNew() },
+    { label: "New note", keys: Shortcuts.new, run: () => props.onNew() },
     { label: "Import .txt files", run: () => picker?.click() },
     {
       label: "Export all notes",
@@ -442,14 +442,14 @@ export function Panel(props: Props) {
       onClick={onClick}
     >
       <div class="scrim" aria-hidden="true" onClick={() => hide(true)} />
-      <div ref={panel} class="panel" tabindex="-1" onMouseDown={keepFocus}>
+      <div ref={panel} class="panel surface" tabindex="-1" onMouseDown={keepFocus}>
         <button ref={grab} class="grab" aria-label="Close" onClick={() => hide(true)}>
           <span />
         </button>
 
         <Switch>
           <Match when={view() === "sign-in"}>
-            <SignIn fragile={fragile} onBack={back} onDone={signedIn} />
+            <SignIn onBack={back} onDone={signedIn} />
           </Match>
 
           <Match when={view() === "sign-out"}>
@@ -469,12 +469,12 @@ export function Panel(props: Props) {
                 </p>
               </Show>
               <div class="choices">
-                <button class="quiet" onClick={back}>
+                <Button variant="quiet" onClick={back}>
                   Cancel
-                </button>
-                <button class="danger" disabled={busy()} onClick={() => void confirm(signOut)}>
-                  {busy() ? "Signing out…" : "Sign out anyway"}
-                </button>
+                </Button>
+                <Button variant="danger" busy={busy() && "Signing out…"} onClick={() => void confirm(signOut)}>
+                  Sign out anyway
+                </Button>
               </div>
             </div>
           </Match>
@@ -489,7 +489,9 @@ export function Panel(props: Props) {
                 <For each={KeyList}>
                   {([keys, what]) => (
                     <>
-                      <dt>{caps(keys)}</dt>
+                      <dt>
+                        <Keys keys={keys} />
+                      </dt>
                       <dd>{what}</dd>
                     </>
                   )}
@@ -533,9 +535,9 @@ export function Panel(props: Props) {
               </h2>
               <p>
                 Your notes will be erased from Literal and this device. This can't be undone.{" "}
-                <button class="link" onClick={exportAll}>
+                <Button variant="link" onClick={exportAll}>
                   Export your notes
-                </button>{" "}
+                </Button>{" "}
                 first.
               </p>
               <Show when={problem()}>
@@ -544,12 +546,12 @@ export function Panel(props: Props) {
                 </p>
               </Show>
               <div class="choices">
-                <button class="quiet" onClick={back}>
+                <Button variant="quiet" onClick={back}>
                   Cancel
-                </button>
-                <button class="danger" disabled={busy()} onClick={() => void confirm(deleteAccount)}>
-                  {busy() ? "Deleting…" : "Delete account"}
-                </button>
+                </Button>
+                <Button variant="danger" busy={busy() && "Deleting…"} onClick={() => void confirm(deleteAccount)}>
+                  Delete account
+                </Button>
               </div>
             </div>
           </Match>
@@ -604,7 +606,7 @@ export function Panel(props: Props) {
                             <span class="title">
                               <Marked parts={markStarts(command.label, words())} />
                             </span>
-                            <Show when={command.keys}>{(keys) => caps(keys())}</Show>
+                            <Show when={command.keys}>{(keys) => <Keys keys={keys()} />}</Show>
                           </div>
                         </div>
                       </div>
@@ -652,20 +654,17 @@ export function Panel(props: Props) {
                               <Marked parts={parts().title} />
                             </span>
                             <span class="time">{ago(note.editedAt, now())}</span>
-                            <button
-                              ref={(button) => tooltip(button, "Delete note", shortcuts.delete)}
+                            <IconButton
                               class="delete"
-                              aria-label="Delete note"
+                              label="Delete note"
+                              icon="close"
+                              keys={Shortcuts.delete}
                               tabindex="-1"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 void remove(note, option);
                               }}
-                            >
-                              <svg viewBox="0 0 20 20" aria-hidden="true">
-                                <path d="m6 6 8 8M14 6l-8 8" />
-                              </svg>
-                            </button>
+                            />
                           </div>
                           <Show when={parts().snippet.some((part) => part.text)}>
                             <div class="snippet">
@@ -693,7 +692,7 @@ export function Panel(props: Props) {
                 when={account.email}
                 fallback={
                   <button class="sync" onClick={() => setView("sign-in")}>
-                    {fragile ? "Sync to keep notes safe" : "Sync across devices"}
+                    {Fragile ? "Sync to keep notes safe" : "Sync across devices"}
                     <span aria-hidden="true">&ensp;→</span>
                   </button>
                 }
@@ -704,21 +703,22 @@ export function Panel(props: Props) {
                   </span>
                 )}
               </Show>
-              <button
+              <IconButton
                 class="more"
-                aria-label="More"
+                label="More"
+                icon="more"
                 aria-expanded={menu()}
                 aria-controls="more-menu"
                 onClick={toggleMenu}
-              >
-                <svg viewBox="0 0 20 20" aria-hidden="true">
-                  <circle cx="5" cy="10" r="1.25" />
-                  <circle cx="10" cy="10" r="1.25" />
-                  <circle cx="15" cy="10" r="1.25" />
-                </svg>
-              </button>
+              />
               <Show when={menu()}>
-                <div ref={menuBox} class="menu" classList={{ below: below() }} id="more-menu" onKeyDown={onMenuKeyDown}>
+                <div
+                  ref={menuBox}
+                  class="menu surface"
+                  classList={{ below: below() }}
+                  id="more-menu"
+                  onKeyDown={onMenuKeyDown}
+                >
                   {!touch.matches && <button onClick={() => visit("keys")}>Keyboard shortcuts</button>}
                   <button onClick={() => visit("about")}>About Literal</button>
                   <hr />
@@ -772,7 +772,7 @@ function deletes(event: KeyboardEvent, field: HTMLInputElement): boolean {
   if (event.repeat || event.altKey || event.shiftKey) return false;
   if (field.selectionStart !== field.selectionEnd) return false;
   if (event.key === "Delete") return !event.ctrlKey && !event.metaKey && field.selectionEnd === field.value.length;
-  return mac && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
+  return Mac && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
 }
 
 function collapse(row: HTMLElement): Promise<unknown> {
