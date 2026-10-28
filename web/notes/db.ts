@@ -1,5 +1,3 @@
-/** The one IndexedDB database on the device, `literal`, with a store for each kind of record. */
-
 export type Store = "notes" | "docs" | "meta";
 
 const Name = "literal";
@@ -10,8 +8,7 @@ export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void):
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(Name, Version);
     request.onupgradeneeded = () => {
-      // `notes` holds what the list, search and sync read; `docs` holds the Yjs state behind each note;
-      // `meta` holds the rest, like when sync last caught up.
+      // `notes`: what the list, search and sync read. `docs`: the Yjs state behind each. `meta`: the rest.
       request.result.createObjectStore("notes", { keyPath: "id" });
       request.result.createObjectStore("docs");
       request.result.createObjectStore("meta");
@@ -30,7 +27,7 @@ export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void):
   });
 }
 
-/** Deletes the database with everything in it. Every open connection must be closed first. */
+/** Every open connection must be closed first. */
 export function deleteDb(): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(Name);
@@ -39,7 +36,7 @@ export function deleteDb(): Promise<void> {
   });
 }
 
-/** Every record in `store`, as stored, for the caller to check: `size` at a time, leaving the page free in between. */
+/** Unchecked, `size` at a time, leaving the page free in between. */
 export async function* readAll(db: IDBDatabase, store: Store, size: number): AsyncGenerator<unknown[]> {
   let after: IDBValidKey | undefined;
   for (;;) {
@@ -55,15 +52,11 @@ export async function* readAll(db: IDBDatabase, store: Store, size: number): Asy
   }
 }
 
-/** The record under `key`, as stored: the caller checks it. */
 export function get(db: IDBDatabase, store: Store, key: string): Promise<unknown> {
   return done(db.transaction(store).objectStore(store).get(key));
 }
 
-/**
- * Runs `work` in one read-write transaction over every store, and resolves once it's on disk: strict durability,
- * so a note that counts as saved survives the device losing power right after.
- */
+/** Over every store. Strict: a note that counts as saved survives losing power right after. */
 export function write(db: IDBDatabase, work: (tx: IDBTransaction) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["notes", "docs", "meta"], "readwrite", { durability: "strict" });

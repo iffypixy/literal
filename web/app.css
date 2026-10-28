@@ -96,7 +96,6 @@
   }
 }
 
-/* Like nano's bottom line: the keys worth knowing. */
 .hint {
   position: fixed;
   right: calc(env(safe-area-inset-right, 0px) + var(--edge));

@@ -8,7 +8,7 @@
   pointer-events: none;
   z-index: 30;
 
-  /* With the phone's sheet open, it sits above the sheet's footer: a control, with 4px above and below. */
+  /* Above the phone sheet's footer: a control, with 4px above and below. */
   @media (max-width: 640px) {
     body:has(.overlay:not([hidden])) & {
       bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 8px + var(--edge));

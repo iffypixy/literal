@@ -1,7 +1,7 @@
 /*
- * At the top of a view: the chevron's ink, not the button around it, sits on the text's left edge and on the
- * top padding, at any control size. The 20px icon draws its chevron 7px in from the left and 5px from the top,
- * 10px tall; the heading's letters then start a group's space below it.
+ * The chevron's ink, not the button around it, sits on the text's left edge and on the top padding, at any control
+ * size. The 20px icon draws its chevron 7px in from the left and 5px from the top, 10px tall; the heading's letters
+ * then start a group's space below it.
  */
 .back {
   flex: none;

@@ -7,11 +7,10 @@ export { UserNotes } from "./notes.ts";
 export interface Env {
   DB: D1Database;
   NOTES: DurableObjectNamespace<UserNotes>;
-  /** Sends the sign-in codes, through Cloudflare's email service. */
   EMAIL: SendEmail;
   /** Where the app is served, e.g. https://literal.ink: sign-in and origin checks use it. */
   APP_URL: string;
-  /** The address code emails come from, e.g. code@literal.ink: the only one EMAIL may send from. */
+  /** The only address EMAIL may send from, e.g. code@literal.ink. */
   EMAIL_FROM: string;
   BETTER_AUTH_SECRET: string;
 }
@@ -23,7 +22,6 @@ const AuthRoutes = new Set([
   "/api/auth/sign-in/email-otp",
 ]);
 
-/** Everything but the static app: accounts, account deletion, and the sync socket. The app itself is static assets. */
 export default {
   async fetch(request, env): Promise<Response> {
     const { pathname } = new URL(request.url);
@@ -33,13 +31,11 @@ export default {
     if (AuthRoutes.has(pathname)) return handleAuth(request, env);
     return new Response("not found", { status: 404 });
   },
-  /** Every half hour, as wrangler.jsonc sets it. */
   async scheduled(_controller, env) {
     await forgetSignIns(env.DB);
   },
 } satisfies ExportedHandler<Env>;
 
-/** Hands the socket to the signed-in user's own Durable Object, saying which session it's for. */
 async function connect(request: Request, env: Env): Promise<Response> {
   if (request.headers.get("Upgrade") !== "websocket") return new Response("expected a websocket", { status: 426 });
   if (!sameOrigin(request, env)) return new Response("forbidden", { status: 403 });
@@ -61,7 +57,7 @@ function signedOut(): Response {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-/** Signs out, and closes the session's sockets: the session is checked only when a socket opens. */
+/** Also closes the session's sockets: they check their session only as they open. */
 async function signOut(request: Request, env: Env): Promise<Response> {
   const session = await createAuth(env).api.getSession({ headers: request.headers });
   const response = await handleAuth(request, env);
@@ -69,14 +65,12 @@ async function signOut(request: Request, env: Env): Promise<Response> {
   return response;
 }
 
-/** Deletes the account and every synced note, at once. */
 async function deleteAccount(request: Request, env: Env): Promise<Response> {
   if (!sameOrigin(request, env)) return new Response("forbidden", { status: 403 });
   const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new Response("signed out", { status: 401 });
   await notesOf(env, session.user.id).wipe();
-  // Its sessions and accounts go with it.
   await (await auth.$context).internalAdapter.deleteUser(session.user.id);
   return new Response(null, { status: 204 });
 }

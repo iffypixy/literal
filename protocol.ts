@@ -14,7 +14,7 @@ import * as encoding from "lib0/encoding";
 
 export type Message =
   | { type: "hello"; since: number; notes: { id: string; vector: Uint8Array; dirty: boolean }[] }
-  /** `done` marks the last batch; `now` is the server time the device has then caught up to. */
+  /** `now`: the server time the device has caught up to once the `done` batch arrives. */
   | {
       type: "catch-up";
       done: boolean;
@@ -24,22 +24,17 @@ export type Message =
   /** `seq` numbers a device's updates so the server can ack them; the server's own updates carry 0. */
   | { type: "update"; seq: number; id: string; update: Uint8Array }
   | { type: "ack"; seq: number }
-  /** The update was refused: the note grew past its limit, or the account would hold too many notes, or too much. */
   | { type: "refused"; seq: number; reason: Refusal }
-  /** Notes deleted long ago, erased for good: devices erase them too. */
+  /** Notes deleted over 30 days ago, erased for good: devices erase them too. */
   | { type: "purge"; ids: string[] };
 
-/**
- * The longest note that syncs, in characters as Yjs counts them (UTF-16 code units). The device holds a longer
- * one back itself. The server refuses a note whose state outgrows its row, which one this long does only after a
- * pathological history, like each character typed in a new spot in Chinese: such a note stays on its device.
- */
+/** The longest note that syncs, in UTF-16 code units, as Yjs counts. The device holds a longer one back. */
 export const MaxLength = 100_000;
-/** How many notes an account holds, and how many bytes of them. Deleted notes don't count. */
+/** Deleted notes don't count toward these. */
 export const MaxNotes = 10_000;
 export const MaxBytes = 100_000_000;
 
-/** Close codes the server uses, so the device knows not to just reconnect. */
+/** The close code that tells a device to stop reconnecting and ask to sign in. */
 export const SignedOut = 4001;
 
 /** The order of Types and Refusals is the wire format: only ever append. */
@@ -98,7 +93,7 @@ function isPlain(bytes: Uint8Array): bytes is Uint8Array<ArrayBuffer> {
   return bytes.buffer instanceof ArrayBuffer;
 }
 
-/** Parses a message; throws on anything malformed, so a bad peer gets disconnected rather than half-understood. */
+/** Throws on anything malformed, so a bad peer gets disconnected rather than half-understood. */
 export function decode(data: Uint8Array): Message {
   const input = decoding.createDecoder(data);
   const message = readMessage(input);
@@ -148,10 +143,7 @@ function readMessage(input: decoding.Decoder): Message {
   }
 }
 
-/**
- * Reads a count, then that many items. Every item takes a byte at least, so a count past the bytes left is
- * malformed: no message makes its reader allocate more than it holds.
- */
+/** Every item takes a byte at least: a count past the bytes left would make the reader allocate for nothing. */
 function readList<T>(input: decoding.Decoder, item: () => T): T[] {
   const count = decoding.readVarUint(input);
   if (count > input.arr.length - input.pos) throw new Error("decode: count past the end");
@@ -172,8 +164,8 @@ function readBoolean(input: decoding.Decoder): boolean {
 }
 
 /**
- * Whether `id` has the shape of a note id, so nothing else ever becomes a key in storage: 10 characters of
- * Crockford's base32, or, for a note made before those, 12 of base64url.
+ * 10 characters of lowercase Crockford base32, or, for a note made before those, 12 of base64url: nothing else ever
+ * becomes a key in storage.
  */
 export function isNoteId(id: string): boolean {
   return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id) || /^[\w-]{12}$/.test(id);

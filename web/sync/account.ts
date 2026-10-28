@@ -1,17 +1,20 @@
-/** The account, as far as this device knows: just the email it's signed in with, remembered across visits. */
+/**
+ * The account, as far as this device knows: the email it's signed in with. Requests resolve to a message for the
+ * person when they didn't work.
+ */
 
 import { createMutable } from "solid-js/store";
 import { wipe } from "../notes/notes.ts";
 
 const AccountKey = "literal:account";
-/** Where signing out or deleting the account leaves its word, which App says after the reload. */
+/** What signing out or deleting the account says once the page has reloaded. */
 export const FarewellKey = "literal:farewell";
-/** How long a request may take before it counts as failed: a dead network would leave it waiting forever. */
+/** A dead network would leave a request waiting forever. */
 const RequestTimeout = 15_000;
 
 export const account = createMutable<{ email: string | null }>({ email: remembered() });
 
-/** Asks the server who's signed in. Null when nobody is; throws when the server can't be reached. */
+/** Null when nobody is signed in; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
   const response = await fetch("/api/auth/get-session", {
     credentials: "same-origin",
@@ -37,12 +40,11 @@ export function signedIn(email: string) {
   remember(email);
 }
 
-/** What to say when a request didn't reach the server, or never came back. */
+/** For a request that didn't reach the server, or never came back. */
 export function unreachable(): string {
   return navigator.onLine ? "Couldn't connect, please try again" : "Connect to the internet and try again";
 }
 
-/** Emails a sign-in code. Resolves to a message for the person when it didn't work. */
 export async function sendCode(email: string): Promise<string | null> {
   const response = await post("/api/auth/email-otp/send-verification-otp", { email, type: "sign-in" });
   if (response.ok) return null;
@@ -52,7 +54,6 @@ export async function sendCode(email: string): Promise<string | null> {
   return "Couldn't send the code, please try again";
 }
 
-/** Signs in with the emailed code. Resolves to a message for the person when it didn't work. */
 export async function verify(email: string, code: string): Promise<string | null> {
   const response = await post("/api/auth/sign-in/email-otp", { email, otp: code });
   if (response.ok) {
@@ -67,8 +68,8 @@ export async function verify(email: string, code: string): Promise<string | null
 }
 
 /**
- * Signs out and erases every note on this device: they stay in the account. Resolves to a message for the person
- * when it didn't work: erased while the server still knew the device, it would sign right back in.
+ * Erases every note on this device (they stay in the account), but only once the server has signed it out: erased
+ * while the server still knew the device, it would sign right back in.
  */
 export async function signOut(): Promise<string | null> {
   let response: Response;
@@ -82,7 +83,6 @@ export async function signOut(): Promise<string | null> {
   return null;
 }
 
-/** Deletes the account and everything in it. Resolves to a message for the person when it didn't work. */
 export async function deleteAccount(): Promise<string | null> {
   let response: Response;
   try {
@@ -100,7 +100,7 @@ export async function deleteAccount(): Promise<string | null> {
   return null;
 }
 
-/** Erases every trace of the account on this device and starts over, saying `farewell` once the page is back. */
+/** Erases every trace of the account on this device and starts over. */
 async function forget(farewell: string) {
   await wipe();
   try {

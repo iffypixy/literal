@@ -28,7 +28,7 @@
     outline: none;
   }
 
-  /* On a touch screen, the panel's text is the page's size: 16px, which also keeps iOS from zooming into fields. */
+  /* The page's size, which also keeps iOS from zooming into fields. */
   @media (pointer: coarse) {
     & .panel {
       font-size: 16px;
@@ -117,19 +117,17 @@
     -webkit-user-select: none;
   }
 
-  /* The keyboard's place in the list: a quiet wash. */
   & .rows[data-highlighted] [aria-selected="true"] .row {
     background: color-mix(in srgb, var(--text) 6%, var(--surface));
   }
 
-  /* Asked for more contrast, the wash alone (1.13:1) isn't enough to find: the accent's edge marks the row. */
+  /* The wash alone (1.13:1) isn't enough to find: the accent's edge marks the row. */
   @media (prefers-contrast: more) {
     & .rows[data-highlighted] [aria-selected="true"] .row {
       box-shadow: inset 2px 0 var(--accent);
     }
   }
 
-  /* Pressed: the row answers the finger before the sheet moves. */
   & .row:active {
     background: color-mix(in srgb, var(--text) 10%, var(--surface));
   }
@@ -162,7 +160,6 @@
     color: var(--muted);
   }
 
-  /* Full ink on the wash, even in a grey snippet: a hit is what you're looking for. */
   & .rows mark {
     background: var(--highlight);
     color: var(--text);
@@ -228,7 +225,7 @@
     height: 1px;
   }
 
-  /* Only when commands show: which rows do something, which rows are notes. Each label heads its own rows. */
+  /* Only when commands show: which rows do something, which rows are notes. */
   & .group {
     padding: var(--group) var(--inset) var(--pair);
     color: var(--muted);
@@ -307,7 +304,6 @@
     color: var(--muted);
   }
 
-  /* A heading and the line that explains it read as one. */
   & .ask h2 + p {
     margin-top: var(--pair);
   }
@@ -316,7 +312,6 @@
     color: var(--danger);
   }
 
-  /* Who made it, then the fine print: each a group of its own. */
   & .ask .section {
     margin-top: var(--group);
   }
@@ -417,7 +412,6 @@
     animation: fade-in var(--quick) var(--ease-out) reverse forwards;
   }
 
-  /* On a phone, the panel is a sheet from the bottom. */
   @media (max-width: 640px) {
     & .panel {
       position: absolute;
@@ -433,7 +427,6 @@
       border-radius: var(--radius) var(--radius) 0 0;
     }
 
-    /* Drag it down, or tap it, to close. */
     & .grab {
       display: grid;
       place-items: center;

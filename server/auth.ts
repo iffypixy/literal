@@ -30,8 +30,8 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
 }
 
 /**
- * Erases what signing in no longer needs, so none of it outlasts what the privacy page says: codes past their
- * 10 minutes, past days' counts, and attempts that no longer count. The library keeps dates as ISO text.
+ * Erases what signing in no longer needs, so none of it outlasts what the privacy page says: expired codes, past
+ * days' counts, and attempts that no longer count. The library keeps dates as ISO text.
  */
 export async function forgetSignIns(db: D1Database) {
   await db.batch([
@@ -41,7 +41,6 @@ export async function forgetSignIns(db: D1Database) {
   ]);
 }
 
-/** Accounts exist only for sync: no passwords, just a code by email. */
 export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
   return betterAuth({
     baseURL: env.APP_URL,
@@ -85,7 +84,7 @@ export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
   });
 }
 
-/** Emails the sign-in code. On the local dev server, which sends no email, prints it instead. */
+/** The local dev server sends no email: it prints the code instead. */
 async function sendCode(env: Env, email: string, code: string, type: string) {
   if (type !== "sign-in") throw new Refused(400, "sign-in codes only");
   if (isLocal(env)) {
@@ -101,7 +100,7 @@ async function sendCode(env: Env, email: string, code: string, type: string) {
   });
 }
 
-/** A code that's not sent on purpose: the request fails with `status`, and the message as its body. */
+/** A code not sent on purpose: the request fails with `status`, and the message as its body. */
 class Refused extends Error {
   status: number;
 
@@ -111,7 +110,6 @@ class Refused extends Error {
   }
 }
 
-/** Counts a code toward today's, for its address and for everyone, and refuses it past either limit. */
 async function countCode(db: D1Database, email: string) {
   const add = async (key: string) => {
     const count = await db
@@ -134,12 +132,11 @@ async function sha256(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Today as a UTC date, the way "codesSent" keys its counts. */
+/** As a UTC date, the way "codesSent" keys its counts. */
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** The local dev server is plain http; the real one never is. */
 function isLocal(env: Env): boolean {
   return !env.APP_URL.startsWith("https://");
 }

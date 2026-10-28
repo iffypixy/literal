@@ -7,12 +7,11 @@ import * as notes from "../notes/notes.ts";
 import { quoted } from "../notes/search.ts";
 import { toast } from "../ui/toast.tsx";
 
-/** What the corner says, if anything: nothing while all is well. */
+/** What the corner says: nothing while all is well. */
 export type Status = "" | "Offline" | "Not synced" | "Sign in to sync";
 
 export const sync = createMutable<{ status: Status }>({ status: "" });
 
-/** How long the connection may be down before the corner says so. */
 const DownAfter = 5000;
 /**
  * A lost network often leaves a WebSocket open and silent. So the device pings when idle, and treats the
@@ -47,18 +46,17 @@ const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: R
 const behind = new Map<string, number>();
 let retry = RetryMin;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
-/** When the connection went down; null while it's up. Down from the start, until the first one opens. */
+/** Null while the connection is up. Down from the start, until the first one opens. */
 let downSince: number | null = Date.now();
-/** When the current connection was started. */
 let tried = 0;
 let lastHeard = 0;
 let pingSent = 0;
 /** Messages are handled one at a time, in order: each may wait on disk. */
 let queue = Promise.resolve();
-/** Refusals already explained: each is said once, not once for every change the server turns away. */
+/** Each refusal is explained once, not once for every change the server turns away. */
 const told = new Set<string>();
 
-/** Starts syncing; called again after signing in anew, it tries again at once. */
+/** Called again after signing in anew, it tries again at once. */
 export function start() {
   signedOut = false;
   if (running) {
@@ -117,7 +115,7 @@ function connect() {
   };
 }
 
-/** Runs `work` after everything before it on this connection, which goes down if anything fails. */
+/** After everything before it; anything failing takes the connection down. */
 function run(ws: WebSocket, work: () => Promise<void>) {
   queue = queue.then(work).catch((error: unknown) => {
     console.error(error);
@@ -148,7 +146,6 @@ function abandon() {
   unacked.clear();
 }
 
-/** Tries again right away: the network came back, or the app came back to the front. */
 function reconnect() {
   if (!running || signedOut || socket) return;
   retry = RetryMin;
@@ -210,7 +207,7 @@ async function handle(ws: WebSocket, message: Message) {
   }
 }
 
-/** Sends every change still waiting, then gives the server a moment to take them all: before signing out. */
+/** Before signing out: sends every change still waiting, then gives the server a moment to take them all. */
 export async function drain() {
   await notes.flush();
   await Promise.all([...outbox.keys()].map((id) => flush(id)));
@@ -251,7 +248,7 @@ async function flush(id: string) {
   if (whole) send(id, whole, true);
 }
 
-/** Sends a change now if connected; otherwise the note stays dirty, and goes with the next hello. */
+/** If not connected, the note stays dirty, and goes with the next hello. */
 function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   unacked.set(++seq, { id, upTo: notes.generation(id), at: Date.now(), whole });
@@ -269,7 +266,6 @@ function fallBehind(id: string, since: number) {
   behind.set(id, Math.max(since, behind.get(id) ?? 0));
 }
 
-/** Once a second: checks the connection is alive, and updates the status. */
 function tick() {
   const now = Date.now();
   if (socket?.readyState === WebSocket.CONNECTING && now - tried > DeadAfter) drop();

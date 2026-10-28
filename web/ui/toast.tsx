@@ -3,13 +3,13 @@ import { createMutable } from "solid-js/store";
 import { caps } from "../keys.ts";
 import "./toast.css";
 
-/** `keys` is the shortcut that also takes the action, shown beside it. */
+/** `keys`: the shortcut that also takes the action, shown beside it. */
 type Action = { label: string; keys?: string[]; run: () => void };
 
 type Toast = {
   message: string;
   action?: Action;
-  /** Runs when the toast goes without its action being taken. */
+  /** Runs when the toast goes without its action taken. */
   onExpire?: () => void;
 };
 
@@ -29,12 +29,11 @@ export function toast(message: string, options: Omit<Toast, "message"> = {}) {
   resume();
 }
 
-/** Takes the toast's action, and ends it. */
 export function act() {
   quiet()?.action?.run();
 }
 
-/** Ends the toast without its expiry, as the next one takes over what it was about. */
+/** Ends the toast without its expiry: the next one takes over what it was about. */
 export function quiet(): Toast | null {
   const toast = shown.toast;
   clearTimeout(timer);
@@ -47,7 +46,6 @@ export function quiet(): Toast | null {
   return toast;
 }
 
-/** The toast, rising in; the ones it replaced fade out beneath it, each from wherever it was. */
 export function Toasts() {
   const cards = () => (shown.toast ? [...shown.leaving, shown.toast] : shown.leaving);
 
@@ -93,7 +91,7 @@ function expire() {
   quiet()?.onExpire?.();
 }
 
-/** Stops the clock while the pointer is on the toast or the page is hidden: nobody misses an Undo. */
+/** On hover, focus, or a hidden page: nobody misses an Undo. */
 function pause() {
   if (!running) return;
   running = false;
