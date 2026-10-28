@@ -82,10 +82,7 @@ export function List(props: Props) {
   const found = createMemo(() =>
     words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
-  const results = createMemo(() => {
-    void notes.version;
-    return search(list(), words());
-  });
+  const results = createMemo(() => search(list(), words()));
   const shown = createMemo(() => results().slice(0, limit()));
   const entries = createMemo<(Action | Note)[]>(() => [...found(), ...shown()]);
   /**

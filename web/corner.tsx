@@ -28,14 +28,10 @@ export function Corner(props: Props) {
   /** With a mouse, the buttons step aside while you type, and come back when the mouse moves. */
   const [typing, setTyping] = createSignal(false);
 
-  const tooLong = createMemo(() => {
-    void notes.version;
-    return Boolean(account.email && props.current && length(props.current) > MaxLength);
-  });
+  const tooLong = createMemo(() => Boolean(account.email && props.current && length(props.current) > MaxLength));
   const problem = () => (notes.failed ? "Can't save here" : sync.status || (tooLong() ? "Too long to sync" : ""));
   const calm = createMemo(() => {
     if (props.current) return "Saved";
-    void notes.version;
     const live = notes.ready ? count() : 0;
     return live ? `${live.toLocaleString()} ${live === 1 ? "note" : "notes"}` : "";
   });

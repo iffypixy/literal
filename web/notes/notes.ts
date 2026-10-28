@@ -43,10 +43,12 @@ const ReadBatch = 500;
 const TouchEvery = 1000;
 const TabId = crypto.randomUUID();
 
-/** `synced`: this device has caught up with its account at least once, so its list is the whole list. */
+/**
+ * `version` ticks whenever a note changes: reading anything below tracks it. `synced`: this device has caught up
+ * with its account at least once, so its list is the whole list.
+ */
 export const notes = createMutable({ version: 0, ready: false, failed: false, synced: false });
 
-/** Every note on this device by id. Not reactive: `notes.version` ticks when it changes. */
 const all = new Map<string, Note>();
 const marks = new Map<string, { vector: Uint8Array; dirty: boolean }>();
 const loading = new Map<string, Promise<Y.Doc | null>>();
@@ -110,6 +112,7 @@ export function start(): Promise<void> {
 
 /** Live notes, last edited first. The same array until a note changes: don't modify it. */
 export function list(): Note[] {
+  void notes.version;
   // Notes still waiting to be saved are newer in memory than in the list.
   for (const id of pending.keys()) {
     const doc = loaded.get(id);
@@ -125,17 +128,20 @@ export function list(): Note[] {
 }
 
 export function count(): number {
+  void notes.version;
   let live = 0;
   for (const note of all.values()) if (isLive(note)) live++;
   return live;
 }
 
 export function find(id: string): Note | undefined {
+  void notes.version;
   return all.get(id);
 }
 
 /** Listed, opened, or just made. */
 export function exists(id: string): boolean {
+  void notes.version;
   return all.has(id) || loaded.has(id);
 }
 
@@ -290,6 +296,7 @@ export async function missing(id: string, vector?: Uint8Array): Promise<Uint8Arr
 
 /** In characters as Yjs counts them: what decides whether it syncs. */
 export function length(id: string): number {
+  void notes.version;
   return loaded.get(id)?.getText("text").length ?? all.get(id)?.text.length ?? 0;
 }
 

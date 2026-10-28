@@ -4,17 +4,18 @@
  */
 
 import { createMutable } from "solid-js/store";
-import { wipe } from "../notes/notes.ts";
+import { setSignedIn, wipe } from "../notes/notes.ts";
 import * as storage from "../storage.ts";
 
 /** Remembered, so the app knows it's signed in before the server answers, or when it can't. */
 const AccountKey = "account";
 /** What signing out or deleting the account says once the page has reloaded. */
-export const FarewellKey = "farewell";
+const FarewellKey = "farewell";
 /** A dead network would leave a request waiting forever. */
 const RequestTimeout = 15_000;
 
 export const account = createMutable<{ email: string | null }>({ email: storage.read(AccountKey) });
+setSignedIn(account.email !== null);
 
 /** Null when nobody is signed in; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
@@ -40,6 +41,14 @@ export async function session(): Promise<string | null> {
 export function signedIn(email: string) {
   account.email = email;
   storage.write(AccountKey, email);
+  setSignedIn(true);
+}
+
+/** Said once, after the reload that signing out or deleting the account ends with. */
+export function farewell(): string | null {
+  const said = storage.read(FarewellKey);
+  storage.remove(FarewellKey);
+  return said;
 }
 
 /** For a request that didn't reach the server, or never came back. */
