@@ -1,0 +1,42 @@
+.button {
+  min-height: var(--control);
+  padding: 0 var(--inset);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  transition:
+    transform var(--quick) var(--ease-out),
+    background-color var(--quick) ease,
+    opacity var(--quick) ease;
+
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  &.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  /* Disabled, every button is a grey outline: the main one takes the accent once it can act. */
+  &.primary:disabled {
+    border-color: var(--line);
+    background: transparent;
+    color: var(--muted);
+  }
+
+  &.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover:not(:disabled) {
+      background: var(--hover);
+    }
+
+    &.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+  }
+}

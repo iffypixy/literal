@@ -1,9 +1,8 @@
 import { createEffect, createMemo, createSignal, onMount, Show } from "solid-js";
 import type * as Y from "yjs";
 import { isNoteId, MaxLength } from "../protocol.ts";
-import { mouse } from "./device.ts";
+import { Mac, mouse } from "./device.ts";
 import { Editor, type EditorApi, type Position } from "./editor/editor.tsx";
-import { caps, letter, mac, mod, shortcuts } from "./keys.ts";
 import {
   count,
   create,
@@ -24,18 +23,21 @@ import {
 } from "./notes/notes.ts";
 import { prepare, quoted, shorten, title } from "./notes/search.ts";
 import { Panel, type PanelApi } from "./panel/panel.tsx";
+import { letter, mod, Shortcuts } from "./shortcuts.ts";
+import * as storage from "./storage.ts";
 import { FarewellKey, account, session, signedIn } from "./sync/account.ts";
 import { sync, start as startSync } from "./sync/sync.ts";
 import { importFiles } from "./transfer/transfer.ts";
+import { IconButton } from "./ui/icon.tsx";
+import { Keys } from "./ui/keys.ts";
 import { act, quiet, toast, Toasts } from "./ui/toast.tsx";
-import { tooltip } from "./ui/tooltip.ts";
 import { stayUpToDate } from "./update.ts";
 import "./app.css";
 
 const TitleShown = 60;
 /** Cursor positions remembered on this device, newest last. */
 const CursorsKept = 200;
-const CursorsKey = "literal:cursors";
+const CursorsKey = "cursors";
 const Explanations = {
   "Can't save here": "This browser can't save notes, so copy your text before closing",
   Offline: "Notes will sync when you're back online",
@@ -97,9 +99,9 @@ export function App() {
 
   onMount(() => {
     // A farewell left by signing out or deleting the account, which ends with a reload: said once it's done.
-    const farewell = read(FarewellKey);
+    const farewell = storage.read(FarewellKey);
     if (farewell) {
-      unset(FarewellKey);
+      storage.remove(FarewellKey);
       toast(farewell);
     }
     setSignedIn(Boolean(account.email));
@@ -197,7 +199,7 @@ export function App() {
       if (cursors.size <= CursorsKept) break;
       cursors.delete(oldest);
     }
-    write(CursorsKey, JSON.stringify([...cursors]));
+    storage.write(CursorsKey, JSON.stringify([...cursors]));
   }
 
   function navigate(path: string, how: How) {
@@ -237,7 +239,7 @@ export function App() {
     toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted "${name}"` : "Deleted", {
       action: {
         label: "Undo",
-        keys: mouse.matches ? shortcuts.undo : undefined,
+        keys: mouse.matches ? Shortcuts.undo : undefined,
         run: () => {
           deleted = [];
           undoable = false;
@@ -388,33 +390,25 @@ export function App() {
               </button>
             )}
           </Show>
-          <button
-            aria-label="New note"
-            aria-keyshortcuts="Alt+N"
-            ref={(button) => tooltip(button, "New note", shortcuts.new)}
-            onClick={newNote}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M10 4.5v11M4.5 10h11" />
-            </svg>
-          </button>
-          <button
-            aria-label="Notes"
-            aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
-            ref={(button) => tooltip(button, "Notes", shortcuts.notes)}
+          <IconButton label="New note" icon="plus" keys={Shortcuts.new} aria-keyshortcuts="Alt+N" onClick={newNote} />
+          <IconButton
+            label="Notes"
+            icon="list"
+            keys={Shortcuts.notes}
+            aria-keyshortcuts={Mac ? "Meta+K" : "Control+K"}
             onClick={() => togglePanel(true)}
-          >
-            <svg viewBox="0 0 20 20" aria-hidden="true">
-              <path d="M4.5 6h11M4.5 10h11M4.5 14h7" />
-            </svg>
-          </button>
+          />
         </div>
 
         {/* Only on a blank page, where it covers nothing: gone with the first word. */}
         {mouse.matches && (
           <p class="hint" classList={{ gone: current() !== null }} aria-hidden="true">
-            <span>{caps(shortcuts.new)} new note</span>
-            <span>{caps(shortcuts.notes)} notes</span>
+            <span>
+              <Keys keys={Shortcuts.new} /> new note
+            </span>
+            <span>
+              <Keys keys={Shortcuts.notes} /> notes
+            </span>
           </p>
         )}
       </div>
@@ -450,12 +444,10 @@ export function App() {
   );
 }
 
-// Conveniences kept for this device only: a browser that refuses storage just goes without them.
-
 function remembered(): [string, Position][] {
   let saved: unknown;
   try {
-    saved = JSON.parse(read(CursorsKey) ?? "[]");
+    saved = JSON.parse(storage.read(CursorsKey) ?? "[]");
   } catch {
     return []; // garbled: forget the cursors, keep the app
   }
@@ -468,22 +460,6 @@ function isCursor(entry: unknown): entry is [string, Position] {
   return (position.length === 2 || position.length === 3) && position.every((at) => typeof at === "number");
 }
 
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function unset(key: string) {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // no storage, so nothing to unset
-  }
-}
-
 /**
  * The note an address names, like `/7k3qx9m2da`, in either case. An older note's id, in base64url, is case-sensitive;
  * its address once began with `/n/`.
@@ -491,14 +467,6 @@ function unset(key: string) {
 function idFrom(path: string): string | null {
   const name = path.replace(/^\/(n\/)?/, "");
   return [name, name.toLowerCase()].find(isNoteId) ?? null;
-}
-
-function write(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // no storage, so nothing kept
-  }
 }
 
 function hasFiles(event: DragEvent): boolean {

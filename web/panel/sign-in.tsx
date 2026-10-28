@@ -1,7 +1,8 @@
 import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { reducedMotion, touch } from "../device.ts";
-import { composing } from "../keys.ts";
+import { Fragile, reducedMotion, touch } from "../device.ts";
+import { composing } from "../shortcuts.ts";
 import { sendCode, unreachable, verify } from "../sync/account.ts";
+import { Button } from "../ui/button.tsx";
 import { Back } from "./back.tsx";
 import "./sign-in.css";
 
@@ -9,8 +10,6 @@ import "./sign-in.css";
 const ResendAfter = 30;
 
 type Props = {
-  /** Safari, not on the Home Screen: it may clear notes after a week away, which syncing guards against. */
-  fragile: boolean;
   onBack: () => void;
   onDone: (email: string) => void;
 };
@@ -118,7 +117,7 @@ export function SignIn(props: Props) {
           <h2 id="view-title">Sync across devices</h2>
           <p class="lead">
             Sign in to keep your notes on all your devices.
-            {props.fragile && " Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them."}
+            {Fragile && " Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them."}
           </p>
 
           <form onSubmit={send}>
@@ -138,9 +137,9 @@ export function SignIn(props: Props) {
               enterkeyhint="send"
               required
             />
-            <button class="primary" disabled={busy() || !email().trim()}>
-              {busy() ? "Sending…" : "Send code"}
-            </button>
+            <Button variant="primary" busy={busy() && "Sending…"} disabled={!email().trim()}>
+              Send code
+            </Button>
           </form>
           <Show when={error()}>
             <p class="error" role="alert">
@@ -189,17 +188,17 @@ export function SignIn(props: Props) {
             <Show
               when={wait()}
               fallback={
-                <button class="link" onClick={() => send()}>
+                <Button variant="link" onClick={() => void send()}>
                   Resend code
-                </button>
+                </Button>
               }
             >
               <span>Resend code in {wait()}s</span>
             </Show>
             <span>·</span>
-            <button class="link" onClick={restart}>
+            <Button variant="link" onClick={restart}>
               Use another email
-            </button>
+            </Button>
           </p>
         </Match>
       </Switch>

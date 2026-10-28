@@ -1,6 +1,6 @@
 import { createEffect, onCleanup } from "solid-js";
 import type * as Y from "yjs";
-import { composing } from "../keys.ts";
+import { composing } from "../shortcuts.ts";
 import { bind } from "./binding.ts";
 
 export type Position = [start: number, end: number, scroll?: number];

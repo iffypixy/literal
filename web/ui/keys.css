@@ -1,0 +1,21 @@
+.keys {
+  display: inline-flex;
+  gap: 2px;
+  white-space: nowrap;
+
+  & kbd {
+    display: inline-block;
+    min-width: 1.5em;
+    box-sizing: border-box;
+    padding: 0 0.3em;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-small);
+    font: inherit;
+    font-size: 0.85em;
+    line-height: 1.45;
+    /* A cap is a little taller than the line: this keeps rows at their height and caps on the baseline. */
+    margin-block: -1px;
+    text-align: center;
+    color: var(--muted);
+  }
+}

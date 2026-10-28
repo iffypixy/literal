@@ -1,6 +1,6 @@
 import { onCleanup } from "solid-js";
 import { mouse } from "../device.ts";
-import { caps } from "../keys.ts";
+import { Keys } from "./keys.ts";
 import "./tooltip.css";
 
 /**
@@ -40,14 +40,14 @@ let warmUntil = 0;
 function show(node: HTMLElement, label: string, keys: string[] | undefined, instant: boolean) {
   if (!tip) {
     tip = document.body.appendChild(document.createElement("div"));
-    tip.className = "tooltip";
+    tip.className = "tooltip surface";
     tip.setAttribute("aria-hidden", "true");
     // Typing means the mouse is resting, not asking.
     addEventListener("keydown", hide);
   }
   owner = node;
   tip.replaceChildren(label);
-  if (keys) tip.append(caps(keys));
+  if (keys) tip.append(Keys({ keys }));
   tip.toggleAttribute("data-instant", instant);
 
   // Under the button, right edges aligned (every button with one sits on the right); above if there's no room.

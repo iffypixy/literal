@@ -1,6 +1,7 @@
 import { batch, For, Show } from "solid-js";
 import { createMutable } from "solid-js/store";
-import { caps } from "../keys.ts";
+import { Button } from "./button.tsx";
+import { Keys } from "./keys.ts";
 import "./toast.css";
 
 /** `keys`: the shortcut that also takes the action, shown beside it. */
@@ -56,7 +57,7 @@ export function Toasts() {
           const gone = () => toast !== shown.toast;
           return (
             <div
-              class="toast"
+              class="toast surface"
               classList={{ leaving: gone() }}
               inert={gone()}
               onPointerEnter={pause}
@@ -72,10 +73,10 @@ export function Toasts() {
               <Show when={toast.action}>
                 {(action) => (
                   <span class="action">
-                    <button class="link" onClick={act}>
+                    <Button variant="link" onClick={act}>
                       {action().label}
-                    </button>
-                    <Show when={action().keys}>{(keys) => caps(keys())}</Show>
+                    </Button>
+                    <Show when={action().keys}>{(keys) => <Keys keys={keys()} />}</Show>
                   </span>
                 )}
               </Show>

@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import { letter, mod } from "../keys.ts";
+import { letter, mod } from "../shortcuts.ts";
 
 type Delta = Y.YTextEvent["delta"];
 
