@@ -45,21 +45,6 @@ export class UserNotes extends DurableObject<Env> {
       this.sql.exec(
         "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, state BLOB NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL, checked_at INTEGER NOT NULL DEFAULT 0, deleted_at INTEGER)",
       );
-      const columns = new Set(
-        this.sql
-          .exec<{ name: string }>("SELECT name FROM pragma_table_info('notes')")
-          .toArray()
-          .map((column) => column.name),
-      );
-      if (!columns.has("checked_at")) {
-        this.sql.exec("ALTER TABLE notes ADD COLUMN checked_at INTEGER NOT NULL DEFAULT 0");
-      }
-      // Notes stored when deletion went by device clocks are all read again, and a deleted one dated by its last write.
-      if (!columns.has("deleted_at")) {
-        this.sql.exec("ALTER TABLE notes ADD COLUMN deleted_at INTEGER");
-        this.sql.exec("UPDATE notes SET checked_at = 0");
-      }
-      if (columns.has("deleted")) this.sql.exec("ALTER TABLE notes DROP COLUMN deleted");
       // To reach a column after `state`, SQLite steps through all of it: these spare every scan that.
       this.sql.exec("CREATE INDEX IF NOT EXISTS notes_updated_at ON notes (updated_at)");
       this.sql.exec("CREATE INDEX IF NOT EXISTS notes_deleted_at ON notes (deleted_at)");

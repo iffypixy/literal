@@ -282,11 +282,8 @@ export function App() {
   );
 }
 
-/**
- * The note an address names, like `/7k3qx9m2da`, in either case. An older note's id, in base64url, is case-sensitive;
- * its address once began with `/n/`.
- */
+/** The note an address names, like `/7k3qx9m2da`, in either case. */
 function idFrom(path: string): string | null {
-  const name = path.replace(/^\/(n\/)?/, "");
-  return [name, name.toLowerCase()].find(isNoteId) ?? null;
+  const id = path.slice(1).toLowerCase();
+  return isNoteId(id) ? id : null;
 }
