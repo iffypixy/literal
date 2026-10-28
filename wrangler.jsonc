@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "literal",
-  "main": "worker/src/index.ts",
+  "main": "server/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   // Served at literal.ink alone: sign-in and sync only work at APP_URL, so there's no workers.dev copy.
@@ -22,7 +22,7 @@
       "database_name": "literal",
       // From `wrangler d1 create literal`: another deployment puts its own here.
       "database_id": "bc547f81-639d-4ce6-a0fc-374a8d5d4b60",
-      "migrations_dir": "worker/migrations",
+      "migrations_dir": "server/migrations",
     },
   ],
   // Sign-in codes, sent from literal.ink once `wrangler email sending enable literal.ink` has set it up.

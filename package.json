@@ -6,8 +6,8 @@
     "dev": "vite --host --port 5390 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host --port 5390 --strictPort",
-    "check": "tsc && tsc -p tsconfig.node.json && tsc -p worker && oxlint --type-aware --deny-warnings && oxfmt --check",
-    "deploy": "pnpm check && vite build && wrangler d1 migrations apply literal --remote && wrangler deploy --config app/dist/literal/wrangler.json",
+    "check": "tsc && tsc -p tsconfig.node.json && tsc -p server && oxlint --type-aware --deny-warnings && oxfmt --check",
+    "deploy": "pnpm check && vite build && wrangler d1 migrations apply literal --remote && wrangler deploy --config web/dist/literal/wrangler.json",
     "test": "playwright test",
     "format": "oxfmt"
   },

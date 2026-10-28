@@ -15,5 +15,5 @@
     "isolatedModules": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["app/src", "protocol"]
+  "include": ["web", "protocol.ts"]
 }
