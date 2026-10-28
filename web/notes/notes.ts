@@ -64,7 +64,7 @@ const touched = new Map<string, number>();
 /** Notes changed here since their last save. */
 const changed = new Set<string>();
 /** How many changes each note had here: an ack only cleans a note if none came after what it covers. */
-const edits = new Map<string, number>();
+const generations = new Map<string, number>();
 const listeners = new Set<(id: string, update: Uint8Array) => void>();
 
 /** Signed in, deleted notes stay as tombstones so other devices learn of the delete; signed out, they're erased. */
@@ -214,7 +214,7 @@ export async function purge(id: string) {
   seen.delete(id);
   touched.delete(id);
   changed.delete(id);
-  edits.delete(id);
+  generations.delete(id);
   storage.remove(Rescued + id);
   notes.version++;
   channel.postMessage({ type: "purge", id } satisfies Message);
@@ -335,7 +335,7 @@ export async function unsync() {
 }
 
 export function generation(id: string): number {
-  return edits.get(id) ?? 0;
+  return generations.get(id) ?? 0;
 }
 
 /** The server stored the note's changes up to generation `upTo`: if nothing was typed since, it's clean. */
@@ -439,7 +439,7 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
     channel.postMessage({ type: "update", id, update } satisfies Message);
     if (origin !== Remote) {
       changed.add(id);
-      edits.set(id, generation(id) + 1);
+      generations.set(id, generation(id) + 1);
       for (const listener of listeners) listener(id, update);
     }
     schedule(id);

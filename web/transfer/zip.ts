@@ -79,7 +79,7 @@ function dosTime(date: Date): [number, number] {
   ];
 }
 
-const table = Array.from({ length: 256 }, (_, n) => {
+const CrcTable = Array.from({ length: 256 }, (_, n) => {
   let c = n;
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
   return c >>> 0;
@@ -87,6 +87,6 @@ const table = Array.from({ length: 256 }, (_, n) => {
 
 function crc32(data: Uint8Array): number {
   let crc = 0xffffffff;
-  for (const byte of data) crc = (table[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+  for (const byte of data) crc = (CrcTable[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
   return (crc ^ 0xffffffff) >>> 0;
 }

@@ -2,6 +2,12 @@ import type { Note } from "./notes.ts";
 
 export type Segment = { text: string; hit: boolean };
 
+/** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
+const SnippetReach = 20;
+const SnippetLength = 60;
+/** Short enough for a toast on a phone. */
+const QuoteLength = 30;
+
 const Graphemes = new Intl.Segmenter();
 
 /** A note that changes is a new object, so it's folded again. */
@@ -61,9 +67,8 @@ export function title(text: string): string {
   return split(text).first;
 }
 
-/** A note's title as a toast quotes it: short enough to fit on a phone. */
 export function quoted(text: string): string {
-  return shorten(title(text), 30);
+  return shorten(title(text), QuoteLength);
 }
 
 /** Cut at the end of a word if one ends near enough, then "…". Counts what shows as one character, emoji too. */
@@ -92,13 +97,10 @@ function split(text: string): { first: string; restAt: number } {
   return { first: text.slice(start, end).trim(), restAt: end + 1 };
 }
 
-/** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
-const SnippetReach = 20;
-
 /** A little before `at`, more after, cut at spaces near enough to keep the hit in view. */
 function around(text: string, at: number, from: number): string {
   let start = Math.max(from, at - SnippetReach);
-  let end = Math.min(text.length, at + 60);
+  let end = Math.min(text.length, at + SnippetLength);
   if (start > from) {
     const space = text.lastIndexOf(" ", start);
     if (space >= Math.max(from, start - SnippetReach)) start = space + 1;

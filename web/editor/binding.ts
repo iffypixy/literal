@@ -5,6 +5,8 @@ type Delta = Y.YTextEvent["delta"];
 
 /** Marks the changes this textarea makes, so they aren't echoed back into it. */
 const Typed = Symbol("typed");
+/** Typing within this many milliseconds undoes as one step. */
+const UndoStep = 600;
 
 /**
  * Keeps a textarea and a Yjs text the same, both ways. Typing goes into the text as the smallest change;
@@ -15,7 +17,7 @@ const Typed = Symbol("typed");
 export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   if (!text.doc) throw new Error("bind: the text is in no document");
   const doc = text.doc;
-  const undo = new Y.UndoManager(text, { trackedOrigins: new Set([Typed]), captureTimeout: 600 });
+  const undo = new Y.UndoManager(text, { trackedOrigins: new Set([Typed]), captureTimeout: UndoStep });
   /** What the textarea showed when it was last in step with the text. */
   let shown = "";
   /** Changes from elsewhere, waiting for the textarea to be free. */

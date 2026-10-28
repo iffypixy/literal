@@ -52,7 +52,7 @@ let tried = 0;
 let lastHeard = 0;
 let pingSent = 0;
 /** Messages are handled one at a time, in order: each may wait on disk. */
-let queue = Promise.resolve();
+let chain = Promise.resolve();
 /** Each refusal is explained once, not once for every change the server turns away. */
 const told = new Set<string>();
 
@@ -61,11 +61,11 @@ export function start() {
   signedOut = false;
   if (running) {
     reconnect();
-    update();
+    report();
     return;
   }
   running = true;
-  notes.onLocal(post);
+  notes.onLocal(hold);
   // A connection from before the network dropped is usually dead even if it looks open: start over.
   addEventListener("online", () => {
     drop();
@@ -73,8 +73,8 @@ export function start() {
   });
   addEventListener("offline", drop);
   // Leaving the app sends what's waiting at once; coming back reconnects.
-  document.addEventListener("visibilitychange", () => (document.hidden ? sendAll() : reconnect()));
-  addEventListener("pagehide", sendAll);
+  document.addEventListener("visibilitychange", () => (document.hidden ? releaseAll() : reconnect()));
+  addEventListener("pagehide", releaseAll);
   setInterval(tick, 1000);
   connect();
 }
@@ -107,7 +107,7 @@ function connect() {
       socket = null;
       abandon();
       signedOut = true;
-      update();
+      report();
       void notes.unsync();
       return;
     }
@@ -117,7 +117,7 @@ function connect() {
 
 /** After everything before it; anything failing takes the connection down. */
 function run(ws: WebSocket, work: () => Promise<void>) {
-  queue = queue.then(work).catch((error: unknown) => {
+  chain = chain.then(work).catch((error: unknown) => {
     console.error(error);
     ws.close();
   });
@@ -137,7 +137,7 @@ function drop() {
     retryTimer = setTimeout(connect, retry * (0.75 + Math.random() / 2));
     retry = Math.min(retry * 2, RetryMax);
   }
-  update();
+  report();
 }
 
 /** Updates on a lost connection may never have arrived: their notes are behind until they go whole. */
@@ -157,10 +157,13 @@ async function handle(ws: WebSocket, message: Message) {
     case "catch-up":
       for (const note of message.notes) {
         if (note.update) await notes.receive(note.id, note.update);
-        if (note.vector && !tooLong(note.id)) {
-          const update = await notes.missing(note.id, note.vector);
-          if (update) send(note.id, update, true, ws);
+        if (!note.vector) continue;
+        if (tooLong(note.id)) {
+          fallBehind(note.id, seq);
+          continue;
         }
+        const update = await notes.missing(note.id, note.vector);
+        if (update) send(note.id, update, true, ws);
       }
       if (!message.done) break;
       await notes.caughtUp(message.now);
@@ -210,36 +213,39 @@ async function handle(ws: WebSocket, message: Message) {
 /** Before signing out: sends every change still waiting, then gives the server a moment to take them all. */
 export async function drain() {
   await notes.flush();
-  await Promise.all([...outbox.keys()].map((id) => flush(id)));
+  await Promise.all([...outbox.keys()].map((id) => release(id)));
   const until = Date.now() + DrainFor;
   while (unacked.size && socket?.readyState === WebSocket.OPEN && Date.now() < until) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   // An ack is on disk once it's been handled.
-  await queue;
+  await chain;
 }
 
-/** Holds a change made here until typing pauses, or has gone on for a while. */
-function post(id: string, update: Uint8Array) {
+/** Until typing pauses, or has gone on for a while. */
+function hold(id: string, update: Uint8Array) {
   const now = Date.now();
   const waiting = outbox.get(id) ?? { updates: [], since: now };
   clearTimeout(waiting.timer);
   waiting.updates.push(update);
-  waiting.timer = setTimeout(() => void flush(id), Math.min(SendDelay, waiting.since + SendAtMost - now));
+  waiting.timer = setTimeout(() => void release(id), Math.min(SendDelay, waiting.since + SendAtMost - now));
   outbox.set(id, waiting);
 }
 
-function sendAll() {
-  for (const id of outbox.keys()) void flush(id);
+function releaseAll() {
+  for (const id of outbox.keys()) void release(id);
 }
 
-/** Sends the note's waiting changes, as one update; or all of the note, if the server is behind on it. */
-async function flush(id: string) {
+/** Sends the note's held changes as one update; or all of the note, if the server is behind on it. */
+async function release(id: string) {
   const waiting = outbox.get(id);
   if (!waiting) return;
   clearTimeout(waiting.timer);
   outbox.delete(id);
-  if (tooLong(id)) return;
+  if (tooLong(id)) {
+    fallBehind(id, seq);
+    return;
+  }
   if (!behind.has(id)) {
     send(id, Y.mergeUpdates(waiting.updates), false);
     return;
@@ -255,11 +261,9 @@ function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   ws.send(encode({ type: "update", seq, id, update }));
 }
 
-/** A note too long to sync stays on this device, dirty, until it's short enough again. Checked before encoding it. */
+/** It stays on this device, dirty and behind, until it's short enough again. */
 function tooLong(id: string): boolean {
-  if (notes.length(id) <= MaxLength) return false;
-  fallBehind(id, seq);
-  return true;
+  return notes.length(id) > MaxLength;
 }
 
 function fallBehind(id: string, since: number) {
@@ -280,10 +284,10 @@ function tick() {
       socket.send("ping");
     }
   }
-  update();
+  report();
 }
 
-function update() {
+function report() {
   if (signedOut) sync.status = "Sign in to sync";
   else if (downSince === null || Date.now() - downSince < DownAfter) sync.status = "";
   // Down with a network means the server can't be reached; without one, the device is offline.
