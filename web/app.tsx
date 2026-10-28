@@ -1,16 +1,17 @@
-import { createEffect, createMemo, createSignal, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onMount } from "solid-js";
 import type * as Y from "yjs";
-import { isNoteId, MaxLength } from "../protocol.ts";
-import { Mac, mouse } from "./device.ts";
-import { Editor, type EditorApi, type Position } from "./editor/editor.tsx";
+import { isNoteId } from "../protocol.ts";
+import { Corner } from "./corner.tsx";
+import { recall, remember } from "./cursors.ts";
+import { mouse } from "./device.ts";
+import { Drop } from "./drop.tsx";
+import { Editor, type EditorApi } from "./editor/editor.tsx";
 import {
-  count,
   create,
   discardIfEmpty,
   exists,
   find,
   flush,
-  length,
   list,
   notes,
   open,
@@ -22,28 +23,15 @@ import {
   start,
 } from "./notes/notes.ts";
 import { prepare, quoted, shorten, title } from "./notes/search.ts";
-import { closePalette, onSheet, openPalette, Palette, palette, togglePalette } from "./palette/palette.tsx";
+import { closePalette, onSheet, Palette, palette, togglePalette } from "./palette/palette.tsx";
 import { letter, mod, Shortcuts } from "./shortcuts.ts";
 import * as storage from "./storage.ts";
-import { FarewellKey, account, session, signedIn } from "./sync/account.ts";
-import { sync, start as startSync } from "./sync/sync.ts";
-import { importFiles } from "./transfer/transfer.ts";
-import { IconButton } from "./ui/icon.tsx";
-import { Keys } from "./ui/keys.ts";
+import { account, FarewellKey, session, signedIn } from "./sync/account.ts";
+import { start as startSync } from "./sync/sync.ts";
 import { act, quiet, toast, Toasts } from "./ui/toast.tsx";
 import { stayUpToDate } from "./update.ts";
-import "./app.css";
 
 const TitleShown = 60;
-/** Cursor positions remembered on this device, newest last. */
-const CursorsKept = 200;
-const CursorsKey = "cursors";
-const Explanations = {
-  "Can't save here": "This browser can't save notes, so copy your text before closing",
-  Offline: "Notes will sync when you're back online",
-  "Not synced": "Notes are saved on this device and will sync when Literal connects",
-  "Too long to sync": `Notes sync up to ${MaxLength.toLocaleString()} characters, so split this one into shorter notes`,
-};
 
 type How = "push" | "replace" | "none";
 
@@ -54,32 +42,14 @@ export function App() {
   const [note, setNote] = createSignal<{ id: string; text: Y.Text } | null>(null);
   /** The palette starts on it, so ⌘K and Enter go back and forth between two notes. */
   const [previous, setPrevious] = createSignal<string | null>(null);
-  /** With a mouse, the corner buttons step aside while you type, and come back when the mouse moves. */
-  const [typing, setTyping] = createSignal(false);
   /** A note is on its way from disk: until it's shown, keys would land in the page being left. */
   const [opening, setOpening] = createSignal(false);
-  const [dropping, setDropping] = createSignal(false);
   /** A note was just deleted, and nothing typed since: ⌘Z means the note, wherever the cursor is. */
   let undoable = false;
   /** Notes deleted under the toast now showing: one Undo brings them all back. */
   let deleted: { id: string; wasOpen: boolean }[] = [];
-  let drags = 0;
 
-  const cursors = new Map<string, Position>(remembered());
   const current = () => note()?.id ?? null;
-
-  const tooLong = createMemo(() => {
-    void notes.version;
-    const id = current();
-    return Boolean(account.email && id && length(id) > MaxLength);
-  });
-  const problem = () => (notes.failed ? "Can't save here" : sync.status || (tooLong() ? "Too long to sync" : ""));
-  const calm = createMemo(() => {
-    if (current()) return "Saved";
-    void notes.version;
-    const live = notes.ready ? count() : 0;
-    return live ? `${live.toLocaleString()} ${live === 1 ? "note" : "notes"}` : "";
-  });
 
   createEffect(() => {
     void notes.version;
@@ -129,20 +99,6 @@ export function App() {
     if (announce) toast(`Signed in as ${email}`);
   }
 
-  function explain() {
-    const shown = problem();
-    if (shown === "Sign in to sync") return openPalette(true, "sign-in");
-    if (!shown && !current()) return browse(true);
-    if (shown) toast(Explanations[shown]);
-    else if (account.email) toast("Notes save and sync as you type");
-    else
-      toast("Notes save on this device as you type", {
-        action: { label: "Sync", run: () => openPalette(true, "sign-in") },
-      });
-    // A word of explanation, then back to writing: the click shouldn't take the cursor away.
-    if (mouse.matches) editor.focus();
-  }
-
   /**
    * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
    * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
@@ -180,24 +136,14 @@ export function App() {
     }
     setNote({ id, text });
     navigate(`/${id}`, how);
-    if (focus) editor.focus(cursors.get(id));
+    if (focus) editor.focus(recall(id));
   }
 
   function leave() {
     const id = current();
     if (!id) return;
-    keepCursor(id);
+    remember(id, editor.position());
     discardIfEmpty(id);
-  }
-
-  function keepCursor(id: string) {
-    cursors.delete(id);
-    cursors.set(id, editor.position());
-    for (const oldest of cursors.keys()) {
-      if (cursors.size <= CursorsKept) break;
-      cursors.delete(oldest);
-    }
-    storage.write(CursorsKey, JSON.stringify([...cursors]));
   }
 
   function navigate(path: string, how: How) {
@@ -258,11 +204,6 @@ export function App() {
     undoable = true;
   }
 
-  function browse(pointer: boolean) {
-    togglePalette(pointer);
-    setTyping(false);
-  }
-
   // The app lives as long as the page, and so do these listeners.
 
   // Before the page's own keys: right after a delete, ⌘Z must reach the note before the editor's undo does.
@@ -282,7 +223,7 @@ export function App() {
   addEventListener("keydown", (event) => {
     if (mod(event) && !event.altKey && !event.shiftKey && letter(event, "k")) {
       event.preventDefault();
-      browse(false);
+      togglePalette(false);
     } else if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && letter(event, "n")) {
       // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
@@ -303,43 +244,12 @@ export function App() {
 
   addEventListener("input", () => (undoable = false));
 
-  addEventListener("mousemove", (event) => {
-    if (typing() && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) setTyping(false);
-  });
-
-  addEventListener("dragenter", (event) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    drags++;
-    setDropping(true);
-  });
-
-  addEventListener("dragleave", (event) => {
-    if (!hasFiles(event)) return;
-    drags = Math.max(0, drags - 1);
-    if (!drags) setDropping(false);
-  });
-
-  addEventListener("dragover", (event) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-  });
-
-  addEventListener("drop", (event) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    drags = 0;
-    setDropping(false);
-    void importFiles([...(event.dataTransfer?.files ?? [])]);
-  });
-
   addEventListener("popstate", () => void go(idFrom(location.pathname), "none"));
 
   addEventListener("pagehide", (event) => {
     // Kept for the Back button, the page may come back as it was, its note still on it: nothing is discarded then.
     const id = current();
-    if (event.persisted && id) keepCursor(id);
+    if (event.persisted && id) remember(id, editor.position());
     else leave();
     rescue();
     void flush();
@@ -352,54 +262,13 @@ export function App() {
     void flush();
   });
 
-  const viewport = window.visualViewport;
-  // iOS doesn't shrink the page for the keyboard; this keeps the end of the text above it. A pinch zoom shrinks
-  // what's visible too, but not the page: scaled back, it leaves the page its size.
-  viewport?.addEventListener("resize", () => {
-    document.documentElement.style.setProperty("--viewport-height", `${viewport.height * viewport.scale}px`);
-  });
-
   return (
     <>
       <div class="page" inert={palette.open}>
-        <Editor
-          ref={(api) => (editor = api)}
-          text={note()?.text ?? null}
-          readonly={opening()}
-          onCreate={onCreate}
-          onType={() => setTyping(mouse.matches)}
-        />
-
-        <div class="corner" classList={{ away: typing() }}>
-          <Show when={problem() || calm()}>
-            {(label) => (
-              <button class="status" classList={{ problem: Boolean(problem()) }} onClick={explain}>
-                {label()}
-              </button>
-            )}
-          </Show>
-          <IconButton label="New note" icon="plus" keys={Shortcuts.new} aria-keyshortcuts="Alt+N" onClick={newNote} />
-          <IconButton
-            label="Notes"
-            icon="list"
-            keys={Shortcuts.notes}
-            aria-keyshortcuts={Mac ? "Meta+K" : "Control+K"}
-            onClick={() => browse(true)}
-          />
-        </div>
-
-        {/* Only on a blank page, where it covers nothing: gone with the first word. */}
-        {mouse.matches && (
-          <p class="hint" classList={{ gone: current() !== null }} aria-hidden="true">
-            <span>
-              <Keys keys={Shortcuts.new} /> new note
-            </span>
-            <span>
-              <Keys keys={Shortcuts.notes} /> notes
-            </span>
-          </p>
-        )}
+        <Editor ref={(api) => (editor = api)} text={note()?.text ?? null} readonly={opening()} onCreate={onCreate} />
       </div>
+
+      <Corner current={current()} onNew={newNote} focusEditor={() => editor.focus()} />
 
       <Palette
         current={current()}
@@ -418,35 +287,9 @@ export function App() {
       />
 
       <Toasts />
-
-      {/* A problem in the corner is also said aloud, once, by a screen reader. */}
-      <p class="visually-hidden" aria-live="polite">
-        {problem()}
-      </p>
-
-      <Show when={dropping()}>
-        <div class="drop" aria-hidden="true">
-          <p>Drop to import</p>
-        </div>
-      </Show>
+      <Drop />
     </>
   );
-}
-
-function remembered(): [string, Position][] {
-  let saved: unknown;
-  try {
-    saved = JSON.parse(storage.read(CursorsKey) ?? "[]");
-  } catch {
-    return []; // garbled: forget the cursors, keep the app
-  }
-  return Array.isArray(saved) ? saved.filter(isCursor) : [];
-}
-
-function isCursor(entry: unknown): entry is [string, Position] {
-  if (!Array.isArray(entry) || typeof entry[0] !== "string" || !Array.isArray(entry[1])) return false;
-  const position: unknown[] = entry[1];
-  return (position.length === 2 || position.length === 3) && position.every((at) => typeof at === "number");
 }
 
 /**
@@ -456,8 +299,4 @@ function isCursor(entry: unknown): entry is [string, Position] {
 function idFrom(path: string): string | null {
   const name = path.replace(/^\/(n\/)?/, "");
   return [name, name.toLowerCase()].find(isNoteId) ?? null;
-}
-
-function hasFiles(event: DragEvent): boolean {
-  return event.dataTransfer?.types.includes("Files") ?? false;
 }

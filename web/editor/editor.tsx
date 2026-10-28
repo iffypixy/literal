@@ -19,7 +19,6 @@ type Props = {
   readonly: boolean;
   /** A blank page got its first non-space character. */
   onCreate: () => void;
-  onType: () => void;
   ref: (editor: EditorApi) => void;
 };
 
@@ -59,10 +58,7 @@ export function Editor(props: Props) {
       aria-label="Note"
       autocapitalize="sentences"
       readOnly={props.readonly}
-      onInput={(event) => {
-        props.onType();
-        if (!props.text && event.currentTarget.value.trim()) props.onCreate();
-      }}
+      onInput={(event) => !props.text && event.currentTarget.value.trim() && props.onCreate()}
       onKeyDown={(event) => event.key === "Escape" && !composing(event) && event.currentTarget.blur()}
     />
   );
