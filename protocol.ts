@@ -166,10 +166,7 @@ function readBoolean(input: decoding.Decoder): boolean {
   return byte === 1;
 }
 
-/**
- * 10 characters of lowercase Crockford base32, or, for a note made before those, 12 of base64url: nothing else ever
- * becomes a key in storage.
- */
+/** 10 characters of lowercase Crockford base32: nothing else ever becomes a key in storage. */
 export function isNoteId(id: string): boolean {
-  return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id) || /^[\w-]{12}$/.test(id);
+  return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id);
 }
