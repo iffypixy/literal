@@ -16,10 +16,7 @@ document.addEventListener("touchstart", () => {}, { passive: true });
 // Installed, Literal asks to keep its storage even when the device runs short of space: the notes live there.
 if (installed.matches) void navigator.storage?.persist();
 
-/**
- * Moves what was typed on index.html's stand-in page into the editor, as if typed there, and puts the cursor
- * where it was. Only on the blank page: an address with a note opens that note instead.
- */
+/** Moves what was typed on the stand-in page into the editor, as if typed there, with the cursor where it was. */
 function handOver(early: HTMLTextAreaElement) {
   const editor = document.querySelector(".editor:not(.early)");
   if (!(editor instanceof HTMLTextAreaElement)) throw new Error("hand over: the editor isn't there");

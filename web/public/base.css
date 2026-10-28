@@ -1,9 +1,6 @@
 /*
- * High contrast, kept easy on the eyes: the system's own monospace in soft black on white, or soft white on
- * near-black (17.7:1 and 15.9:1), in greys with a whisper of cool. Things that float sit on their own surface
- * with tiny corners and a faint shadow instead of a hard line. One accent, Klein blue, the ultramarine of
- * Yves Klein's one-color canvases: the caret on the blank page, and wherever you act (focus, the text you
- * select, the main button). Search hits are a wash of ink.
+ * The system monospace, soft black on white or soft white on near-black (17.7:1 and 15.9:1). One accent, Klein
+ * blue, wherever you act: the caret, focus, selection, the main button.
  */
 :root {
   --bg: #ffffff;
@@ -24,18 +21,14 @@
   --accent-hover: color-mix(in srgb, var(--accent) 88%, black);
   --selection: color-mix(in srgb, var(--accent) 18%, transparent);
   --hover: color-mix(in srgb, var(--text) 6%, transparent);
-  /* Behind the panel, the page fades back, so the list doesn't compete with the note. */
   --scrim: color-mix(in srgb, var(--bg) 80%, transparent);
   --shadow: 0 0 0 1px rgb(0 0 0 / 0.07), 0 4px 16px rgb(0 0 0 / 0.06);
-  /* Every icon's line, whatever size it's drawn at: close to the weight of the text beside it. */
   --stroke: 1.35px;
 
   /*
-   * One scale for the whole app, so every part reads as the same thing.
-   * Text starts 16px from the edge of whatever holds it: the page, the panel, the list, the menu.
-   * 2px ties a line to the line explaining it; 6px separates things in a group; 16px separates groups.
-   * Every control (a button, a field, a row, a menu item, the toast) is 32px tall, 44px under a finger,
-   * with its text 12px from its sides. On a line, 1ch sits between a label and its keys, 2ch between things.
+   * One scale for the whole app. Text starts 16px from the edge of whatever holds it. 2px ties a line to the line
+   * explaining it; 6px separates things in a group; 16px separates groups. Every control is 32px tall, 44px under a
+   * finger, with its text 12px from its sides. On a line, 1ch sits between a label and its keys, 2ch between things.
    */
   --edge: 16px;
   --pair: 2px;
@@ -45,10 +38,10 @@
   --inset: 12px;
   /* The padding that makes one line of text a control's height. */
   --control-padding: calc((var(--control) - 1lh) / 2);
-  /* Corners are only just rounded: 3px on things that hold others (the panel, the menu), 2px on the rest. */
+  /* 3px on things that hold others, 2px on the rest. */
   --radius: 3px;
   --radius-small: 2px;
-  /* Feedback (hover, press) is fast; small things come and go a bit slower. */
+  /* Feedback (hover, press) is quick; small things come and go a bit slower. */
   --quick: 120ms;
   --brief: 150ms;
 
@@ -103,7 +96,6 @@ body {
   background: var(--selection);
 }
 
-/* Where the keyboard is, when it's the keyboard that moved it. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -165,17 +157,13 @@ h2 {
   font: inherit;
 }
 
-/* An action inside a line of text, a link or a button: underlined, like every other. */
 a,
 .link {
   color: inherit;
   text-decoration: underline;
 }
 
-/*
- * The page you write on (editor/editor.tsx), and index.html's stand-in for it until the app's code arrives,
- * which looks the same so whatever is typed in that first moment is kept (main.tsx hands it over).
- */
+/* Here, not beside editor.tsx: index.html's stand-in page must look the same before the app's code arrives. */
 .editor {
   position: fixed;
   inset: 0 0 auto;
@@ -226,7 +214,6 @@ a,
   }
 }
 
-/* Asked for more contrast, the quiet greys and hairlines step up. */
 @media (prefers-contrast: more) {
   :root {
     --faint: var(--muted);

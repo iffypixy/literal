@@ -6,15 +6,15 @@ export function mod(event: KeyboardEvent): boolean {
 }
 
 /**
- * Whether the event is the letter key `letter`, on any layout: by the character it types on Latin layouts
- * (so ⌘Z is still Z on AZERTY), and by its position where it types something else (Cyrillic, or ⌥ on a Mac).
+ * Matches by the character typed on Latin layouts (so ⌘Z is still Z on AZERTY), and by key position where it types
+ * something else (Cyrillic, or ⌥ on a Mac).
  */
 export function letter(event: KeyboardEvent, letter: string): boolean {
   if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === letter;
   return event.code === `Key${letter.toUpperCase()}`;
 }
 
-/** Each shortcut's keys, labeled as this computer's keyboard labels them; drawn as key caps wherever they show. */
+/** Labeled as this computer's keyboard labels them. */
 export const shortcuts = {
   notes: mac ? ["⌘", "K"] : ["Ctrl", "K"],
   new: mac ? ["⌥", "N"] : ["Alt", "N"],
@@ -34,8 +34,8 @@ export function caps(keys: string[]): HTMLElement {
 }
 
 /**
- * Whether the key belongs to an input method mid-word (Japanese, Chinese, Korean): its Enter or Esc is the word's,
- * not the app's. Safari marks the Enter that ends one only with keyCode 229.
+ * An input method mid-word (Japanese, Chinese, Korean) owns its Enter and Esc. Safari marks the Enter that ends a
+ * word only with keyCode 229.
  */
 export function composing(event: KeyboardEvent): boolean {
   return event.isComposing || event.keyCode === 229;

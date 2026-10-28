@@ -1,7 +1,6 @@
 import * as Y from "yjs";
 import { letter, mod } from "../keys.ts";
 
-/** The changes a Yjs text event describes, in Yjs' own delta format. */
 type Delta = Y.YTextEvent["delta"];
 
 /** Marks the changes this textarea makes, so they aren't echoed back into it. */
@@ -19,7 +18,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   const undo = new Y.UndoManager(text, { trackedOrigins: new Set([Typed]), captureTimeout: 600 });
   /** What the textarea showed when it was last in step with the text. */
   let shown = "";
-  /** Changes from elsewhere that came in mid-composition, when the textarea can't be touched. */
+  /** Changes from elsewhere, waiting for the textarea to be free. */
   let held: Delta[] = [];
   let composing = false;
 
@@ -54,7 +53,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     show([delta], transaction.origin === undo ? end(delta) : null);
   }
 
-  /** Puts the text on screen, carrying the selection over the changes, or to `caret` after an undo. */
+  /** Carries the selection over the changes, or puts it at `caret` after an undo. */
   function show(deltas: Delta[], caret: number | null) {
     const scroll = area.scrollTop;
     let start = area.selectionStart;
@@ -123,7 +122,6 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     if (!document.hidden && !composing) release();
   }
 
-  /** Puts on screen what arrived while it had to wait. */
   function release() {
     if (!held.length) return;
     const deltas = held;
@@ -152,11 +150,9 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 }
 
 /**
- * The one replaced range between two versions of the text: everything between their common start and end.
- * Never splits a surrogate pair, which would put half an emoji into the doc.
- *
- * `caret` is where the cursor ended up. The change almost always sits just before it, so the common start and
- * end are first checked there in one comparison each: typing in a long note doesn't walk the whole text.
+ * Everything between the two texts' common start and end. Never splits a surrogate pair, which would put half an
+ * emoji into the doc. The change almost always sits just before `caret`, so the common start and end are first
+ * checked there in one comparison each: typing in a long note doesn't walk the whole text.
  */
 function diff(before: string, after: string, caret: number): { at: number; removed: number; inserted: string } | null {
   if (before === after) return null;
@@ -177,10 +173,7 @@ function diff(before: string, after: string, caret: number): { at: number; remov
   return { at: start, removed: before.length - start - tail, inserted: after.slice(start, after.length - tail) };
 }
 
-/**
- * Where `index` ends up after the change. Text inserted before it pushes it along; text inserted right at it goes
- * after it.
- */
+/** Text inserted before `index` pushes it along; text inserted right at it goes after it. */
 function shift(index: number, delta: Delta): number {
   let at = 0;
   let moved = index;

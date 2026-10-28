@@ -12,14 +12,13 @@ import { Back } from "./back.tsx";
 import { SignIn } from "./sign-in.tsx";
 import "./panel.css";
 
-/** What the panel shows: the notes, signing in, a question before what can't be undone, the keys, or about. */
 export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
 
 export type PanelApi = {
   toggle: (pointer: boolean) => void;
-  /** Opens the panel, at `start`. Keys open it instantly; a click or tap gets a short animation. */
+  /** Keys open it instantly; a click or tap gets a short animation. */
   show: (pointer: boolean, start?: View) => void;
-  /** Closes the panel. `opened`: a note took its place, and with it the sheet's step in history. */
+  /** `opened`: a note took its place, and with it the sheet's step in history. */
   hide: (pointer: boolean, opened?: boolean) => void;
   /** Whether the last change in history was the panel stepping back by itself, which App leaves alone. */
   stepped: () => boolean;
@@ -32,16 +31,13 @@ type Props = {
   /** Whether the panel is open: the page behind it goes inert meanwhile. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The note open behind the panel, if any. */
   current: string | null;
-  /** The note open before it: with nothing typed, the list starts there, so Enter goes back to it. */
+  /** With nothing typed, the list starts on it, so Enter goes back to it. */
   previous: string | null;
-  /** `pointer` says whether a click (not a key) chose it, which decides if the panel animates away. */
+  /** `pointer`: whether a click or tap (not a key) did it. */
   onPick: (id: string, pointer: boolean) => void;
   onDelete: (id: string) => void;
-  /** Starts a new note: the New note command. */
   onNew: () => void;
-  /** `pointer`: whether a click or tap closed it, rather than a key. */
   onClose: (pointer: boolean) => void;
   onSignedIn: (email: string) => void;
   ref: (panel: PanelApi) => void;
@@ -81,23 +77,19 @@ export function Panel(props: Props) {
   const [limit, setLimit] = createSignal(PageSize);
   const [now, setNow] = createSignal(Date.now());
   const [menu, setMenu] = createSignal(false);
-  /** The menu opens upward from its button, or downward when there's no room above. */
+  /** Upward from its button, or downward when there's no room above. */
   const [below, setBelow] = createSignal(false);
   const [view, setView] = createSignal<View>("notes");
   const [waiting, setWaiting] = createSignal(0);
   const [problem, setProblem] = createSignal("");
   /** A question's answer is on its way to the server. */
   const [busy, setBusy] = createSignal(false);
-  /** On screen: open, or still sliding away. The list stays until it's gone. */
+  /** Open, or still sliding away: the list stays until it's gone. */
   const [visible, setVisible] = createSignal(false);
   /** Notes on their way out: their rows are closing, and can't be picked or deleted again meanwhile. */
   const removing = new Set<string>();
-  /** Whether a click or tap closed the panel, rather than a key: what `onClose` is told. */
   let closedByPointer = false;
-  /**
-   * On a touch screen the sheet is a step in the browser's history, so Back closes it. True while the panel takes
-   * that step back itself.
-   */
+  /** On a touch screen the sheet is a step in history, so Back closes it. True while the panel steps back itself. */
   let stepping = false;
 
   const commands = createMemo<Command[]>(() => [
@@ -116,7 +108,7 @@ export function Panel(props: Props) {
   ]);
 
   const words = createMemo(() => parse(query()));
-  /** The commands whose words what you type starts; none until you type, so the list opens on your notes. */
+  /** None until you type, so the list opens on your notes. */
   const found = createMemo(() =>
     words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
@@ -125,7 +117,6 @@ export function Panel(props: Props) {
     return visible() ? search(list(), words()) : [];
   });
   const shown = createMemo(() => results().slice(0, limit()));
-  /** Every row in order: the commands, then the notes. */
   const entries = createMemo<(Command | Note)[]>(() => [...found(), ...shown()]);
   /**
    * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
@@ -247,8 +238,8 @@ export function Panel(props: Props) {
   }
 
   /**
-   * Deletes the note. A click or swipe closes its row first: a row has no way out once its note is gone from the
-   * list, so the note goes once the row has. A key just takes it away, like any key.
+   * A click or swipe closes the note's row first: a row has no way out once its note is gone from the list. A key
+   * just takes it away, like any key.
    */
   async function remove(note: Note | undefined, row?: HTMLElement) {
     if (!note || removing.has(note.id)) return;
@@ -260,7 +251,6 @@ export function Panel(props: Props) {
     removing.delete(note.id);
   }
 
-  /** Moves through the menu's items with the arrow keys. */
   function onMenuKeyDown(event: KeyboardEvent) {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     event.preventDefault();
@@ -344,7 +334,6 @@ export function Panel(props: Props) {
     if (menu() && event.target instanceof Element && !event.target.closest(".menu, .more")) setMenu(false);
   }
 
-  /** Loads the next page of rows when the end of the list scrolls into view. */
   function more(sentinel: HTMLElement) {
     const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && setLimit(limit() + PageSize), {
       root: rows,
@@ -771,15 +760,13 @@ function isCommand(entry: Command | Note): entry is Command {
   return "run" in entry;
 }
 
-/** Text with what the search found marked. */
 function Marked(props: { parts: Segment[] }) {
   return <For each={props.parts}>{(part) => (part.hit ? <mark>{part.text}</mark> : part.text)}</For>;
 }
 
 /**
- * Whether the key deletes the highlighted note. Delete does, with nothing after the cursor to erase (fn⌫ on a
- * Mac); and on a Mac ⌘⌫, as in Finder, with nothing before it. Not Ctrl+Backspace, which on Windows erases a
- * word of the search. Held down, a key deletes one note, not every note it repeats over.
+ * Delete deletes, with nothing after the cursor to erase (fn⌫ on a Mac); and on a Mac ⌘⌫, as in Finder, with nothing
+ * before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held down, a key deletes one note.
  */
 function deletes(event: KeyboardEvent, field: HTMLInputElement): boolean {
   if (event.repeat || event.altKey || event.shiftKey) return false;
@@ -788,7 +775,6 @@ function deletes(event: KeyboardEvent, field: HTMLInputElement): boolean {
   return mac && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
 }
 
-/** Collapses a deleted note's row: its text goes first, then the gap closes, so the rows below rise into space. */
 function collapse(row: HTMLElement): Promise<unknown> {
   row.style.pointerEvents = "none";
   return row.animate(

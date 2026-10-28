@@ -5,6 +5,7 @@ import { sendCode, unreachable, verify } from "../sync/account.ts";
 import { Back } from "./back.tsx";
 import "./sign-in.css";
 
+/** Seconds before a code can be sent again. */
 const ResendAfter = 30;
 
 type Props = {
@@ -28,7 +29,6 @@ export function SignIn(props: Props) {
     if (!touch.matches) field?.focus();
   });
 
-  // The wait counts down a second at a time, for as long as the view is up.
   createEffect(() => {
     const left = wait();
     if (!left) return;
@@ -88,7 +88,6 @@ export function SignIn(props: Props) {
   }
 
   function onCode(input: HTMLInputElement) {
-    // Only digits stay: anything else typed comes straight back out.
     const digits = input.value.replace(/\D/g, "").slice(0, 6);
     input.value = digits;
     setCode(digits);
@@ -103,7 +102,7 @@ export function SignIn(props: Props) {
     field?.focus();
   }
 
-  // Esc on the code step goes back to the email; on the email step it's the panel's, which goes back to the list.
+  // Esc on the code step goes back to the email; on the email step it's the panel's.
   function onKeyDown(event: KeyboardEvent) {
     if (event.key !== "Escape" || step() !== "code" || composing(event)) return;
     event.preventDefault();

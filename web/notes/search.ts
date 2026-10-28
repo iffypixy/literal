@@ -1,22 +1,17 @@
 import type { Note } from "./notes.ts";
 
-/** A piece of displayed text, and whether it matches the search. */
 export type Segment = { text: string; hit: boolean };
 
 const Graphemes = new Intl.Segmenter();
 
-/** Each note's text and title, folded for searching; a note that changes is a new object, so it's folded again. */
+/** A note that changes is a new object, so it's folded again. */
 const folds = new WeakMap<Note, { text: string; title: string }>();
 
-/** The words of a query, folded. */
 export function parse(query: string): string[] {
   return fold(query).split(/\s+/).filter(Boolean);
 }
 
-/**
- * The notes holding every one of `words`, in any order, ignoring case and accents.
- * Notes whose title matches come first; otherwise the order stays (last edited first).
- */
+/** Notes holding every one of `words`, ignoring case and accents: title matches first, otherwise in order. */
 export function search(notes: Note[], words: string[]): Note[] {
   if (!words.length) return notes;
   const inTitle: Note[] = [];
@@ -29,7 +24,7 @@ export function search(notes: Note[], words: string[]): Note[] {
   return [...inTitle, ...inText];
 }
 
-/** Folds every note ahead of time, in moments the page is idle, so the first search is as quick as the rest. */
+/** Folds every note while the page is idle, so the first search is as quick as the rest. */
 export function prepare(notes: Note[]) {
   let next = 0;
   const work = (deadline?: IdleDeadline) => {
@@ -48,10 +43,7 @@ export function startsWords(label: string, words: string[]): boolean {
   return words.every((word) => starts.some((start) => start.startsWith(word)));
 }
 
-/**
- * The note's title, split into hits and misses; and when searching, the text around a match the title doesn't show,
- * so every row says why it's there.
- */
+/** The title, marked; and around a match the title doesn't show, a snippet, so every row says why it's there. */
 export function describe(note: Note, words: string[]): { title: Segment[]; snippet: Segment[] } {
   const { first, restAt } = split(note.text);
   const { text, title } = folded(note);
@@ -74,10 +66,7 @@ export function quoted(text: string): string {
   return shorten(title(text), 30);
 }
 
-/**
- * A title cut to `length`: at the end of a word if one ends near enough, then "…". Counts what shows as one
- * character, emoji too.
- */
+/** Cut at the end of a word if one ends near enough, then "…". Counts what shows as one character, emoji too. */
 export function shorten(name: string, length: number): string {
   const chars = Array.from(Graphemes.segment(name), (part) => part.segment);
   if (chars.length <= length) return name;
@@ -86,17 +75,15 @@ export function shorten(name: string, length: number): string {
   return `${space > length / 2 ? cut.slice(0, space) : cut}…`;
 }
 
-/** Splits `text` into the runs that hold one of `words` and the runs that don't. */
 export function mark(text: string, words: string[]): Segment[] {
   return marked(text, words, () => true);
 }
 
-/** Like `mark`, but only where a word of `text` starts with one of `words`: the way commands match. */
+/** Like `mark`, but only where a word of `text` starts with one of `words`, the way commands match. */
 export function markStarts(text: string, words: string[]): Segment[] {
   return marked(text, words, (folded, at) => at === 0 || /\s/.test(folded[at - 1] ?? ""));
 }
 
-/** The first non-blank line, and where the text after it starts. */
 function split(text: string): { first: string; restAt: number } {
   const start = text.search(/\S/);
   if (start < 0) return { first: "", restAt: text.length };
@@ -108,7 +95,7 @@ function split(text: string): { first: string; restAt: number } {
 /** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
 const SnippetReach = 20;
 
-/** One line of text around `at`: a little before it, more after, cut at spaces near enough to keep the hit in view. */
+/** A little before `at`, more after, cut at spaces near enough to keep the hit in view. */
 function around(text: string, at: number, from: number): string {
   let start = Math.max(from, at - SnippetReach);
   let end = Math.min(text.length, at + 60);
@@ -121,9 +108,9 @@ function around(text: string, at: number, from: number): string {
   return `${start > from ? "…" : ""}${line}${end < text.length ? "…" : ""}`;
 }
 
-/** Lowercase, without accents: "Café" and "cafe" fold the same. Positions hold: a letter stays one letter. */
+/** "Café" and "cafe" fold the same. Positions hold: a letter stays one letter. */
 function fold(text: string): string {
-  // Plain ASCII has nothing to fold but case, and most notes are plain ASCII: the quick way, then.
+  // Most notes are plain ASCII, with nothing to fold but case.
   if (/^[\x00-\x7f]*$/.test(text)) return text.toLowerCase();
   // Composed again after the accents go: Korean syllables come apart into letters that aren't accents.
   return text.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC").toLowerCase();
@@ -156,7 +143,7 @@ function marked(text: string, words: string[], counts: (folded: string, at: numb
   return segments;
 }
 
-/** The folded text, and for each of its characters the index it came from (plus one past the end). */
+/** For each folded character, the index it came from (plus one past the end). */
 function foldWithOrigin(text: string): { folded: string; origin: number[] } {
   let folded = "";
   const origin: number[] = [];

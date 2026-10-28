@@ -5,13 +5,9 @@ import { toast } from "../ui/toast.tsx";
 import { zip, type Entry } from "./zip.ts";
 
 const MaxFiles = 500;
-/**
- * A larger file can't hold a note that syncs, so it isn't read at all: UTF-8 takes at most 3 bytes a character,
- * after a 3-byte mark at the start.
- */
+/** A larger file can't hold a note that syncs: UTF-8 takes at most 3 bytes a character, after a 3-byte mark. */
 const MaxSize = 3 + 3 * MaxLength;
 
-/** Downloads every note as a .txt file, named after its title, in one .zip. */
 export function exportAll() {
   if (!list().length) {
     toast("No notes to export");
@@ -32,7 +28,6 @@ export function exportAll() {
   setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
 }
 
-/** Turns each .txt or .md file into a note, and says how it went. */
 export async function importFiles(files: File[]) {
   const texts = files.filter((file) => /\.(txt|text|md|markdown)$/i.test(file.name) || file.type === "text/plain");
   if (!texts.length) {
@@ -47,7 +42,7 @@ export async function importFiles(files: File[]) {
     try {
       text = decoder.decode(await file.arrayBuffer());
     } catch {
-      continue; // unreadable, or not UTF-8: counted as skipped below
+      continue; // not UTF-8: counted as skipped
     }
     text = text.replace(/\r\n?/g, "\n");
     if (!text.trim() || text.length > MaxLength) continue;
@@ -61,7 +56,7 @@ export async function importFiles(files: File[]) {
   else toast(`Imported ${count(imported, "note")}`);
 }
 
-/** A title made safe as a file name on every system. */
+/** Safe as a file name on every system. */
 function fileName(title: string): string {
   const safe = title
     .replace(/[/\\:*?"<>|\u0000-\u001f]/g, "")

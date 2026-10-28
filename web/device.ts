@@ -1,5 +1,4 @@
-/** What this device is and can do, as the browser tells it: read live, since a tablet can gain a mouse. */
-
+// Read live: a tablet can gain a mouse.
 export const mouse = matchMedia("(hover: hover) and (pointer: fine)");
 export const touch = matchMedia("(pointer: coarse)");
 export const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");

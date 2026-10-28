@@ -32,12 +32,10 @@ import { tooltip } from "./ui/tooltip.ts";
 import { stayUpToDate } from "./update.ts";
 import "./app.css";
 
-/** Characters of a note's title the window's title shows. */
 const TitleShown = 60;
 /** Cursor positions remembered on this device, newest last. */
 const CursorsKept = 200;
 const CursorsKey = "literal:cursors";
-/** What tapping the corner says about each problem it can show. */
 const Explanations = {
   "Can't save here": "This browser can't save notes, so copy your text before closing",
   Offline: "Notes will sync when you're back online",
@@ -53,9 +51,9 @@ export function App() {
   let panel!: PanelApi;
 
   const [note, setNote] = createSignal<{ id: string; text: Y.Text } | null>(null);
-  /** The note open before this one: the panel starts on it, so ⌘K and Enter go back and forth between two notes. */
+  /** The panel starts on it, so ⌘K and Enter go back and forth between two notes. */
   const [previous, setPrevious] = createSignal<string | null>(null);
-  /** On a device with a mouse, the corner buttons step aside while you type, and come back when the mouse moves. */
+  /** With a mouse, the corner buttons step aside while you type, and come back when the mouse moves. */
   const [typing, setTyping] = createSignal(false);
   /** A note is on its way from disk: until it's shown, keys would land in the page being left. */
   const [opening, setOpening] = createSignal(false);
@@ -70,15 +68,12 @@ export function App() {
   const cursors = new Map<string, Position>(remembered());
   const current = () => note()?.id ?? null;
 
-  /** The open note is longer than sync takes: it stays on this device until it's shorter. */
   const tooLong = createMemo(() => {
     void notes.version;
     const id = current();
     return Boolean(account.email && id && length(id) > MaxLength);
   });
-  /** A problem stays in the corner until it's solved. */
   const problem = () => (notes.failed ? "Can't save here" : sync.status || (tooLong() ? "Too long to sync" : ""));
-  /** Otherwise the corner says, quietly, that the note is saved; or on a blank page, that the others are there. */
   const calm = createMemo(() => {
     if (current()) return "Saved";
     void notes.version;
@@ -116,7 +111,7 @@ export function App() {
     stayUpToDate(browsing);
   });
 
-  /** Learns from the server whether this device is signed in, e.g. in another tab since this one opened. */
+  /** Signed in elsewhere, e.g. in another tab since this one opened. */
   async function checkSession() {
     let email: string | null;
     try {
@@ -188,7 +183,6 @@ export function App() {
     if (focus) editor.focus(cursors.get(id));
   }
 
-  /** Before switching notes: remember where the cursor was, and drop the note if it was emptied. */
   function leave() {
     const id = current();
     if (!id) return;
@@ -208,7 +202,7 @@ export function App() {
 
   function navigate(path: string, how: How) {
     if (how === "none") return;
-    // On a phone the panel's sheet is a step in history (so Back closes it): a note it opens takes that step's place.
+    // The phone's sheet is a step in history (so Back closes it): a note it opens takes that step's place.
     const sheet = Boolean(history.state?.sheet);
     if (location.pathname === path && !sheet) return;
     if (how === "push" && !sheet) history.pushState(null, "", path);
@@ -290,7 +284,7 @@ export function App() {
       event.preventDefault();
       togglePanel(false);
     } else if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && letter(event, "n")) {
-      // On a Mac, ⌥N would type a dead key (˜) into the note: this stops it.
+      // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
       newNote();
     } else if (
@@ -416,7 +410,7 @@ export function App() {
           </button>
         </div>
 
-        {/* Only on a blank page, where it covers nothing: gone with the first word, back with every new page. */}
+        {/* Only on a blank page, where it covers nothing: gone with the first word. */}
         {mouse.matches && (
           <p class="hint" classList={{ gone: current() !== null }} aria-hidden="true">
             <span>{caps(shortcuts.new)} new note</span>
@@ -491,7 +485,7 @@ function unset(key: string) {
 }
 
 /**
- * The note an address names: `/7k3qx9m2da`, in either case. An older note's id, in base64url, is case-sensitive;
+ * The note an address names, like `/7k3qx9m2da`, in either case. An older note's id, in base64url, is case-sensitive;
  * its address once began with `/n/`.
  */
 function idFrom(path: string): string | null {

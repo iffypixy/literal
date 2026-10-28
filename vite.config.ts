@@ -12,7 +12,7 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 export default defineConfig({
   root: "web",
   plugins: [
-    // A full reload on each edit: hot updates would run the app's page-wide listeners and modules twice.
+    // Hot updates would run the app's page-wide listeners and modules twice.
     solid({ hot: false }),
     cloudflare({ configPath: here("wrangler.jsonc"), persistState: { path: here(".wrangler/state") } }),
     serviceWorker(),
@@ -51,7 +51,7 @@ function serviceWorker(): Plugin {
   };
 }
 
-/** Where a file is served. Pages go by their clean URL: Cloudflare redirects `/privacy.html` to `/privacy`. */
+// Cloudflare serves pages at their clean URL, redirecting `/privacy.html` to `/privacy`.
 function url(file: string): string {
   return `/${file.replace(/(^|\/)index\.html$/, "$1").replace(/\.html$/, "")}`;
 }

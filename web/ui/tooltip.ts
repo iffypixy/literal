@@ -4,9 +4,8 @@ import { caps } from "../keys.ts";
 import "./tooltip.css";
 
 /**
- * A tooltip naming a button and its shortcut. The first one waits a moment, so passing over a button doesn't
- * flash it; moving on to the next button while one is up shows the next at once. Mouse only: touch has no hover.
- * Set up from the button's ref, so it goes when the button does.
+ * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it; moving on
+ * to the next while one is up shows it at once. Set up from the button's ref, so it goes when the button does.
  */
 export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -24,7 +23,6 @@ export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
 
   node.addEventListener("pointerenter", enter);
   node.addEventListener("pointerleave", leave);
-  // Pressing the button is the answer; the question can go.
   node.addEventListener("pointerdown", leave);
   onCleanup(leave);
 }
@@ -52,7 +50,7 @@ function show(node: HTMLElement, label: string, keys: string[] | undefined, inst
   if (keys) tip.append(caps(keys));
   tip.toggleAttribute("data-instant", instant);
 
-  // Under the button, right edges aligned (every button with one sits on the right); above it if there's no room.
+  // Under the button, right edges aligned (every button with one sits on the right); above if there's no room.
   const button = node.getBoundingClientRect();
   const { offsetWidth: width, offsetHeight: height } = tip;
   const below = button.bottom + Gap + height < innerHeight;
