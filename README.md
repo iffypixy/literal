@@ -24,7 +24,7 @@ pnpm wrangler d1 migrations apply literal --local --persist-to .wrangler/state
 pnpm dev
 ```
 
-Sign-in codes show up in the terminal. `pnpm check` checks types, and `pnpm test` runs the tests.
+Sign-in codes show up in the terminal. `pnpm check` checks types, lint and formatting (`pnpm format` fixes it), and `pnpm test` runs the tests.
 
 ## License
 

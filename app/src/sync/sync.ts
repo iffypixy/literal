@@ -233,7 +233,7 @@ function post(id: string, update: Uint8Array) {
 }
 
 function sendAll() {
-  for (const id of [...outbox.keys()]) void flush(id);
+  for (const id of outbox.keys()) void flush(id);
 }
 
 /** Sends the note's waiting changes, as one update; or all of the note, if the server is behind on it. */

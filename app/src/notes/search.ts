@@ -3,6 +3,8 @@ import type { Note } from "./notes.ts";
 /** A piece of displayed text, and whether it matches the search. */
 export type Segment = { text: string; hit: boolean };
 
+const Graphemes = new Intl.Segmenter();
+
 /** Each note's text and title, folded for searching; a note that changes is a new object, so it's folded again. */
 const folds = new WeakMap<Note, { text: string; title: string }>();
 
@@ -72,9 +74,12 @@ export function quoted(text: string): string {
   return shorten(title(text), 30);
 }
 
-/** A title cut to `length`: at the end of a word if one ends near enough, then "…". */
+/**
+ * A title cut to `length`: at the end of a word if one ends near enough, then "…". Counts what shows as one
+ * character, emoji too.
+ */
 export function shorten(name: string, length: number): string {
-  const chars = [...name];
+  const chars = Array.from(Graphemes.segment(name), (part) => part.segment);
   if (chars.length <= length) return name;
   const cut = chars.slice(0, length - 1).join("");
   const space = cut.lastIndexOf(" ");
@@ -136,7 +141,7 @@ function folded(note: Note): { text: string; title: string } {
 function marked(text: string, words: string[], counts: (folded: string, at: number) => boolean): Segment[] {
   if (!words.length || !text) return [{ text, hit: false }];
   const { folded, origin } = foldWithOrigin(text);
-  const hit = new Array<boolean>(text.length).fill(false);
+  const hit = Array.from({ length: text.length }, () => false);
   for (const word of words) {
     for (let at = folded.indexOf(word); at >= 0; at = folded.indexOf(word, at + 1)) {
       if (counts(folded, at)) hit.fill(true, origin[at] ?? 0, origin[at + word.length] ?? text.length);

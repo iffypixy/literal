@@ -2,17 +2,14 @@
   "name": "literal",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": ">=24"
-  },
   "scripts": {
     "dev": "vite --host --port 5390 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host --port 5390 --strictPort",
-    "check": "tsc && tsc -p tsconfig.node.json && tsc -p worker",
+    "check": "tsc && tsc -p tsconfig.node.json && tsc -p worker && oxlint --type-aware --deny-warnings && oxfmt --check",
     "deploy": "pnpm check && vite build && wrangler d1 migrations apply literal --remote && wrangler deploy --config app/dist/literal/wrangler.json",
     "test": "playwright test",
-    "format": "prettier --write ."
+    "format": "oxfmt"
   },
   "dependencies": {
     "better-auth": "1.7.12",
@@ -25,10 +22,15 @@
     "@cloudflare/workers-types": "5.20261023.1",
     "@playwright/test": "1.64.1",
     "@types/node": "24.19.2",
-    "prettier": "3.9.10",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
     "typescript": "6.0.3",
     "vite": "8.3.5",
     "vite-plugin-solid": "2.11.14",
     "wrangler": "4.152.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

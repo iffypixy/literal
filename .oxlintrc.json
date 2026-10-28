@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "rules": {
+    // No way out of the type checker, and no promise left unhandled without a `void` to say so.
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/no-floating-promises": "error",
+    // Solid assigns `ref={element}` variables itself.
+    "no-unassigned-vars": "off",
+    // Yjs' types leave out Y.Text's own toString().
+    "typescript/no-base-to-string": "off",
+    // Control characters are matched on purpose: plain ASCII, and what a file name can't hold.
+    "no-control-regex": "off"
+  }
+}

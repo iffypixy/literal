@@ -88,8 +88,14 @@ export function encode(message: Message): Uint8Array<ArrayBuffer> {
       for (const id of message.ids) encoding.writeVarString(out, id);
       break;
   }
-  // lib0 builds the result in a fresh, plain ArrayBuffer; its types just don't say so, and WebSocket.send wants to know.
-  return encoding.toUint8Array(out) as Uint8Array<ArrayBuffer>;
+  const bytes = encoding.toUint8Array(out);
+  // lib0 builds it in a fresh, plain ArrayBuffer; its types just don't say so, and WebSocket.send wants to know.
+  if (!isPlain(bytes)) throw new Error("encode: not a plain ArrayBuffer");
+  return bytes;
+}
+
+function isPlain(bytes: Uint8Array): bytes is Uint8Array<ArrayBuffer> {
+  return bytes.buffer instanceof ArrayBuffer;
 }
 
 /** Parses a message; throws on anything malformed, so a bad peer gets disconnected rather than half-understood. */

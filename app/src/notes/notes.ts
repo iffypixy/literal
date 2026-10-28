@@ -23,7 +23,9 @@ type Row = Note & { vector: Uint8Array; dirty: boolean };
 
 /** What tabs tell each other, so each one shows what any of them changed. */
 type Message =
-  { type: "update"; id: string; update: Uint8Array } | { type: "note"; row: Row } | { type: "purge"; id: string };
+  | { type: "update"; id: string; update: Uint8Array }
+  | { type: "note"; row: Row }
+  | { type: "purge"; id: string };
 
 /** Origins of changes that arrive from outside this tab. Any other change was made here. */
 const Disk = "disk";
