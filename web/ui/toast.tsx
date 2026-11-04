@@ -26,8 +26,6 @@ let remaining = 0;
 let since = 0;
 let running = false;
 
-document.addEventListener("visibilitychange", () => (document.hidden ? pause() : resume()));
-
 export function toast(message: string, options: Omit<Toast, "message"> = {}) {
   expire();
   shown.toast = { message, ...options };
@@ -35,12 +33,12 @@ export function toast(message: string, options: Omit<Toast, "message"> = {}) {
   resume();
 }
 
-export function act() {
-  quiet()?.action?.run();
+export function runAction() {
+  dismiss()?.action?.run();
 }
 
 /** Ends the toast without its expiry: the next one takes over what it was about. */
-export function quiet(): Toast | null {
+export function dismiss(): Toast | null {
   const toast = shown.toast;
   clearTimeout(timer);
   running = false;
@@ -53,6 +51,7 @@ export function quiet(): Toast | null {
 }
 
 export function Toasts() {
+  document.addEventListener("visibilitychange", () => (document.hidden ? pause() : resume()));
   const cards = () => (shown.toast ? [...shown.leaving, shown.toast] : shown.leaving);
 
   return (
@@ -78,7 +77,7 @@ export function Toasts() {
               <Show when={toast.action}>
                 {(action) => (
                   <span class="action">
-                    <Button variant="link" onClick={act}>
+                    <Button variant="link" onClick={runAction}>
                       {action().label}
                     </Button>
                     <Show when={action().keys}>{(keys) => <Keys keys={keys()} />}</Show>
@@ -94,7 +93,7 @@ export function Toasts() {
 }
 
 function expire() {
-  quiet()?.onExpire?.();
+  dismiss()?.onExpire?.();
 }
 
 /** On hover, focus, or a hidden page: nobody misses an Undo. */

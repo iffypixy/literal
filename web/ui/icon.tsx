@@ -29,7 +29,7 @@ export function IconButton(props: Props) {
     <button
       {...rest}
       ref={(button) => own.keys && tooltip(button, own.label, own.keys)}
-      class={own.class ? `icon ${own.class}` : "icon"}
+      class={own.class ? `quiet icon ${own.class}` : "quiet icon"}
       aria-label={own.label}
     >
       <svg viewBox="0 0 20 20" aria-hidden="true">

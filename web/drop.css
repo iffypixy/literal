@@ -7,7 +7,7 @@
   background: var(--scrim);
   z-index: 40;
   pointer-events: none;
-  animation: fade-in var(--brief) var(--ease-out);
+  animation: fade-in var(--fade) var(--ease-out);
 
   & p {
     display: grid;

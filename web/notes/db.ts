@@ -1,4 +1,4 @@
-export type Store = "notes" | "docs" | "meta";
+type Store = "notes" | "docs" | "meta";
 
 const Name = "literal";
 const Version = 1;
@@ -36,19 +36,19 @@ export function deleteDb(): Promise<void> {
   });
 }
 
-/** Unchecked, `size` at a time, leaving the page free in between. */
-export async function* readAll(db: IDBDatabase, store: Store, size: number): AsyncGenerator<unknown[]> {
-  let after: IDBValidKey | undefined;
+/** Every row of `notes`, `size` at a time, leaving the page free in between. */
+export async function* readNotes<T extends { id: string }>(
+  db: IDBDatabase,
+  parse: (value: unknown) => T,
+  size: number,
+): AsyncGenerator<T[]> {
+  let after: string | undefined;
   for (;;) {
     const range = after === undefined ? undefined : IDBKeyRange.lowerBound(after, true);
-    const records = db.transaction(store).objectStore(store);
-    const [values, keys] = await Promise.all([
-      done(records.getAll(range, size)),
-      done(records.getAllKeys(range, size)),
-    ]);
-    if (values.length) yield values;
-    if (values.length < size) return;
-    after = keys.at(-1);
+    const rows = (await done(db.transaction("notes").objectStore("notes").getAll(range, size))).map(parse);
+    if (rows.length) yield rows;
+    if (rows.length < size) return;
+    after = rows.at(-1)?.id;
   }
 }
 

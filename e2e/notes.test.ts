@@ -76,6 +76,54 @@ test("an empty note opened right after another stays empty", async ({ page, cont
   await expect(note).toHaveValue("");
 });
 
+test("Back with the notes open goes back to the note before", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.type("First note");
+  await page.keyboard.press("Alt+n");
+  await page.keyboard.type("Second");
+  await expect(page).toHaveTitle("Second — Literal");
+  await page.keyboard.press("Control+k");
+  await page.goBack();
+  await expect(page).toHaveTitle("First note — Literal");
+  await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue("First note");
+});
+
+test("a note erased in another tab leaves a blank page here", async ({ page, context }) => {
+  await page.goto("/");
+  await page.keyboard.type("Short-lived");
+  await expect(page).toHaveTitle("Short-lived — Literal");
+
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.keyboard.press("Control+k");
+  await other.keyboard.press("Delete");
+  await expect(other.getByText('Deleted "Short-lived"')).toBeVisible();
+  // Erased once its Undo has passed.
+  await expect(page).toHaveTitle("Literal", { timeout: 10_000 });
+  await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue("");
+});
+
+test("words a closing page couldn't save come back, even into a note that was empty", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.type("Draft");
+  await expect(page).toHaveTitle("Draft — Literal");
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Delete");
+  await expect(page).toHaveTitle("Literal");
+
+  // The disk stops taking writes, and the page closes right after typing, before a save could land.
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = () => {
+      throw new DOMException("full", "QuotaExceededError");
+    };
+  });
+  await page.keyboard.type("Kept");
+  await page.evaluate(() => dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })));
+  await page.reload();
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("option")).toHaveText(/Kept/);
+});
+
 test("words from another tab don't move the cursor, or split an emoji", async ({ page, context }) => {
   const note = page.getByRole("textbox", { name: "Note" });
   await page.goto("/");

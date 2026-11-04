@@ -1,0 +1,11 @@
+.shortcuts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--gap) 2ch;
+  margin: var(--group) 0 0;
+
+  & dd {
+    margin: 0;
+    color: var(--muted);
+  }
+}

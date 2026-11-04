@@ -1,4 +1,5 @@
 import { MaxLength } from "../../protocol.ts";
+import { number, plural } from "../format.ts";
 import { add, list } from "../notes/notes.ts";
 import { title } from "../notes/search.ts";
 import { toast } from "../ui/toast.tsx";
@@ -50,10 +51,9 @@ export async function importFiles(files: File[]) {
     imported++;
   }
   const skipped = files.length - imported;
-  const count = (n: number, thing: string) => `${n.toLocaleString()} ${thing}${n === 1 ? "" : "s"}`;
-  if (!imported) toast(`Only plain text files up to ${MaxLength.toLocaleString()} characters can be imported`);
-  else if (skipped) toast(`Imported ${count(imported, "note")} and skipped ${count(skipped, "file")}`);
-  else toast(`Imported ${count(imported, "note")}`);
+  if (!imported) toast(`Only plain text files up to ${number(MaxLength)} characters can be imported`);
+  else if (skipped) toast(`Imported ${plural(imported, "note")} and skipped ${plural(skipped, "file")}`);
+  else toast(`Imported ${plural(imported, "note")}`);
 }
 
 /** Safe as a file name on every system. */

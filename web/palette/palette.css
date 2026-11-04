@@ -42,12 +42,13 @@
     overflow-y: auto;
   }
 
-  & .view p {
+  /* Weightless, so a view's own spacing wins. */
+  & :where(.view p) {
     margin: var(--gap) 0 0;
     color: var(--muted);
   }
 
-  & .view h2 + p {
+  & :where(.view h2 + p) {
     margin-top: var(--pair);
   }
 
@@ -59,33 +60,21 @@
     margin-top: var(--group);
   }
 
-  & .shortcuts {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: var(--gap) 2ch;
-    margin: var(--group) 0 0;
-  }
-
-  & .shortcuts dd {
-    margin: 0;
-    color: var(--muted);
-  }
-
-  /* Opened by a click or tap: a short rise. Opened by a key: no animation at all. */
+  /* Opened by a click or tap: a short rise, and a quicker sink as it closes. Opened by a key: no animation at all. */
   &[data-motion] .card {
-    animation: rise 160ms var(--ease-out);
+    animation: rise var(--fade) var(--ease-out);
   }
 
   &[data-motion] .scrim {
-    animation: fade-in 160ms var(--ease-out);
+    animation: fade-in var(--fade) var(--ease-out);
   }
 
   &[data-closing] .card {
-    animation: sink var(--quick) var(--ease-out) forwards;
+    animation: sink var(--press) var(--ease-out) forwards;
   }
 
   &[data-closing] .scrim {
-    animation: fade-in var(--quick) var(--ease-out) reverse forwards;
+    animation: fade-in var(--press) var(--ease-out) reverse forwards;
   }
 
   @media (max-width: 640px) {
@@ -120,11 +109,11 @@
     }
 
     &[data-motion] .card {
-      animation: sheet-in 320ms var(--ease-drawer);
+      animation: sheet-in var(--sheet-in) var(--ease-drawer);
     }
 
     &[data-closing] .card {
-      animation: sheet-out 220ms var(--ease-drawer) forwards;
+      animation: sheet-out var(--sheet-out) var(--ease-drawer) forwards;
     }
   }
 
@@ -132,7 +121,7 @@
     &[data-motion] .card,
     &[data-closing] .card {
       animation-name: fade-in;
-      animation-duration: 100ms;
+      animation-duration: var(--press);
     }
 
     &[data-closing] .card {

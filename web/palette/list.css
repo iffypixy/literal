@@ -85,9 +85,6 @@
   & .title {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 
   & .time {
@@ -98,9 +95,6 @@
 
   & .snippet {
     margin-top: var(--pair);
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     color: var(--muted);
   }
 
@@ -117,6 +111,16 @@
     width: 24px;
     height: 24px;
     margin: -4px -6px -4px 0;
+
+    /* A finger swipes instead; a screen reader, which takes swipes for itself, still finds the button. */
+    @media (pointer: coarse) {
+      display: grid;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
   }
 
   & .sentinel {
@@ -153,24 +157,11 @@
 
   & .account {
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 
   & .sync {
     margin: 0 calc(-1 * var(--inset));
     padding: var(--control-padding) var(--inset);
-    border-radius: var(--radius-small);
-    color: var(--muted);
-    transition:
-      color var(--quick) ease,
-      background-color var(--quick) ease,
-      transform var(--quick) var(--ease-out);
-  }
-
-  & .sync:active {
-    transform: scale(0.97);
   }
 
   @media (hover: hover) and (pointer: fine) {
@@ -180,11 +171,6 @@
 
     & .option:hover .delete {
       display: grid;
-    }
-
-    & .sync:hover {
-      color: var(--text);
-      background: var(--hover);
     }
   }
 

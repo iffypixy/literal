@@ -21,16 +21,17 @@ import {
   start,
 } from "./notes/notes.ts";
 import { prepare, quoted, shorten, title } from "./notes/search.ts";
-import { closePalette, onSheet, Palette, palette, togglePalette } from "./palette/palette.tsx";
+import { closePalette, onSheet, Palette, palette, poppedStep, takeStep, togglePalette } from "./palette/palette.tsx";
 import { letter, mod, Shortcuts } from "./shortcuts.ts";
-import { account, farewell, session, signedIn } from "./sync/account.ts";
+import { account, farewell, onSignInElsewhere, session, signedIn } from "./sync/account.ts";
 import { start as startSync } from "./sync/sync.ts";
-import { act, quiet, toast, Toasts } from "./ui/toast.tsx";
+import { dismiss, runAction, toast, Toasts } from "./ui/toast.tsx";
 import { stayUpToDate } from "./update.ts";
 
 const TitleShown = 60;
 
-type How = "push" | "replace" | "none";
+/** How a page change goes into history: as a new step, in place of the current one, or not at all (Back did it). */
+type HistoryStep = "push" | "replace" | "none";
 
 export function App() {
   // Set by Editor as it renders, before anything here runs.
@@ -41,6 +42,10 @@ export function App() {
   const [previous, setPrevious] = createSignal<string | null>(null);
   /** A note is on its way from disk: until it's shown, keys would land in the page being left. */
   const [opening, setOpening] = createSignal(false);
+  /** Typing with a mouse at hand: the corner's buttons step aside. */
+  const [typing, setTyping] = createSignal(false);
+  /** Counts calls to `go`: a note that opens after a later call has nothing more to do. */
+  let goes = 0;
   /** A note was just deleted, and nothing typed since: ⌘Z means the note, wherever the cursor is. */
   let undoable = false;
   /** Notes deleted under the toast now showing: one Undo brings them all back. */
@@ -68,10 +73,11 @@ export function App() {
     void go(idFrom(location.pathname), "replace");
     if (account.email) startSync();
     void checkSession();
+    onSignInElsewhere(startSync);
     stayUpToDate(() => palette.open);
   });
 
-  /** Signed in elsewhere, e.g. in another tab since this one opened. */
+  /** Signed in, though this device doesn't remember it: its storage was cleared, or refused. */
   async function checkSession() {
     let email: string | null;
     try {
@@ -93,7 +99,9 @@ export function App() {
    * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
    * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
    */
-  async function go(id: string | null, how: How, focus = mouse.matches) {
+  async function go(id: string | null, how: HistoryStep, focus = mouse.matches) {
+    const turn = ++goes;
+    setOpening(false);
     if (id !== null && id === current()) {
       if (focus) editor.focus();
       return;
@@ -114,11 +122,13 @@ export function App() {
       text = await open(id);
     } catch (error) {
       console.error(error);
+      if (turn !== goes) return;
+      setOpening(false);
       toast("Couldn't open this note, please try again");
       return;
-    } finally {
-      setOpening(false);
     }
+    if (turn !== goes) return;
+    setOpening(false);
     if (!text) {
       toast("Note not found");
       void go(null, "replace");
@@ -136,10 +146,10 @@ export function App() {
     discardIfEmpty(id);
   }
 
-  function navigate(path: string, how: How) {
+  function navigate(path: string, how: HistoryStep) {
     if (how === "none") return;
-    // The phone's sheet is a step in history (so Back closes it): a note it opens takes that step's place.
-    const sheet = onSheet();
+    // The sheet is a step in history, so Back closes it: a note it opens takes that step's place.
+    const sheet = takeStep();
     if (location.pathname === path && !sheet) return;
     if (how === "push" && !sheet) history.pushState(null, "", path);
     else history.replaceState(null, "", path);
@@ -151,7 +161,7 @@ export function App() {
     navigate(`/${created.id}`, "replace");
   }
 
-  function newNote() {
+  function goBlank() {
     closePalette(false, true);
     void go(null, "push");
   }
@@ -163,11 +173,11 @@ export function App() {
     const wasOpen = id === current();
     if (wasOpen) {
       setNote(null);
-      // Under the phone's sheet, the address is set once the sheet has stepped back to the page beneath it.
+      // Under the sheet, the address is set once the sheet has stepped back to the page beneath it.
       if (!onSheet()) navigate("/", "replace");
     }
     // Deletes in a row share one toast, so the earlier ones keep their Undo.
-    if (deleted.length) quiet();
+    if (deleted.length) dismiss();
     deleted.push({ id, wasOpen });
     const batch = deleted;
     toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted "${name}"` : "Deleted", {
@@ -196,7 +206,7 @@ export function App() {
 
   // The app lives as long as the page, and so do these listeners.
 
-  // Before the page's own keys: right after a delete, ⌘Z must reach the note before the editor's undo does.
+  // Captured, so right after a delete ⌘Z reaches the note before the editor's own undo does.
   addEventListener(
     "keydown",
     (event) => {
@@ -205,7 +215,7 @@ export function App() {
       event.preventDefault();
       event.stopPropagation();
       undoable = false;
-      act();
+      runAction();
     },
     true,
   );
@@ -217,7 +227,7 @@ export function App() {
     } else if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && letter(event, "n")) {
       // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
-      newNote();
+      goBlank();
     } else if (
       !palette.open &&
       !opening() &&
@@ -234,7 +244,11 @@ export function App() {
 
   addEventListener("input", () => (undoable = false));
 
-  addEventListener("popstate", () => void go(idFrom(location.pathname), "none"));
+  addEventListener("popstate", () => {
+    // Off the sheet's step, the page beneath may still show a note deleted meanwhile.
+    if (poppedStep()) navigate(current() ? `/${current()}` : "/", "replace");
+    else void go(idFrom(location.pathname), "none");
+  });
 
   addEventListener("pagehide", (event) => {
     // Kept for the Back button, the page may come back as it was, its note still on it: nothing is discarded then.
@@ -254,25 +268,27 @@ export function App() {
 
   return (
     <>
-      <div class="page" inert={palette.open}>
+      <div class="page" inert={palette.open} onInput={() => setTyping(mouse.matches)}>
         <Editor ref={(api) => (editor = api)} text={note()?.text ?? null} readonly={opening()} onCreate={onCreate} />
       </div>
 
-      <Corner current={current()} onNew={newNote} focusEditor={() => editor.focus()} />
+      <Corner
+        current={current()}
+        away={typing()}
+        onReturn={() => setTyping(false)}
+        onBlank={goBlank}
+        focusEditor={() => editor.focus()}
+      />
 
       <Palette
         current={current()}
         previous={previous()}
         onPick={(id, pointer) => void go(id, "push", mouse.matches || !pointer)}
         onDelete={onDelete}
-        onNew={newNote}
+        onBlank={goBlank}
         onSignedIn={onSignedIn}
         onClose={(pointer) => {
           if (!opening() && (mouse.matches || !pointer)) editor.focus();
-        }}
-        onStepBack={() => {
-          const id = current();
-          navigate(id ? `/${id}` : "/", "replace");
         }}
       />
 

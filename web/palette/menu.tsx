@@ -77,6 +77,7 @@ export function Menu(props: Props) {
                 <For each={group}>
                   {(action) => (
                     <button
+                      class="quiet"
                       classList={{ danger: action.danger }}
                       onClick={(event) => {
                         setOpen(false);

@@ -12,5 +12,12 @@
     "typescript/no-base-to-string": "off",
     // Control characters are matched on purpose: plain ASCII, and what a file name can't hold.
     "no-control-regex": "off"
-  }
+  },
+  "overrides": [
+    {
+      // node:test runs every test() it's given, awaiting the promise it returns.
+      "files": ["unit/**"],
+      "rules": { "typescript/no-floating-promises": "off" }
+    }
+  ]
 }

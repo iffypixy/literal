@@ -9,8 +9,8 @@
   opacity: 0;
   transform: scale(0.97);
   transition:
-    opacity var(--brief) var(--ease-out),
-    transform var(--brief) var(--ease-out);
+    opacity var(--fade) var(--ease-out),
+    transform var(--fade) var(--ease-out);
 
   &[data-open] {
     opacity: 1;

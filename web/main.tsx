@@ -15,8 +15,8 @@ document.addEventListener("touchstart", () => {}, { passive: true });
 // Installed, Literal asks to keep its storage even when the device runs short of space: the notes live there.
 if (installed.matches) void navigator.storage?.persist();
 
-// iOS doesn't shrink the page for the keyboard; this keeps the end of the text above it. A pinch zoom shrinks what's
-// visible too, but not the page: scaled back, it leaves the page its size.
+// iOS doesn't shrink the page for the keyboard, so the page takes the visible height, keeping the end of the text
+// above the keyboard. Pinch-zooming shrinks the visible height too; multiplied by the zoom, it's the page's own again.
 const viewport = window.visualViewport;
 viewport?.addEventListener("resize", () => {
   document.documentElement.style.setProperty("--viewport-height", `${viewport.height * viewport.scale}px`);

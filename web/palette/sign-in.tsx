@@ -2,9 +2,11 @@ import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } f
 import { CodeLength } from "../../protocol.ts";
 import { Fragile, reducedMotion, touch } from "../device.ts";
 import { composing } from "../shortcuts.ts";
-import { sendCode, unreachable, verify } from "../sync/account.ts";
+import { sendCode, verify, WrongCode } from "../sync/account.ts";
+import { Alert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import { Back } from "./back.tsx";
+import { Legal } from "./legal.tsx";
 import "./sign-in.css";
 
 /** Seconds before a code can be sent again. */
@@ -41,7 +43,7 @@ export function SignIn(props: Props) {
     if (busy()) return;
     setBusy(true);
     setError("");
-    const problem = await sendCode(email().trim()).catch(unreachable);
+    const problem = await sendCode(email().trim());
     setBusy(false);
     if (problem) {
       setError(problem);
@@ -57,11 +59,7 @@ export function SignIn(props: Props) {
     if (busy() || code().length !== CodeLength) return;
     setBusy(true);
     setError("");
-    let reached = true;
-    const problem = await verify(email().trim(), code()).catch(() => {
-      reached = false;
-      return unreachable();
-    });
+    const problem = await verify(email().trim(), code());
     setBusy(false);
     if (!problem) return props.onDone(email().trim());
     // Gone back to the email meanwhile: the answer is about a code no longer asked for.
@@ -69,8 +67,8 @@ export function SignIn(props: Props) {
     setError(problem);
     setCode("");
     field?.focus();
-    // A wrong code shakes, as a wrong passcode does; a lost connection isn't wrong.
-    if (reached) shake();
+    // A wrong code shakes, as a wrong passcode does.
+    if (problem === WrongCode) shake();
   }
 
   function shake() {
@@ -110,7 +108,7 @@ export function SignIn(props: Props) {
   }
 
   return (
-    <div class="sign-in" onKeyDown={onKeyDown}>
+    <div class="view sign-in" onKeyDown={onKeyDown}>
       <Back onClick={() => (step() === "code" ? restart() : props.onBack())} />
 
       <Switch>
@@ -142,20 +140,10 @@ export function SignIn(props: Props) {
               Send code
             </Button>
           </form>
-          <Show when={error()}>
-            <p class="error" role="alert">
-              {error()}
-            </p>
-          </Show>
+          <Alert message={error()} />
           <p class="note">No password. We'll email you a {CodeLength}-digit code.</p>
           <p class="note fine">
-            <a href="/terms" target="_blank">
-              Terms
-            </a>{" "}
-            ·{" "}
-            <a href="/privacy" target="_blank">
-              Privacy
-            </a>
+            <Legal />
           </p>
         </Match>
 
@@ -180,11 +168,7 @@ export function SignIn(props: Props) {
             placeholder={"0".repeat(CodeLength)}
             readOnly={busy()}
           />
-          <Show when={error()}>
-            <p class="error" role="alert">
-              {error()}
-            </p>
-          </Show>
+          <Alert message={error()} />
           <p class="links">
             <Show
               when={wait()}

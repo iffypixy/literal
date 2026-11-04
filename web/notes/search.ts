@@ -80,7 +80,7 @@ export function shorten(name: string, length: number): string {
   return `${space > length / 2 ? cut.slice(0, space) : cut}…`;
 }
 
-export function mark(text: string, words: string[]): Segment[] {
+function mark(text: string, words: string[]): Segment[] {
   return marked(text, words, () => true);
 }
 

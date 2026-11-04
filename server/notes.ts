@@ -11,6 +11,8 @@ export const SessionHeader = "Literal-Session";
  * typed a letter at a time, each in a new spot, in Chinese, it reaches 2.0 MB. Such a note stays on its device.
  */
 const MaxState = 1_900_000;
+/** A delete adds a few bytes to a note: room for that, still under the row's 2 MB, so a delete always goes through. */
+const DeleteRoom = 50_000;
 /**
  * Deleted notes don't count toward the limits, yet keep their text for 30 days. So nobody can fill an account with
  * them, everything stored has a ceiling too: twice the limits, which using the app never reaches.
@@ -38,9 +40,9 @@ export class UserNotes extends DurableObject<Env> {
     this.sql = ctx.storage.sql;
     // Answered without waking the object: devices ping to learn their connection is still alive.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
-    // Reading a note's state is slow, so a note is read (compacted, and checked for deletion) once a day and near a
-    // limit. `checked_at` is the `updated_at` it was last read at; `deleted_at`, as of then, the server time of the
-    // write that left it deleted, or null while it's live.
+    // Reading a note's state is slow, so a note is read (compacted, and checked for deletion) only once a day, and
+    // when it's near a limit. `checked_at` is the `updated_at` it was last read at. `deleted_at` is set if that read
+    // found it deleted: the same time, so its 30 days run from the last write anyone made to it.
     ctx.storage.transactionSync(() => {
       this.sql.exec(
         "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, state BLOB NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL, checked_at INTEGER NOT NULL DEFAULT 0, deleted_at INTEGER)",
@@ -131,13 +133,14 @@ export class UserNotes extends DurableObject<Env> {
 
   private hello(socket: WebSocket, { since, notes }: Extract<Message, { type: "hello" }>) {
     const theirs = new Map(notes.map((note) => [note.id, note]));
-    const purged = new Set(
-      this.sql
-        .exec<{ id: string }>("SELECT id FROM purged")
-        .toArray()
-        .map((row) => row.id),
-    );
-    const gone = [...theirs.keys()].filter((id) => purged.has(id));
+    const gone = this.sql
+      .exec<{ id: string }>(
+        "SELECT id FROM purged WHERE id IN (SELECT value FROM json_each(?))",
+        JSON.stringify([...theirs.keys()]),
+      )
+      .toArray()
+      .map((row) => row.id);
+    const purged = new Set(gone);
     if (gone.length) socket.send(encode({ type: "purge", ids: gone }));
 
     // Everything written up to now goes out below; anything later reaches the device live.
@@ -209,7 +212,7 @@ export class UserNotes extends DurableObject<Env> {
     if (note) {
       this.sql.exec(
         "UPDATE notes SET checked_at = updated_at, deleted_at = ? WHERE id = ?",
-        note.deleted ? (row?.deleted_at ?? this.last) : null,
+        note.deleted ? this.last : null,
         id,
       );
     }
@@ -219,16 +222,16 @@ export class UserNotes extends DurableObject<Env> {
   }
 
   /**
-   * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes; null if it can. Only
-   * notes it still has count: a deleted one, kept 30 days so other devices hear of it, counts only toward the
-   * ceilings. So deleting a note makes room, and goes through itself, as does any change that doesn't grow a note.
+   * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes; null if it can.
+   * A deleted note, kept 30 days so other devices hear of it, counts only toward the ceilings. So a delete always
+   * goes through and makes room, and so does any change that doesn't grow a note.
    */
   private refusal(id: string, isNew: boolean, notes: number, before: number, note: Read): Refusal | null {
     if (notes >= MaxNotes) {
       if (isNew && notes >= CeilingNotes) return "too-many";
       if (!note.deleted && this.live(id).notes >= MaxNotes) return "too-many";
     }
-    if (note.state.byteLength > MaxState) return "too-large";
+    if (note.state.byteLength > MaxState + (note.deleted ? DeleteRoom : 0)) return "too-large";
     const growth = note.state.byteLength - before;
     if (growth > 0 && this.stored + growth > MaxBytes) {
       if (this.stored + growth > CeilingBytes) return "too-full";
@@ -254,16 +257,13 @@ export class UserNotes extends DurableObject<Env> {
     for (const { id } of ids) {
       if (id === except) continue;
       const row = this.sql
-        .exec<{ state: ArrayBuffer; updated_at: number; deleted_at: number | null }>(
-          "SELECT state, updated_at, deleted_at FROM notes WHERE id = ?",
-          id,
-        )
+        .exec<{ state: ArrayBuffer; updated_at: number }>("SELECT state, updated_at FROM notes WHERE id = ?", id)
         .one();
       const note = read(new Uint8Array(row.state));
       this.sql.exec(
         "UPDATE notes SET state = ?, checked_at = updated_at, deleted_at = ? WHERE id = ?",
         buffer(note.state),
-        note.deleted ? (row.deleted_at ?? row.updated_at) : null,
+        note.deleted ? row.updated_at : null,
         id,
       );
       this.stored += note.state.byteLength - row.state.byteLength;

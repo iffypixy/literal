@@ -1,12 +1,9 @@
 .sign-in {
   display: flex;
   flex-direction: column;
-  padding: var(--edge);
-  overflow-y: auto;
 
   & .lead {
     margin: var(--pair) 0 var(--group);
-    color: var(--muted);
   }
 
   & .lead strong {
@@ -30,8 +27,8 @@
     background: var(--bg);
     outline: none;
     transition:
-      border-color var(--quick) ease,
-      box-shadow var(--quick) ease;
+      border-color var(--press) ease,
+      box-shadow var(--press) ease;
   }
 
   & input:focus {
@@ -51,14 +48,8 @@
     border-color: var(--danger);
   }
 
-  & .error {
-    margin: var(--gap) 0 0;
-    color: var(--danger);
-  }
-
   & .note {
     margin: var(--group) 0 0;
-    color: var(--muted);
   }
 
   & .fine {
@@ -70,6 +61,5 @@
     flex-wrap: wrap;
     gap: 1ch;
     margin: var(--group) 0 0;
-    color: var(--muted);
   }
 }

@@ -1,6 +1,7 @@
-import { batch, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { Fragile, Mac, reducedMotion, touch } from "../device.ts";
-import { list, notes, type Note } from "../notes/notes.ts";
+import { batch, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
+import { Apple, Fragile, reducedMotion, touch } from "../device.ts";
+import { ago } from "../format.ts";
+import { library, list, type Note } from "../notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "../notes/search.ts";
 import { composing, Shortcuts } from "../shortcuts.ts";
 import { account } from "../sync/account.ts";
@@ -26,7 +27,7 @@ type Props = {
   /** `pointer`: whether a click or tap (not a key) did it. */
   onPick: (id: string, pointer: boolean) => void;
   onDelete: (id: string) => void;
-  onNew: () => void;
+  onBlank: () => void;
   onView: (view: View) => void;
   onClose: (pointer: boolean) => void;
   onSignOut: () => void;
@@ -47,7 +48,7 @@ export function List(props: Props) {
   const now = Date.now();
 
   const actions = {
-    new: { label: "New note", keys: Shortcuts.new, run: () => props.onNew() },
+    new: { label: "New note", keys: Shortcuts.new, run: () => props.onBlank() },
     import: { label: "Import .txt files", run: () => picker.click() },
     export: {
       label: "Export all notes",
@@ -79,19 +80,19 @@ export function List(props: Props) {
 
   const words = createMemo(() => parse(query()));
   /** None until you type, so the list opens on your notes. */
-  const found = createMemo(() =>
+  const commandsFound = createMemo(() =>
     words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
   const results = createMemo(() => search(list(), words()));
   const shown = createMemo(() => results().slice(0, limit()));
-  const entries = createMemo<(Action | Note)[]>(() => [...found(), ...shown()]);
+  const entries = createMemo<(Action | Note)[]>(() => [...commandsFound(), ...shown()]);
   /**
    * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
    * one), so Enter goes back. Typing, on the first note, or the first command if no note matches: so Enter after
    * "new" still opens a note about New York, and Enter after "export" exports.
    */
   const first = createMemo(() => {
-    if (words().length) return results().length ? found().length : 0;
+    if (words().length) return results().length ? commandsFound().length : 0;
     const back = results().findIndex((note) => note.id === props.previous);
     return back >= 0
       ? back
@@ -106,8 +107,8 @@ export function List(props: Props) {
     const entry = selected();
     return entry && rowId(entry);
   };
-  /** On a touch screen no row is highlighted until a key moves the highlight: nothing there could act on it. */
-  const highlighted = () => !touch.matches || active() >= 0;
+  /** Opened by a tap, no row is highlighted until a key moves the highlight: nothing there could act on it. */
+  const highlighted = () => props.focus || active() >= 0;
 
   onMount(() => props.focus && input.focus());
 
@@ -129,17 +130,17 @@ export function List(props: Props) {
     removing.add(note.id);
     if (row && !reducedMotion.matches) await collapse(row);
     // The highlight stays put: on the next note, or the one before when the last one went.
-    setActive(Math.min(entries().indexOf(note), found().length + results().length - 2));
+    setActive(Math.min(entries().indexOf(note), commandsFound().length + results().length - 2));
     props.onDelete(note.id);
     removing.delete(note.id);
   }
 
   function move(by: number) {
-    const total = found().length + results().length;
+    const total = commandsFound().length + results().length;
     if (!total) return;
     const next = Math.min(total - 1, Math.max(0, at() + by));
     setActive(next);
-    if (next - found().length >= limit()) setLimit(limit() + PageSize);
+    if (next - commandsFound().length >= limit()) setLimit(limit() + PageSize);
     rows.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
   }
 
@@ -164,7 +165,7 @@ export function List(props: Props) {
     } else if (event.key === "Enter") {
       event.preventDefault();
       pick(entry, false);
-    } else if (entry && !isAction(entry) && deletes(event, event.currentTarget)) {
+    } else if (highlighted() && entry && !isAction(entry) && deletes(event, event.currentTarget)) {
       event.preventDefault();
       void remove(entry);
     }
@@ -180,7 +181,7 @@ export function List(props: Props) {
   }
 
   function rowId(entry: Action | Note): string {
-    return isAction(entry) ? `command-${found().indexOf(entry)}` : `note-${entry.id}`;
+    return isAction(entry) ? `command-${commandsFound().indexOf(entry)}` : `note-${entry.id}`;
   }
 
   function onPicked(field: HTMLInputElement) {
@@ -222,40 +223,36 @@ export function List(props: Props) {
         hidden={!entries().length}
         data-highlighted={highlighted() ? "" : undefined}
       >
-        <Show when={found().length}>
+        <Show when={commandsFound().length}>
           <div role="group" aria-labelledby="commands-label">
             <div class="group" id="commands-label">
               Commands
             </div>
-            <For each={found()}>
+            <For each={commandsFound()}>
               {(command, index) => (
-                <div
-                  class="option"
+                <Option
                   id={`command-${index()}`}
-                  role="option"
-                  tabindex="-1"
-                  aria-selected={index() === at()}
-                  onPointerMove={(event) => event.pointerType === "mouse" && setActive(index())}
+                  selected={index() === at()}
+                  onHover={() => setActive(index())}
+                  onPick={() => pick(command, true)}
                 >
-                  <div class="row" role="presentation" onClick={() => pick(command, true)}>
-                    <div class="line">
-                      <span class="title">
-                        <Marked parts={markStarts(command.label, words())} />
-                      </span>
-                      <Show when={command.keys}>{(keys) => <Keys keys={keys()} />}</Show>
-                    </div>
+                  <div class="line">
+                    <span class="title truncate">
+                      <Marked parts={markStarts(command.label, words())} />
+                    </span>
+                    <Show when={command.keys}>{(keys) => <Keys keys={keys()} />}</Show>
                   </div>
-                </div>
+                </Option>
               )}
             </For>
           </div>
         </Show>
         <div
           role="group"
-          aria-labelledby={found().length ? "notes-label" : undefined}
-          aria-label={found().length ? undefined : "Notes"}
+          aria-labelledby={commandsFound().length ? "notes-label" : undefined}
+          aria-label={commandsFound().length ? undefined : "Notes"}
         >
-          <Show when={found().length && shown().length}>
+          <Show when={commandsFound().length && shown().length}>
             <div class="group" id="notes-label">
               Notes
             </div>
@@ -263,52 +260,41 @@ export function List(props: Props) {
           <For each={shown()}>
             {(note, position) => {
               let option!: HTMLDivElement;
-              const index = () => found().length + position();
+              const index = () => commandsFound().length + position();
               const parts = createMemo(() => describe(note, words()));
               return (
-                <div
+                <Option
                   ref={option}
-                  class="option"
                   id={`note-${note.id}`}
-                  role="option"
-                  tabindex="-1"
-                  aria-selected={index() === at()}
-                  aria-current={note.id === props.current ? "true" : undefined}
-                  onPointerMove={(event) => event.pointerType === "mouse" && setActive(index())}
+                  selected={index() === at()}
+                  current={note.id === props.current}
+                  onHover={() => setActive(index())}
+                  onPick={() => pick(note, true)}
+                  onSwipe={() => void remove(note, option)}
                 >
-                  <span class="behind" aria-hidden="true">
-                    Delete
-                  </span>
-                  <div
-                    ref={(row) => swipe(row, () => void remove(note, option))}
-                    class="row"
-                    role="presentation"
-                    onClick={() => pick(note, true)}
-                  >
-                    <div class="line">
-                      <span class="title">
-                        <Marked parts={parts().title} />
-                      </span>
-                      <span class="time">{ago(note.editedAt, now)}</span>
-                      <IconButton
-                        class="delete"
-                        label="Delete note"
-                        icon="close"
-                        keys={Shortcuts.delete}
-                        tabindex="-1"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void remove(note, option);
-                        }}
-                      />
-                    </div>
-                    <Show when={parts().snippet.some((part) => part.text)}>
-                      <div class="snippet">
-                        <Marked parts={parts().snippet} />
-                      </div>
-                    </Show>
+                  <div class="line">
+                    <span class="title truncate">
+                      <Marked parts={parts().title} />
+                    </span>
+                    <span class="time">{ago(note.editedAt, now)}</span>
+                    <IconButton
+                      class="delete"
+                      label="Delete note"
+                      icon="close"
+                      keys={Shortcuts.delete}
+                      tabindex="-1"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void remove(note, option);
+                      }}
+                    />
                   </div>
-                </div>
+                  <Show when={parts().snippet.some((part) => part.text)}>
+                    <div class="snippet truncate">
+                      <Marked parts={parts().snippet} />
+                    </div>
+                  </Show>
+                </Option>
               );
             }}
           </For>
@@ -319,7 +305,7 @@ export function List(props: Props) {
       </div>
 
       {/* Signed in on a device still waiting for its notes, "No notes yet" would look like they were lost. */}
-      <Show when={notes.ready && !entries().length && (words().length || !account.email || notes.synced)}>
+      <Show when={library.ready && !entries().length && (words().length || !account.email || library.synced)}>
         <p class="empty">{words().length ? "No matches" : "No notes yet"}</p>
       </Show>
 
@@ -327,14 +313,14 @@ export function List(props: Props) {
         <Show
           when={account.email}
           fallback={
-            <button class="sync" onClick={() => props.onView("sign-in")}>
+            <button class="sync quiet" onClick={() => props.onView("sign-in")}>
               {Fragile ? "Sync to keep notes safe" : "Sync across devices"}
               <span aria-hidden="true">&ensp;→</span>
             </button>
           }
         >
           {(email) => (
-            <span class="account" title={email()}>
+            <span class="account truncate" title={email()}>
               {email()}
             </span>
           )}
@@ -353,6 +339,45 @@ export function List(props: Props) {
   );
 }
 
+/** A row the arrows can land on. `onSwipe`: a note's row, which a swipe to the left deletes. */
+function Option(props: {
+  ref?: HTMLDivElement | ((option: HTMLDivElement) => void);
+  id: string;
+  selected: boolean;
+  current?: boolean;
+  onHover: () => void;
+  onPick: () => void;
+  onSwipe?: () => void;
+  children: JSX.Element;
+}) {
+  return (
+    <div
+      ref={props.ref}
+      class="option"
+      id={props.id}
+      role="option"
+      tabindex="-1"
+      aria-selected={props.selected}
+      aria-current={props.current ? "true" : undefined}
+      onPointerMove={(event) => event.pointerType === "mouse" && props.onHover()}
+    >
+      <Show when={props.onSwipe}>
+        <span class="behind" aria-hidden="true">
+          Delete
+        </span>
+      </Show>
+      <div
+        ref={(row) => props.onSwipe && swipe(row, props.onSwipe)}
+        class="row"
+        role="presentation"
+        onClick={() => props.onPick()}
+      >
+        {props.children}
+      </div>
+    </div>
+  );
+}
+
 function isAction(entry: Action | Note): entry is Action {
   return "run" in entry;
 }
@@ -362,45 +387,30 @@ function Marked(props: { parts: Segment[] }) {
 }
 
 /**
- * Delete deletes, with nothing after the cursor to erase (fn⌫ on a Mac); and on a Mac ⌘⌫, as in Finder, with nothing
- * before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held down, a key deletes one note.
+ * Delete deletes, with nothing after the cursor to erase (fn⌫ on a Mac); and on Apple devices ⌘⌫, as in Finder,
+ * with nothing before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held down, a key deletes
+ * one note.
  */
 function deletes(event: KeyboardEvent, field: HTMLInputElement): boolean {
   if (event.repeat || event.altKey || event.shiftKey) return false;
   if (field.selectionStart !== field.selectionEnd) return false;
   if (event.key === "Delete") return !event.ctrlKey && !event.metaKey && field.selectionEnd === field.value.length;
-  return Mac && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
+  return Apple && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
 }
 
 function collapse(row: HTMLElement): Promise<unknown> {
   row.style.pointerEvents = "none";
+  const style = getComputedStyle(row);
   return row.animate(
     [
       { height: `${row.offsetHeight}px`, opacity: 1 },
       { opacity: 0, offset: 0.5 },
       { height: "0px", opacity: 0 },
     ],
-    { duration: 200, easing: getComputedStyle(row).getPropertyValue("--ease-out").trim(), fill: "forwards" },
+    {
+      duration: parseFloat(style.getPropertyValue("--fade")),
+      easing: style.getPropertyValue("--ease-out").trim(),
+      fill: "forwards",
+    },
   ).finished;
-}
-
-const Minute = 60_000;
-// In English like every other word here, with the clock (12 or 24 hours) this computer uses.
-const HourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-const clock = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hourCycle: HourCycle });
-const day = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
-const dayAndYear = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" });
-
-function ago(at: number, now: number): string {
-  const age = now - at;
-  if (age < Minute) return "Just now";
-  if (age < 60 * Minute) return `${Math.floor(age / Minute)}m`;
-  const date = new Date(at);
-  const today = new Date(now);
-  if (date.toDateString() === today.toDateString()) return clock.format(date);
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  if (date.getFullYear() === today.getFullYear()) return day.format(date);
-  return dayAndYear.format(date);
 }

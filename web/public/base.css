@@ -41,9 +41,11 @@
   /* 3px on things that hold others, 2px on the rest. */
   --radius: 3px;
   --radius-small: 2px;
-  /* Feedback (hover, press) is quick; small things come and go a bit slower. */
-  --quick: 120ms;
-  --brief: 150ms;
+  /* Feedback (hover, press) is quick; small things come and go a bit slower; the phone's sheet slower still. */
+  --press: 120ms;
+  --fade: 160ms;
+  --sheet-in: 320ms;
+  --sheet-out: 220ms;
 
   --font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -210,6 +212,35 @@ a,
   @media (forced-colors: active) {
     outline: 1px solid CanvasText;
   }
+}
+
+/* A control drawn as its text or icon alone: muted, washed on hover, pressed in on a click or tap. */
+.quiet {
+  border-radius: var(--radius-small);
+  color: var(--muted);
+  transition:
+    opacity var(--fade) ease,
+    color var(--press) ease,
+    background-color var(--press) ease,
+    transform var(--press) var(--ease-out);
+
+  &:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      color: var(--text);
+      background: var(--hover);
+    }
+  }
+}
+
+/* One line, cut with "…". */
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .visually-hidden {

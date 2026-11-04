@@ -59,8 +59,9 @@ function signedOut(): Response {
 
 /** Also closes the session's sockets: they check their session only as they open. */
 async function signOut(request: Request, env: Env): Promise<Response> {
-  const session = await createAuth(env).api.getSession({ headers: request.headers });
-  const response = await handleAuth(request, env);
+  const auth = createAuth(env);
+  const session = await auth.api.getSession({ headers: request.headers });
+  const response = await auth.handler(request);
   if (session && response.ok) await notesOf(env, session.user.id).signOut(session.session.id);
   return response;
 }

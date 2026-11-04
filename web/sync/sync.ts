@@ -3,14 +3,15 @@
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
 import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "../../protocol.ts";
+import { number } from "../format.ts";
 import * as notes from "../notes/notes.ts";
 import { quoted } from "../notes/search.ts";
 import { toast } from "../ui/toast.tsx";
 
-/** What the corner says: nothing while all is well. */
-export type Status = "" | "Offline" | "Not synced" | "Sign in to sync";
+/** What keeps notes from syncing: null while nothing does. `unreachable`: online, but the server can't be reached. */
+export type Problem = "offline" | "unreachable" | "signed-out";
 
-export const sync = createMutable<{ status: Status }>({ status: "" });
+export const sync = createMutable<{ problem: Problem | null }>({ problem: null });
 
 const DownAfter = 5000;
 /**
@@ -31,17 +32,14 @@ let socket: WebSocket | null = null;
 let running = false;
 let signedOut = false;
 let seq = 0;
-/**
- * Updates sent and not yet acked: which note, how far its changes went, and whether the update alone left the
- * server lacking none of it.
- */
+/** Updates sent and not yet acked: which note, its generation then, and whether the update was the whole note. */
 const unacked = new Map<number, { id: string; upTo: number; at: number; whole: boolean }>();
 /** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
 /**
- * Notes the server may lack changes of that their next update alone wouldn't carry: an update was refused, or lost
- * with a connection, or the note was too long to send. Each by the last `seq` that went without them: until a whole
- * note sent after that is acked, the note goes whole, and no other ack marks it synced.
+ * Notes whose next change alone may not be enough for the server. A change was refused, lost with a connection, or
+ * never sent; or another tab made one, which this tab doesn't send. Each is kept with the last `seq` sent before:
+ * until a whole note sent after it is acked, the note goes whole, and no other ack marks it synced.
  */
 const behind = new Map<string, number>();
 let retry = RetryMin;
@@ -65,7 +63,7 @@ export function start() {
     return;
   }
   running = true;
-  notes.onLocal(hold);
+  notes.onChange((id, update) => (update ? hold(id, update) : fallBehind(id, seq)));
   // A connection from before the network dropped is usually dead even if it looks open: start over.
   addEventListener("online", () => {
     drop();
@@ -158,7 +156,7 @@ async function handle(ws: WebSocket, message: Message) {
       for (const note of message.notes) {
         if (note.update) await notes.receive(note.id, note.update);
         if (!note.vector) continue;
-        if (tooLong(note.id)) {
+        if (isTooLong(note.id)) {
           fallBehind(note.id, seq);
           continue;
         }
@@ -194,12 +192,10 @@ async function handle(ws: WebSocket, message: Message) {
       if (told.has(about)) break;
       told.add(about);
       const name = sent ? quoted(notes.find(sent.id)?.text ?? "") : "";
-      if (message.reason === "too-many")
-        toast(`Sync stops at ${MaxNotes.toLocaleString()} notes, so delete some to make room`);
+      if (message.reason === "too-many") toast(`Sync stops at ${number(MaxNotes)} notes, so delete some to make room`);
       else if (message.reason === "too-full")
-        toast(`Sync stops at ${MaxBytes / 1_000_000} MB, so delete some notes to make room`);
-      else
-        toast(name ? `Split "${name}" into shorter notes to sync it` : "Split this note into shorter notes to sync it");
+        toast(`Sync stops at ${number(MaxBytes / 1_000_000)} MB, so delete some notes to make room`);
+      else toast(tooLong(name));
       break;
     }
     case "purge":
@@ -242,7 +238,7 @@ async function release(id: string) {
   if (!waiting) return;
   clearTimeout(waiting.timer);
   outbox.delete(id);
-  if (tooLong(id)) {
+  if (isTooLong(id)) {
     fallBehind(id, seq);
     return;
   }
@@ -256,13 +252,21 @@ async function release(id: string) {
 
 /** If not connected, the note stays dirty, and goes with the next hello. */
 function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    fallBehind(id, seq);
+    return;
+  }
   unacked.set(++seq, { id, upTo: notes.generation(id), at: Date.now(), whole });
   ws.send(encode({ type: "update", seq, id, update }));
 }
 
+/** Why a note doesn't sync: the one named, or the one open. */
+export function tooLong(name = ""): string {
+  return `Notes sync up to ${number(MaxLength)} characters, so split ${name ? `"${name}"` : "this one"} into shorter notes`;
+}
+
 /** It stays on this device, dirty and behind, until it's short enough again. */
-function tooLong(id: string): boolean {
+function isTooLong(id: string): boolean {
   return notes.length(id) > MaxLength;
 }
 
@@ -288,8 +292,7 @@ function tick() {
 }
 
 function report() {
-  if (signedOut) sync.status = "Sign in to sync";
-  else if (downSince === null || Date.now() - downSince < DownAfter) sync.status = "";
-  // Down with a network means the server can't be reached; without one, the device is offline.
-  else sync.status = navigator.onLine ? "Not synced" : "Offline";
+  if (signedOut) sync.problem = "signed-out";
+  else if (downSince === null || Date.now() - downSince < DownAfter) sync.problem = null;
+  else sync.problem = navigator.onLine ? "unreachable" : "offline";
 }

@@ -24,7 +24,7 @@
     box-sizing: border-box;
     padding: var(--control-padding) var(--edge);
     pointer-events: auto;
-    animation: toast-in 180ms var(--ease-out);
+    animation: toast-in var(--fade) var(--ease-out);
   }
 
   /* Replaced, it fades from wherever it had got to, the next one rising over it. */
@@ -32,7 +32,7 @@
     opacity: 0;
     pointer-events: none;
     animation: none;
-    transition: opacity var(--brief) linear;
+    transition: opacity var(--fade) linear;
   }
 
   & .action {

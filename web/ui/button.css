@@ -4,9 +4,9 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-small);
   transition:
-    transform var(--quick) var(--ease-out),
-    background-color var(--quick) ease,
-    opacity var(--quick) ease;
+    transform var(--press) var(--ease-out),
+    background-color var(--press) ease,
+    opacity var(--press) ease;
 
   &:active:not(:disabled) {
     transform: scale(0.97);

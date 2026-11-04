@@ -28,7 +28,7 @@ export function grab(handle: HTMLElement, sheet: HTMLElement, onDismiss: () => v
     if (!start || event.pointerId !== start.id) return;
     start = null;
     const velocity = recent.velocity(event.timeStamp);
-    sheet.style.transition = "transform 240ms var(--ease-drawer)";
+    sheet.style.transition = "transform var(--sheet-out) var(--ease-drawer)";
     if (dy > 120 || (velocity > 0.5 && dy > 24)) {
       sheet.style.transform = "translateY(100%)";
       onDismiss();
@@ -84,7 +84,7 @@ export function swipe(row: HTMLElement, onSwiped: () => void) {
     if (!dragging) return;
     dragging = false;
     const velocity = -recent.velocity(event.timeStamp);
-    row.style.transition = reducedMotion.matches ? "none" : "transform 200ms var(--ease-out)";
+    row.style.transition = reducedMotion.matches ? "none" : "transform var(--sheet-out) var(--ease-out)";
     if (-dx > row.offsetWidth * 0.4 || (velocity > 0.5 && dx < -40)) {
       row.style.transform = "translateX(-100%)";
       if (reducedMotion.matches) onSwiped();

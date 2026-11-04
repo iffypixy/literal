@@ -1,17 +1,17 @@
-import { Mac } from "./device.ts";
+import { Apple } from "./device.ts";
 
-/** ⌘ on a Mac, Ctrl elsewhere. */
+/** ⌘ on Apple devices, Ctrl elsewhere. */
 export function mod(event: KeyboardEvent): boolean {
-  return Mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  return Apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
 }
 
 /**
  * Matches by the character typed on Latin layouts (so ⌘Z is still Z on AZERTY), and by key position where it types
  * something else (Cyrillic, or ⌥ on a Mac).
  */
-export function letter(event: KeyboardEvent, letter: string): boolean {
-  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === letter;
-  return event.code === `Key${letter.toUpperCase()}`;
+export function letter(event: KeyboardEvent, key: string): boolean {
+  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === key;
+  return event.code === `Key${key.toUpperCase()}`;
 }
 
 /**
@@ -24,11 +24,11 @@ export function composing(event: KeyboardEvent): boolean {
 
 /** Labeled as this computer's keyboard labels them. */
 export const Shortcuts = {
-  notes: Mac ? ["⌘", "K"] : ["Ctrl", "K"],
-  new: Mac ? ["⌥", "N"] : ["Alt", "N"],
+  notes: Apple ? ["⌘", "K"] : ["Ctrl", "K"],
+  new: Apple ? ["⌥", "N"] : ["Alt", "N"],
   move: ["↑", "↓"],
-  open: Mac ? ["↵"] : ["Enter"],
-  delete: Mac ? ["⌘", "⌫"] : ["Del"],
-  undo: Mac ? ["⌘", "Z"] : ["Ctrl", "Z"],
+  open: Apple ? ["↵"] : ["Enter"],
+  delete: Apple ? ["⌘", "⌫"] : ["Del"],
+  undo: Apple ? ["⌘", "Z"] : ["Ctrl", "Z"],
   close: ["Esc"],
 };

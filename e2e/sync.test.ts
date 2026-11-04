@@ -105,6 +105,47 @@ test("deleting the account on one device erases it, and another device's notes g
   }).toPass({ timeout: 15_000 });
 });
 
+test("words typed in a tab that can't connect reach the account through another tab", async ({ browser }) => {
+  const [a, b] = await devices(browser);
+  await open(a, "written on a");
+  const cut = await a.context().newPage();
+  await cut.routeWebSocket(/\/sync$/, (ws) => ws.close());
+  await cut.goto(a.url());
+  await cut.keyboard.press("Control+End");
+  await cut.keyboard.type(" milk");
+  await expect(note(a)).toHaveValue("Written on A\nbefore signing in milk");
+  // Long enough for the cut tab to have tried, and failed, to send.
+  await cut.waitForTimeout(1500);
+  await a.keyboard.press("Control+End");
+  await a.keyboard.type(" eggs");
+  await cut.close();
+
+  await open(b, "written on a");
+  await expect(note(b)).toHaveValue("Written on A\nbefore signing in milk eggs", { timeout: 15_000 });
+});
+
+test("a tab opened signed out syncs once another tab signs in", async ({ browser }) => {
+  const email = address();
+  const a = await device(browser, email, "Written on A");
+  const context = await browser.newContext();
+  const first = await context.newPage();
+  await first.goto("/");
+  const second = await context.newPage();
+  await second.goto("/");
+  await second.keyboard.press("Control+k");
+  await second.getByRole("button", { name: /Sync across devices/ }).click();
+  await signIn(second, email);
+
+  await first.keyboard.type("Written in the first tab");
+  await expect(async () => {
+    await a.keyboard.press("Control+k");
+    await expect(a.getByRole("option").filter({ hasText: "Written in the first tab" })).toHaveCount(1, {
+      timeout: 1000,
+    });
+    await a.keyboard.press("Escape");
+  }).toPass({ timeout: 15_000 });
+});
+
 /** Two devices, signed in to one account, each with a note written before signing in. */
 async function devices(browser: Browser, email = address()): Promise<[Page, Page]> {
   return [await device(browser, email, "Written on A"), await device(browser, email, "Written on B")];

@@ -1,22 +1,23 @@
-import { batch, createEffect, createSignal, For, Match, Switch } from "solid-js";
+/** ⌘K: notes and commands, and the views they lead to. On a phone, a sheet from the bottom. */
+
+import { batch, createEffect, createSignal, Match, Switch } from "solid-js";
 import { createMutable } from "solid-js/store";
-import { touch } from "../device.ts";
+import { sheet, touch } from "../device.ts";
+import { plural } from "../format.ts";
 import { unsynced } from "../notes/notes.ts";
-import { composing, Shortcuts } from "../shortcuts.ts";
+import { composing } from "../shortcuts.ts";
 import { deleteAccount, signOut } from "../sync/account.ts";
 import { drain, sync } from "../sync/sync.ts";
 import { exportAll } from "../transfer/transfer.ts";
 import { Button } from "../ui/button.tsx";
-import { Keys } from "../ui/keys.ts";
 import { toast } from "../ui/toast.tsx";
-import { Back } from "./back.tsx";
+import { About } from "./about.tsx";
 import { Confirm } from "./confirm.tsx";
 import { grab } from "./drag.ts";
 import { List } from "./list.tsx";
+import { KeyboardShortcuts } from "./shortcuts.tsx";
 import { SignIn } from "./sign-in.tsx";
 import "./palette.css";
-
-/** ⌘K: notes and commands, and the views they lead to. On a phone, a sheet from the bottom. */
 
 export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
 
@@ -26,24 +27,10 @@ type Props = {
   /** `pointer`: whether a click or tap (not a key) did it. */
   onPick: (id: string, pointer: boolean) => void;
   onDelete: (id: string) => void;
-  onNew: () => void;
+  onBlank: () => void;
   onSignedIn: (email: string) => void;
   onClose: (pointer: boolean) => void;
-  /** The sheet stepped back in history to the page beneath it, whose note may have been deleted meanwhile. */
-  onStepBack: () => void;
 };
-
-const KeyList: [string[], string][] = [
-  [Shortcuts.notes, "Notes and commands"],
-  [Shortcuts.new, "New note"],
-  [Shortcuts.move, "Choose a note"],
-  [Shortcuts.open, "Open note"],
-  [Shortcuts.delete, "Delete note"],
-  [Shortcuts.undo, "Undo delete"],
-  [Shortcuts.close, "Close"],
-  // Tab types a tab in a note: Esc first lets Tab move on, out of it.
-  [["Esc", "Tab"], "Leave the note"],
-];
 
 export const palette = createMutable({ open: false });
 
@@ -58,28 +45,8 @@ const [visible, setVisible] = createSignal(false);
 const [waiting, setWaiting] = createSignal(0);
 let focusSearch = true;
 let closedByPointer = false;
-/** On a touch screen the sheet is a step in history, so Back closes it. True while the palette steps back itself. */
-let stepping = false;
-
-// Before App's own listener, which then never sees what's the palette's.
-addEventListener("popstate", (event) => {
-  if (!stepping && !palette.open) return;
-  event.stopImmediatePropagation();
-  if (stepping) {
-    stepping = false;
-    host.onStepBack();
-  } else {
-    closePalette(true, true);
-  }
-});
-
-// Esc goes back a step: out of a view, then out of the palette.
-addEventListener("keydown", (event) => {
-  if (!palette.open || event.key !== "Escape" || event.defaultPrevented || composing(event)) return;
-  event.preventDefault();
-  if (view() !== "notes") back();
-  else closePalette(false);
-});
+/** As a sheet, the palette is a step in history, so Back closes it: whether that step is still there. */
+let step = false;
 
 export function togglePalette(pointer: boolean) {
   if (palette.open) closePalette(pointer);
@@ -102,28 +69,53 @@ export function openPalette(pointer: boolean, start: View = "notes") {
     setView(start);
     setVisible(true);
   });
-  if (touch.matches) history.pushState({ sheet: true }, "");
+  if (sheet.matches && !step) {
+    history.pushState(null, "");
+    step = true;
+  }
   if ((start !== "notes" || !focusSearch) && !card.contains(document.activeElement)) card.focus();
 }
 
-/** `opened`: a note took its place, and with it the sheet's step in history. */
-export function closePalette(pointer: boolean, opened = false) {
+/** `replaced`: a note is about to take the sheet's step in history, so it stays. */
+export function closePalette(pointer: boolean, replaced = false) {
   if (!palette.open) return;
   palette.open = false;
   closedByPointer = pointer;
-  if (!opened) stepBack();
+  if (!replaced) leaveStep();
   if (!pointer) return finish();
   overlay.dataset.closing = "";
   card.addEventListener("animationend", finish, { once: true });
 }
 
-/** Whether the phone's sheet is the current step in history, where App replaces rather than adds a step. */
+/** Whether the sheet's step is the current one in history. */
 export function onSheet(): boolean {
-  return Boolean(history.state?.sheet);
+  return step;
+}
+
+/** A note the sheet opens takes the sheet's step in history: whether there was one to take. */
+export function takeStep(): boolean {
+  const had = step;
+  step = false;
+  return had;
+}
+
+/** On popstate, which closes the palette: whether it left the sheet's step, rather than a page. */
+export function poppedStep(): boolean {
+  const had = takeStep();
+  closePalette(true, true);
+  return had;
 }
 
 export function Palette(props: Props) {
   host = props;
+
+  // Esc goes back a step: out of a view, then out of the palette.
+  addEventListener("keydown", (event) => {
+    if (!palette.open || event.key !== "Escape" || event.defaultPrevented || composing(event)) return;
+    event.preventDefault();
+    if (view() !== "notes") showList();
+    else closePalette(false);
+  });
 
   // A view other than the list puts the keyboard on its heading, so it's read out and Tab goes on from there.
   createEffect(() => {
@@ -177,16 +169,16 @@ export function Palette(props: Props) {
               previous={props.previous}
               focus={focusSearch}
               onPick={pick}
-              onDelete={(id) => props.onDelete(id)}
-              onNew={() => props.onNew()}
+              onDelete={props.onDelete}
+              onBlank={props.onBlank}
               onView={setView}
               onClose={closePalette}
-              onSignOut={() => void leave()}
+              onSignOut={() => void signOutOrAsk()}
             />
           </Match>
 
           <Match when={view() === "sign-in"}>
-            <SignIn onBack={back} onDone={signedIn} />
+            <SignIn onBack={showList} onDone={signedIn} />
           </Match>
 
           <Match when={view() === "sign-out"}>
@@ -195,7 +187,7 @@ export function Palette(props: Props) {
               action="Sign out anyway"
               busy="Signing out…"
               run={signOut}
-              onCancel={back}
+              onCancel={showList}
             >
               Signing out removes notes from this device. Changes that haven't synced will be lost.
             </Confirm>
@@ -207,7 +199,7 @@ export function Palette(props: Props) {
               action="Delete account"
               busy="Deleting…"
               run={deleteAccount}
-              onCancel={back}
+              onCancel={showList}
             >
               Your notes will be erased from Literal and this device. This can't be undone.{" "}
               <Button variant="link" onClick={exportAll}>
@@ -218,52 +210,11 @@ export function Palette(props: Props) {
           </Match>
 
           <Match when={view() === "keys"}>
-            <div class="view">
-              <Back onClick={back} />
-              <h2 id="view-title" tabindex="-1">
-                Keyboard shortcuts
-              </h2>
-              <dl class="shortcuts">
-                <For each={KeyList}>
-                  {([keys, what]) => (
-                    <>
-                      <dt>
-                        <Keys keys={keys} />
-                      </dt>
-                      <dd>{what}</dd>
-                    </>
-                  )}
-                </For>
-              </dl>
-            </div>
+            <KeyboardShortcuts onBack={showList} />
           </Match>
 
           <Match when={view() === "about"}>
-            <div class="view">
-              <Back onClick={back} />
-              <h2 id="view-title" tabindex="-1">
-                Literal
-              </h2>
-              <p>Instant notes, on all your devices.</p>
-              <p class="section">
-                Made by Ansat
-                <br />
-                Write to <a href="mailto:hello@literal.ink">hello@literal.ink</a>
-              </p>
-              <p class="section">
-                <a href="/terms" target="_blank">
-                  Terms
-                </a>{" "}
-                ·{" "}
-                <a href="/privacy" target="_blank">
-                  Privacy
-                </a>{" "}
-                ·{" "}
-                <a href="https://github.com/iffypixy/literal" target="_blank">
-                  Source
-                </a>
-              </p>
-            </div>
+            <About onBack={showList} />
           </Match>
         </Switch>
       </div>
@@ -275,7 +226,7 @@ export function Palette(props: Props) {
 function dismiss() {
   palette.open = false;
   closedByPointer = true;
-  stepBack();
+  leaveStep();
   card.addEventListener("transitionend", finish, { once: true });
 }
 
@@ -290,28 +241,26 @@ function finish() {
   host.onClose(closedByPointer);
 }
 
-function back() {
+function showList() {
   focusSearch = !touch.matches;
   setView("notes");
 }
 
-function stepBack() {
-  if (!onSheet()) return;
-  stepping = true;
-  history.back();
+/** Steps back off the sheet's step; App hears it as popstate. */
+function leaveStep() {
+  if (step) history.back();
 }
 
 function notSynced(count: number): string {
-  if (count === 1) return "1 note hasn't synced yet";
-  if (count) return `${count.toLocaleString()} notes haven't synced yet`;
-  return "Some notes may not have synced yet";
+  if (!count) return "Some notes may not have synced yet";
+  return `${plural(count, "note")} ${count === 1 ? "hasn't" : "haven't"} synced yet`;
 }
 
 /** Signs out at once if everything is synced; otherwise asks first. */
-async function leave() {
+async function signOutOrAsk() {
   await drain();
-  setWaiting(unsynced());
-  if (waiting() || sync.status) return setView("sign-out");
+  setWaiting(await unsynced());
+  if (waiting() || sync.problem) return setView("sign-out");
   const error = await signOut();
   if (error) toast(error);
 }

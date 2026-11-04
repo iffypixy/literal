@@ -22,14 +22,14 @@
     inset: -10px -5px 6.5px -24px;
     z-index: -1;
     background: linear-gradient(to right, transparent, var(--bg) 24px);
-    transition: opacity var(--brief) ease;
+    transition: opacity var(--fade) ease;
   }
 
   /* The buttons step aside while you type, with their paper; a problem, when there is one, stays. */
   &.away::before,
   &.away button:not(.problem) {
     opacity: 0;
-    transition-duration: 300ms;
+    transition-duration: calc(2 * var(--fade));
   }
 
   /* Reached by Tab (Esc, then Tab, leaves the page), they're back at once: focus is never on something unseen. */
@@ -44,27 +44,17 @@
     height: var(--control);
     margin-right: 4px;
     padding: 0 var(--inset);
-    border-radius: var(--radius-small);
     background: linear-gradient(var(--bg), var(--bg)) top / 100% calc(100% - 6.5px) no-repeat;
-    color: var(--muted);
-    transition:
-      opacity var(--brief) ease,
-      color var(--quick) ease,
-      transform var(--quick) var(--ease-out);
-    animation: fade-in var(--brief) var(--ease-out);
-  }
-
-  & .status:active {
-    transform: scale(0.97);
+    animation: fade-in var(--fade) var(--ease-out);
   }
 
   & .problem {
     color: var(--text);
   }
 
+  /* The wash replaces its paper, which would otherwise hide it. */
   @media (hover: hover) and (pointer: fine) {
     & .status:hover {
-      color: var(--text);
       background: var(--hover);
     }
   }
@@ -83,7 +73,7 @@
   /* Gone with a fade; back at once. */
   &.gone {
     opacity: 0;
-    transition: opacity var(--brief);
+    transition: opacity var(--fade);
   }
 
   & > span {

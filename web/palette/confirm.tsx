@@ -1,4 +1,5 @@
-import { createSignal, Show, type JSX } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
+import { Alert } from "../ui/alert.tsx";
 import { Button } from "../ui/button.tsx";
 import "./confirm.css";
 
@@ -29,15 +30,9 @@ export function Confirm(props: Props) {
         {props.title}
       </h2>
       <p>{props.children}</p>
-      <Show when={error()}>
-        <p class="error" role="alert">
-          {error()}
-        </p>
-      </Show>
+      <Alert message={error()} />
       <div class="choices">
-        <Button variant="quiet" onClick={() => props.onCancel()}>
-          Cancel
-        </Button>
+        <Button onClick={() => props.onCancel()}>Cancel</Button>
         <Button variant="danger" busy={busy() && props.busy} onClick={() => void confirm()}>
           {props.action}
         </Button>

@@ -27,7 +27,7 @@ export function stayUpToDate(busy: () => boolean) {
     ready = true;
     takeOver();
   });
-  // Added after App's own listener, which saves and rescues everything as the page hides: that runs first.
+  // Safe whichever listener runs first: reloading fires pagehide, where App saves everything.
   document.addEventListener("visibilitychange", takeOver);
 
   function takeOver() {

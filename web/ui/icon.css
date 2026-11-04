@@ -4,17 +4,6 @@
   flex: none;
   width: var(--control);
   height: var(--control);
-  border-radius: var(--radius-small);
-  color: var(--muted);
-  transition:
-    opacity var(--brief) ease,
-    color var(--quick) ease,
-    background-color var(--quick) ease,
-    transform var(--quick) var(--ease-out);
-
-  &:active {
-    transform: scale(0.97);
-  }
 
   & svg {
     width: var(--icon-size, 18px);
@@ -34,12 +23,5 @@
   & circle {
     fill: currentColor;
     stroke: none;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    &:hover {
-      color: var(--text);
-      background: var(--hover);
-    }
   }
 }

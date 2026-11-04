@@ -1,60 +1,67 @@
-import { createEffect, createMemo, createSignal, on, Show } from "solid-js";
+import { createEffect, createMemo, on, Show } from "solid-js";
 import { MaxLength } from "../protocol.ts";
-import { Mac, mouse } from "./device.ts";
-import { count, length, notes } from "./notes/notes.ts";
+import { Apple, mouse } from "./device.ts";
+import { plural } from "./format.ts";
+import { count, length, library } from "./notes/notes.ts";
 import { openPalette, palette, togglePalette } from "./palette/palette.tsx";
 import { Shortcuts } from "./shortcuts.ts";
 import { account } from "./sync/account.ts";
-import { sync } from "./sync/sync.ts";
+import { sync, tooLong, type Problem as SyncProblem } from "./sync/sync.ts";
 import { IconButton } from "./ui/icon.tsx";
 import { Keys } from "./ui/keys.ts";
 import { toast } from "./ui/toast.tsx";
 import "./corner.css";
 
-const Explanations = {
-  "Can't save here": "This browser can't save notes, so copy your text before closing",
-  Offline: "Notes will sync when you're back online",
-  "Not synced": "Notes are saved on this device and will sync when Literal connects",
-  "Too long to sync": `Notes sync up to ${MaxLength.toLocaleString()} characters, so split this one into shorter notes`,
+type Problem = "cant-save" | "too-long" | SyncProblem;
+
+/** What the corner says about each problem, and what a click on it explains. Signed out, a click signs in instead. */
+const Problems: Record<Problem, { label: string; explanation?: string }> = {
+  "cant-save": {
+    label: "Can't save here",
+    explanation: "This browser can't save notes, so copy your text before closing",
+  },
+  offline: { label: "Offline", explanation: "Notes will sync when you're back online" },
+  unreachable: {
+    label: "Not synced",
+    explanation: "Notes are saved on this device and will sync when Literal connects",
+  },
+  "signed-out": { label: "Sign in to sync" },
+  "too-long": { label: "Too long to sync", explanation: tooLong() },
 };
 
 type Props = {
   current: string | null;
-  onNew: () => void;
+  /** With a mouse, the buttons step aside while you type, and come back when the mouse moves. */
+  away: boolean;
+  onReturn: () => void;
+  onBlank: () => void;
   focusEditor: () => void;
 };
 
 export function Corner(props: Props) {
-  /** With a mouse, the buttons step aside while you type, and come back when the mouse moves. */
-  const [typing, setTyping] = createSignal(false);
-
-  const tooLong = createMemo(() => Boolean(account.email && props.current && length(props.current) > MaxLength));
-  const problem = () => (notes.failed ? "Can't save here" : sync.status || (tooLong() ? "Too long to sync" : ""));
+  const tooLongHere = createMemo(() => Boolean(account.email && props.current && length(props.current) > MaxLength));
+  const problem = (): Problem | null =>
+    library.failed ? "cant-save" : (sync.problem ?? (tooLongHere() ? "too-long" : null));
+  const problemLabel = () => {
+    const shown = problem();
+    return shown ? Problems[shown].label : "";
+  };
   const calm = createMemo(() => {
     if (props.current) return "Saved";
-    const live = notes.ready ? count() : 0;
-    return live ? `${live.toLocaleString()} ${live === 1 ? "note" : "notes"}` : "";
+    const live = library.ready ? count() : 0;
+    return live ? plural(live, "note") : "";
   });
 
-  addEventListener("input", (event) => {
-    if (event.target instanceof Element && event.target.matches(".editor")) setTyping(mouse.matches);
-  });
   addEventListener("mousemove", (event) => {
-    if (typing() && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) setTyping(false);
+    if (props.away && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) props.onReturn();
   });
-  createEffect(
-    on(
-      () => palette.open,
-      () => setTyping(false),
-      { defer: true },
-    ),
-  );
+  createEffect(on(() => palette.open, props.onReturn, { defer: true }));
 
   function explain() {
     const shown = problem();
-    if (shown === "Sign in to sync") return openPalette(true, "sign-in");
+    if (shown === "signed-out") return openPalette(true, "sign-in");
     if (!shown && !props.current) return togglePalette(true);
-    if (shown) toast(Explanations[shown]);
+    if (shown) toast(Problems[shown].explanation ?? "");
     else if (account.email) toast("Notes save and sync as you type");
     else
       toast("Notes save on this device as you type", {
@@ -66,20 +73,26 @@ export function Corner(props: Props) {
 
   return (
     <>
-      <div class="corner" classList={{ away: typing() }} inert={palette.open}>
-        <Show when={problem() || calm()}>
+      <div class="corner" classList={{ away: props.away }} inert={palette.open}>
+        <Show when={problemLabel() || calm()}>
           {(label) => (
-            <button class="status" classList={{ problem: Boolean(problem()) }} onClick={explain}>
+            <button class="status quiet" classList={{ problem: Boolean(problem()) }} onClick={explain}>
               {label()}
             </button>
           )}
         </Show>
-        <IconButton label="New note" icon="plus" keys={Shortcuts.new} aria-keyshortcuts="Alt+N" onClick={props.onNew} />
+        <IconButton
+          label="New note"
+          icon="plus"
+          keys={Shortcuts.new}
+          aria-keyshortcuts="Alt+N"
+          onClick={props.onBlank}
+        />
         <IconButton
           label="Notes"
           icon="list"
           keys={Shortcuts.notes}
-          aria-keyshortcuts={Mac ? "Meta+K" : "Control+K"}
+          aria-keyshortcuts={Apple ? "Meta+K" : "Control+K"}
           onClick={() => togglePalette(true)}
         />
       </div>
@@ -98,7 +111,7 @@ export function Corner(props: Props) {
 
       {/* Said aloud, once, by a screen reader. */}
       <p class="visually-hidden" aria-live="polite">
-        {problem()}
+        {problemLabel()}
       </p>
     </>
   );
