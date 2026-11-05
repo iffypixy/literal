@@ -22,7 +22,7 @@ export function Menu(props: Props) {
   createEffect(() => {
     if (!open()) return;
     // Before the palette's own Esc, which would close more than the menu.
-    const onKeyDown = (event: KeyboardEvent) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (!pressed(event, "Escape")) return;
       event.preventDefault();
       setOpen(false);
@@ -33,13 +33,14 @@ export function Menu(props: Props) {
       if (event.target instanceof Element && !event.target.closest(".menu, .more")) setOpen(false);
     };
     const listening = new AbortController();
-    addEventListener("keydown", onKeyDown, { capture: true, signal: listening.signal });
+    addEventListener("keydown", closeOnEscape, { capture: true, signal: listening.signal });
     addEventListener("click", onClick, { signal: listening.signal });
     onCleanup(() => listening.abort());
   });
 
   function toggle(event: MouseEvent) {
     if (open()) return setOpen(false);
+    // Drawn above first, so it's measured there, and below if it runs off the top.
     setBelow(false);
     setOpen(true);
     setBelow((box?.getBoundingClientRect().top ?? 0) < 0);
@@ -53,7 +54,8 @@ export function Menu(props: Props) {
     event.preventDefault();
     const items = [...(box?.querySelectorAll("button") ?? [])];
     const at = items.findIndex((item) => item === document.activeElement);
-    items.at(at < 0 ? (step > 0 ? 0 : -1) : (at + step) % items.length)?.focus();
+    // Focus is always on an item, since only they can take it in here. `at(-1)` wraps up to the last.
+    items.at((at + step) % items.length)?.focus();
   }
 
   return (

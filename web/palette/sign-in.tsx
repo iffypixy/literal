@@ -17,7 +17,8 @@ type Props = {
 };
 
 export function SignIn(props: Props) {
-  let field: HTMLInputElement | undefined;
+  /** The step's one field: the email, then the code. */
+  let field!: HTMLInputElement;
 
   const [step, setStep] = createSignal<"email" | "code">("email");
   const [email, setEmail] = createSignal("");
@@ -28,7 +29,7 @@ export function SignIn(props: Props) {
   const address = () => email().trim();
 
   onMount(() => {
-    if (hasKeyboard()) field?.focus();
+    if (hasKeyboard()) field.focus();
   });
 
   createEffect(() => {
@@ -45,14 +46,11 @@ export function SignIn(props: Props) {
     setError("");
     const problem = await sendCode(address());
     setBusy(false);
-    if (problem) {
-      setError(problem);
-      return;
-    }
+    if (problem) return setError(problem);
     setStep("code");
     setCode("");
     setWait(ResendAfter);
-    field?.focus();
+    field.focus();
   }
 
   async function check() {
@@ -66,14 +64,14 @@ export function SignIn(props: Props) {
     if (step() !== "code") return;
     setError(problem);
     setCode("");
-    field?.focus();
+    field.focus();
     // A wrong code shakes, as a wrong passcode does.
     if (problem === WrongCode) shake();
   }
 
   function shake() {
     if (reducedMotion.matches) return;
-    field?.animate(
+    field.animate(
       [
         { transform: "translateX(0)" },
         { transform: "translateX(-6px)" },
@@ -87,7 +85,7 @@ export function SignIn(props: Props) {
 
   function onCode(input: HTMLInputElement) {
     const digits = input.value.replace(/\D/g, "").slice(0, CodeLength);
-    // A key that's dropped leaves code() as it was, so Solid wouldn't take it back out of the field.
+    // Anything but a digit leaves code() as it was, so Solid wouldn't take it back out of the field.
     input.value = digits;
     setCode(digits);
     setError("");
@@ -98,7 +96,7 @@ export function SignIn(props: Props) {
     setStep("email");
     setError("");
     setWait(0);
-    field?.focus();
+    field.focus();
   }
 
   // Esc on the code step goes back to the email. On the email step it's the palette's.

@@ -67,6 +67,7 @@ export function swipe(row: HTMLElement, onSwiped: () => void) {
   row.addEventListener("pointerdown", (event) => {
     // One finger at a time, so a second one can't take over the swipe.
     if (start) return;
+    // For any pointer, so a click after a swipe isn't taken for part of it.
     dx = 0;
     if (event.pointerType !== "touch") return;
     start = { x: event.clientX, y: event.clientY, id: event.pointerId };
@@ -116,7 +117,10 @@ export function swipe(row: HTMLElement, onSwiped: () => void) {
   row.addEventListener("click", (event) => Math.abs(dx) > SwipeSlop && event.stopPropagation(), true);
 }
 
-/** How fast a finger moved, in pixels a second, over its last tenth of a second, so a flick at the end counts and a slow start doesn't. */
+/**
+ * How fast a finger moved, in pixels a second, over its last tenth of a second, so a flick at the end counts and a
+ * slow start doesn't.
+ */
 function motion() {
   let samples: { at: number; time: number }[] = [];
   return {
