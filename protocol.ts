@@ -170,3 +170,8 @@ function readBoolean(input: decoding.Decoder): boolean {
 export function isNoteId(id: string): boolean {
   return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id);
 }
+
+/** Decided by a note's own times, alike on every device and the server: an edit made after a delete brings it back. */
+export function isDeleted(deletedAt: number | null | undefined, editedAt: number): boolean {
+  return typeof deletedAt === "number" && deletedAt >= editedAt;
+}

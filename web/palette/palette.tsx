@@ -88,21 +88,14 @@ export function closePalette(pointer: boolean, replaced = false) {
 }
 
 /** Whether the sheet's step is the current one in history. */
-export function onSheet(): boolean {
+export function hasStep(): boolean {
   return step;
 }
 
-/** A note the sheet opens takes the sheet's step in history: whether there was one to take. */
+/** For a note the sheet opens, or for Back: whether there was a step to take. */
 export function takeStep(): boolean {
   const had = step;
   step = false;
-  return had;
-}
-
-/** On popstate, which closes the palette: whether it left the sheet's step, rather than a page. */
-export function poppedStep(): boolean {
-  const had = takeStep();
-  closePalette(true, true);
   return had;
 }
 

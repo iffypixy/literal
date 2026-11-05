@@ -2,7 +2,7 @@ import { createEffect, createMemo, on, Show } from "solid-js";
 import { MaxLength } from "../protocol.ts";
 import { Apple, mouse } from "./device.ts";
 import { plural } from "./format.ts";
-import { count, length, library } from "./notes/notes.ts";
+import { length, library, list } from "./notes/notes.ts";
 import { openPalette, palette, togglePalette } from "./palette/palette.tsx";
 import { Shortcuts } from "./shortcuts.ts";
 import { account } from "./sync/account.ts";
@@ -48,7 +48,7 @@ export function Corner(props: Props) {
   };
   const calm = createMemo(() => {
     if (props.current) return "Saved";
-    const live = library.ready ? count() : 0;
+    const live = library.ready ? list().length : 0;
     return live ? plural(live, "note") : "";
   });
 

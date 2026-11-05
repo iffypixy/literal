@@ -21,7 +21,7 @@ import {
   start,
 } from "./notes/notes.ts";
 import { prepare, quoted, shorten, title } from "./notes/search.ts";
-import { closePalette, onSheet, Palette, palette, poppedStep, takeStep, togglePalette } from "./palette/palette.tsx";
+import { closePalette, hasStep, Palette, palette, takeStep, togglePalette } from "./palette/palette.tsx";
 import { letter, mod, Shortcuts } from "./shortcuts.ts";
 import { account, farewell, onSignInElsewhere, session, signedIn } from "./sync/account.ts";
 import { start as startSync } from "./sync/sync.ts";
@@ -174,7 +174,7 @@ export function App() {
     if (wasOpen) {
       setNote(null);
       // Under the sheet, the address is set once the sheet has stepped back to the page beneath it.
-      if (!onSheet()) navigate("/", "replace");
+      if (!hasStep()) navigate("/", "replace");
     }
     // Deletes in a row share one toast, so the earlier ones keep their Undo.
     if (deleted.length) dismiss();
@@ -245,8 +245,10 @@ export function App() {
   addEventListener("input", () => (undoable = false));
 
   addEventListener("popstate", () => {
-    // Off the sheet's step, the page beneath may still show a note deleted meanwhile.
-    if (poppedStep()) navigate(current() ? `/${current()}` : "/", "replace");
+    // Back closes the palette. Off the sheet's step, the page beneath may still show a note deleted meanwhile.
+    const fromSheet = takeStep();
+    closePalette(true, true);
+    if (fromSheet) navigate(current() ? `/${current()}` : "/", "replace");
     else void go(idFrom(location.pathname), "none");
   });
 

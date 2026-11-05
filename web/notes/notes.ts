@@ -1,7 +1,9 @@
 import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
+import { isDeleted } from "../../protocol.ts";
 import * as storage from "../storage.ts";
+import { account } from "../sync/account.ts";
 import { deleteDb, get, openDb, readNotes, write } from "./db.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc: its `text`, and its `meta` (the times). */
@@ -14,7 +16,10 @@ export type Note = {
   deletedAt: number | null;
 };
 
-/** A note's Yjs state as stored. `writer:rev` says which tab wrote it last, so that tab can tell nobody wrote since. */
+/**
+ * A note's Yjs state, stamped `writer:rev` by the tab that last wrote it: a tab that finds its own stamp knows nobody
+ * has written since.
+ */
 type Stored = { state: Uint8Array; writer: string; rev: number };
 
 /** A note as stored for the list and sync. `dirty`: it has changes the server hasn't acked. */
@@ -75,8 +80,6 @@ const entries = new Map<string, Entry>();
 let sorted: Note[] | null = null;
 const listeners = new Set<(id: string, update: Uint8Array | null) => void>();
 
-/** Signed in, deleted notes stay as tombstones so other devices learn of the delete; signed out, they're erased. */
-let signedIn = false;
 /** Everything here is being erased: nothing may be saved or rescued from now on. */
 let wiped = false;
 let started: Promise<void> | undefined;
@@ -105,10 +108,6 @@ channel.onmessage = ({ data }: MessageEvent<unknown>) => {
   }
 };
 
-export function setSignedIn(value: boolean) {
-  signedIn = value;
-}
-
 /**
  * Reads every note's summary once, putting back what a closing page left unsaved. Signed out, it also clears out
  * deleted and empty notes.
@@ -133,13 +132,6 @@ export function list(): Note[] {
     .flatMap(({ note }) => (note && isLive(note) ? [note] : []))
     .sort((a, b) => b.editedAt - a.editedAt);
   return sorted;
-}
-
-export function count(): number {
-  changes();
-  let live = 0;
-  for (const { note } of entries.values()) if (note && isLive(note)) live++;
-  return live;
 }
 
 export function find(id: string): Note | undefined {
@@ -197,13 +189,13 @@ export async function restore(id: string) {
 /** Once a delete's Undo has passed: signed out, the note is erased; signed in, its tombstone stays to sync. */
 export function settle(id: string) {
   const note = entries.get(id)?.note;
-  if (!signedIn && note && isDeleted(note)) void purge(id);
+  if (!isSignedIn() && note && isDeleted(note.deletedAt, note.editedAt)) void purge(id);
 }
 
 export function discardIfEmpty(id: string) {
   const doc = entries.get(id)?.doc;
   if (!doc || isWritten(doc.getText("text").toString())) return;
-  if (signedIn) void remove(id);
+  if (isSignedIn()) void remove(id);
   else void purge(id);
 }
 
@@ -353,7 +345,7 @@ async function readEverything() {
     for await (const rows of readNotes(await db, parseRow, ReadBatch)) {
       for (const row of rows) {
         // Words a closing page left unsaved may bring a deleted or empty note back: it waits for them.
-        if (!signedIn && !rescues.has(row.id) && !isLive(row)) void purge(row.id);
+        if (!isSignedIn() && !rescues.has(row.id) && !isLive(row)) void purge(row.id);
         // A save that landed while this read was under way knows better.
         else if (!entries.get(row.id)?.note) keep(row);
       }
@@ -367,12 +359,13 @@ async function readEverything() {
   changed();
 }
 
-function isLive(note: Note): boolean {
-  return !isDeleted(note) && isWritten(note.text);
+/** Signed in, deleted notes stay as tombstones so other devices learn of the delete; signed out, they're erased. */
+function isSignedIn(): boolean {
+  return account.email !== null;
 }
 
-function isDeleted(note: Pick<Note, "editedAt" | "deletedAt">): boolean {
-  return note.deletedAt !== null && note.deletedAt >= note.editedAt;
+function isLive(note: Note): boolean {
+  return !isDeleted(note.deletedAt, note.editedAt) && isWritten(note.text);
 }
 
 function isWritten(text: string): boolean {
@@ -382,7 +375,7 @@ function isWritten(text: string): boolean {
 /** From its times alone: summarizing it would copy out all of its text. */
 function deleted(doc: Y.Doc): boolean {
   const meta = doc.getMap<number>("meta");
-  return isDeleted({ editedAt: meta.get("editedAt") ?? 0, deletedAt: meta.get("deletedAt") ?? null });
+  return isDeleted(meta.get("deletedAt"), meta.get("editedAt") ?? 0);
 }
 
 function entryFor(id: string): Entry {

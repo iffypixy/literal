@@ -4,7 +4,7 @@
  */
 
 import { createMutable } from "solid-js/store";
-import { setSignedIn, wipe } from "../notes/notes.ts";
+import { wipe } from "../notes/notes.ts";
 import * as storage from "../storage.ts";
 
 /** Remembered, so the app knows it's signed in before the server answers, or when it can't. */
@@ -17,7 +17,6 @@ const RequestTimeout = 15_000;
 export const WrongCode = "That code didn't work";
 
 export const account = createMutable<{ email: string | null }>({ email: storage.read(AccountKey) });
-setSignedIn(account.email !== null);
 
 /** Null when nobody is signed in; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
@@ -43,7 +42,6 @@ export async function session(): Promise<string | null> {
 export function signedIn(email: string) {
   account.email = email;
   storage.write(AccountKey, email);
-  setSignedIn(true);
 }
 
 /** Calls `listener` when another tab signs in, after taking on its account. */

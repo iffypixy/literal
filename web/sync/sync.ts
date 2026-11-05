@@ -37,9 +37,9 @@ const unacked = new Map<number, { id: string; upTo: number; at: number; whole: b
 /** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
 /**
- * Notes whose next change alone may not be enough for the server. A change was refused, lost with a connection, or
- * never sent; or another tab made one, which this tab doesn't send. Each is kept with the last `seq` sent before:
- * until a whole note sent after it is acked, the note goes whole, and no other ack marks it synced.
+ * Notes the server may be missing changes for: one was refused, lost with a connection or never sent, or made in
+ * another tab. Each keeps the last `seq` sent before then. Until a whole copy sent after it is acked, the note goes
+ * whole, and no other ack marks it synced.
  */
 const behind = new Map<string, number>();
 let retry = RetryMin;

@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import * as Y from "yjs";
-import { decode, encode, MaxBytes, MaxNotes, SignedOut, type Message, type Refusal } from "../protocol.ts";
+import { decode, encode, isDeleted, MaxBytes, MaxNotes, SignedOut, type Message, type Refusal } from "../protocol.ts";
 import type { Env } from "./index.ts";
 
 /** How the Worker tells this object which session opened a socket. */
@@ -40,10 +40,10 @@ export class UserNotes extends DurableObject<Env> {
     this.sql = ctx.storage.sql;
     // Answered without waking the object: devices ping to learn their connection is still alive.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
-    // Reading a note's state is slow, so a note is read (compacted, and checked for deletion) only once a day, and
-    // when it's near a limit. `checked_at` is the `updated_at` it was last read at. `deleted_at` is set if that read
-    // found it deleted: the same time, so its 30 days run from the last write anyone made to it.
     ctx.storage.transactionSync(() => {
+      // Reading a note is slow, so it's read (compacted, and checked for deletion) once a day, or near a limit.
+      // `checked_at`: the `updated_at` it was last read at. `deleted_at`: set to that same time if the read found it
+      // deleted, so its 30 days run from the last write to it.
       this.sql.exec(
         "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, state BLOB NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL, checked_at INTEGER NOT NULL DEFAULT 0, deleted_at INTEGER)",
       );
@@ -287,9 +287,8 @@ function read(state: Uint8Array): Read {
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
   const meta = doc.getMap<number>("meta");
-  const deletedAt = meta.get("deletedAt");
-  // As the app decides it, so both agree on which notes are deleted; the server's own time says only for how long.
-  const deleted = deletedAt !== undefined && deletedAt >= (meta.get("editedAt") ?? 0);
+  // The note's own times say whether it's deleted; the server's clock says only for how long.
+  const deleted = isDeleted(meta.get("deletedAt"), meta.get("editedAt") ?? 0);
   const compacted = Y.encodeStateAsUpdate(doc);
   doc.destroy();
   return { state: compacted, deleted };
