@@ -27,6 +27,7 @@ export function Menu(props: Props) {
       setOpen(false);
       props.onEscape();
     };
+    // The click that opened the menu reaches here too, so a click on its button doesn't count as one outside.
     const onClick = (event: MouseEvent) => {
       if (event.target instanceof Element && !event.target.closest(".menu, .more")) setOpen(false);
     };

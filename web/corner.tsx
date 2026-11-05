@@ -1,13 +1,12 @@
-import { createEffect, createMemo, on, Show } from "solid-js";
-import { MaxLength } from "#protocol.ts";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import * as notes from "#web/notes/notes.ts";
-import { openPalette, palette, togglePalette } from "#web/palette/palette.tsx";
+import { openPalette, palette } from "#web/palette/palette.tsx";
 import { account } from "#web/sync/account.ts";
-import { sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
+import { isTooLong, sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { toast } from "#web/ui/toast.tsx";
-import { touch } from "./device.ts";
+import { hasKeyboard, touch } from "./device.ts";
 import { plural } from "./format.ts";
 import { Shortcuts } from "./shortcuts.ts";
 import "./corner.css";
@@ -31,17 +30,14 @@ const Problems: Record<Problem, { label: string; explanation?: string }> = {
 
 type Props = {
   current: string | null;
-  /** On a computer, the buttons fade while you type, and come back when the mouse moves. */
-  away: boolean;
-  onReturn: () => void;
   onBlank: () => void;
   focusEditor: () => void;
 };
 
 export function Corner(props: Props) {
-  const tooLongHere = createMemo(() =>
-    Boolean(account.email && props.current && notes.length(props.current) > MaxLength),
-  );
+  /** On a computer, the buttons fade while you type, and come back when the mouse moves. */
+  const [away, setAway] = createSignal(false);
+  const tooLongHere = createMemo(() => Boolean(account.email && props.current && isTooLong(props.current)));
   const problem = (): Problem | null =>
     notes.library.failed ? "cant-save" : (sync.problem ?? (tooLongHere() ? "too-long" : null));
   const problemLabel = () => {
@@ -54,15 +50,16 @@ export function Corner(props: Props) {
     return live ? plural(live, "note") : "";
   });
 
+  addEventListener("input", () => !palette.open && !touch.matches && setAway(true));
   addEventListener("mousemove", (event) => {
-    if (props.away && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) props.onReturn();
+    if (away() && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) setAway(false);
   });
-  createEffect(on(() => palette.open, props.onReturn, { defer: true }));
+  createEffect(() => palette.open && setAway(false));
 
   function explain() {
     const shown = problem();
     if (shown === "signed-out") return openPalette(true, "sign-in");
-    if (!shown && !props.current) return togglePalette(true);
+    if (!shown && !props.current) return openPalette(true);
     if (shown) toast(Problems[shown].explanation ?? "");
     else if (account.email) toast("Notes save and sync as you type");
     else
@@ -70,12 +67,12 @@ export function Corner(props: Props) {
         action: { label: "Sync", run: () => openPalette(true, "sign-in") },
       });
     // Explain, then go back to writing. The click shouldn't take the cursor away.
-    if (!touch.matches) props.focusEditor();
+    if (hasKeyboard()) props.focusEditor();
   }
 
   return (
     <>
-      <div class="corner" classList={{ away: props.away }} inert={palette.open}>
+      <div class="corner" classList={{ away: away() }} inert={palette.open}>
         <Show when={problemLabel() || summary()}>
           {(label) => (
             <button class="status quiet" classList={{ problem: Boolean(problem()) }} onClick={explain}>
@@ -84,7 +81,7 @@ export function Corner(props: Props) {
           )}
         </Show>
         <IconButton label="New note" icon="plus" keys={Shortcuts.new} onClick={props.onBlank} />
-        <IconButton label="Notes" icon="list" keys={Shortcuts.notes} onClick={() => togglePalette(true)} />
+        <IconButton label="Notes" icon="list" keys={Shortcuts.notes} onClick={() => openPalette(true)} />
       </div>
 
       {/* Only on a blank page, where it covers nothing. It fades with the first word. */}

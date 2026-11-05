@@ -4,8 +4,8 @@ const Minute = 60_000;
 const Numbers = new Intl.NumberFormat("en");
 const HourCycle = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
 const Clock = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hourCycle: HourCycle });
-const Day = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
-const DayAndYear = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" });
+const MonthDay = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
+const MonthDayYear = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" });
 
 export function number(n: number): string {
   return Numbers.format(n);
@@ -27,6 +27,6 @@ export function ago(at: number, now: number): string {
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  if (date.getFullYear() === today.getFullYear()) return Day.format(date);
-  return DayAndYear.format(date);
+  if (date.getFullYear() === today.getFullYear()) return MonthDay.format(date);
+  return MonthDayYear.format(date);
 }

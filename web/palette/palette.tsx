@@ -1,8 +1,8 @@
 /** ⌘K: notes and commands, and the views they lead to. On a phone, a sheet from the bottom. */
 
-import { batch, createEffect, createSignal, Match, Switch } from "solid-js";
+import { batch, createSignal, Match, Switch } from "solid-js";
 import { createMutable } from "solid-js/store";
-import { sheet, touch } from "#web/device.ts";
+import { hasKeyboard, reducedMotion, sheet } from "#web/device.ts";
 import { plural } from "#web/format.ts";
 import { leaveSheet, pushSheet } from "#web/history.ts";
 import { unsynced } from "#web/notes/notes.ts";
@@ -20,7 +20,7 @@ import { KeyboardShortcuts } from "./shortcuts.tsx";
 import { SignIn } from "./sign-in.tsx";
 import "./palette.css";
 
-export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
+export type View = "notes" | "sign-in" | "sign-out" | "delete" | "shortcuts" | "about";
 
 type Props = {
   current: string | null;
@@ -60,9 +60,8 @@ export function openPalette(pointer: boolean, start: View = "notes") {
   card.style.transform = "";
   card.style.transition = "";
   overlay.hidden = false;
-  // Tapped open on a phone, the keyboard would cover the list, and the search field is a tap away. Opened by a key,
-  // there's a keyboard to type with, even on a tablet.
-  focusSearch = !(pointer && touch.matches);
+  // Tapped open on a phone, the keyboard would cover the list, and the search field is a tap away.
+  focusSearch = hasKeyboard(pointer);
   batch(() => {
     palette.open = true;
     setView(start);
@@ -92,12 +91,6 @@ export function Palette(props: Props) {
     event.preventDefault();
     if (view() !== "notes") showList();
     else closePalette(false);
-  });
-
-  // A view other than the list puts the keyboard on its heading, so it's read out and Tab goes on from there.
-  createEffect(() => {
-    if (!palette.open || view() === "notes" || view() === "sign-in") return;
-    document.getElementById("view-title")?.focus();
   });
 
   /** In the list, a click leaves the cursor in the search field, so the keys go on working. */
@@ -149,7 +142,7 @@ export function Palette(props: Props) {
               onDelete={props.onDelete}
               onBlank={props.onBlank}
               onView={setView}
-              onClose={closePalette}
+              close={closePalette}
               onSignOut={() => void signOutOrAsk()}
             />
           </Match>
@@ -186,7 +179,7 @@ export function Palette(props: Props) {
             </Confirm>
           </Match>
 
-          <Match when={view() === "keys"}>
+          <Match when={view() === "shortcuts"}>
             <KeyboardShortcuts onBack={showList} />
           </Match>
 
@@ -204,7 +197,8 @@ function dismiss() {
   palette.open = false;
   closedByPointer = true;
   leaveSheet();
-  card.addEventListener("transitionend", finish, { once: true });
+  if (reducedMotion.matches) finish();
+  else card.addEventListener("transitionend", finish, { once: true });
 }
 
 function finish() {
@@ -219,7 +213,7 @@ function finish() {
 }
 
 function showList() {
-  focusSearch = !touch.matches;
+  focusSearch = hasKeyboard();
   setView("notes");
 }
 

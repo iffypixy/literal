@@ -10,7 +10,7 @@ import { startSync } from "#web/sync/sync.ts";
 import { dismiss, runAction, toast, Toasts } from "#web/ui/toast.tsx";
 import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
-import { touch } from "./device.ts";
+import { hasKeyboard, touch } from "./device.ts";
 import { Drop } from "./drop.tsx";
 import { isOnSheet, navigate, onBack, type Step } from "./history.ts";
 import { pressed, Shortcuts } from "./shortcuts.ts";
@@ -26,8 +26,6 @@ export function App() {
   const [previous, setPrevious] = createSignal<string | null>(null);
   /** A note is loading from disk. Until it shows, typing would go into the page being left. */
   const [opening, setOpening] = createSignal(false);
-  /** Typing on a computer, which fades the corner's buttons out of the way. */
-  const [typing, setTyping] = createSignal(false);
   /** A later call to `go` wins, so a note that loads after it is dropped. */
   let lastGo = 0;
   /** A note was just deleted and nothing typed since, so ⌘Z undoes the delete, wherever the cursor is. */
@@ -75,11 +73,8 @@ export function App() {
     toast(`Signed in as ${email}`);
   }
 
-  /**
-   * Shows the note `id`, or a blank page. `focus` puts the cursor in it. On a phone that's only when a key asked
-   * (an iPad's keyboard), so opening a note doesn't pop the keyboard up over it.
-   */
-  async function go(id: string | null, how: Step, focus = !touch.matches) {
+  /** Shows the note `id`, with the cursor in it if `focus`, or a blank page, which always takes the cursor. */
+  async function go(id: string | null, how: Step, focus = hasKeyboard()) {
     const thisGo = ++lastGo;
     setOpening(false);
     if (id !== null && id === current()) {
@@ -90,7 +85,7 @@ export function App() {
     leave();
     if (id === null) {
       // Going from a blank page to a new one leaves behind any spaces typed on the first.
-      if (current() === null) editor.clear();
+      editor.clear();
       setNote(null);
       navigate("/", how);
       editor.focus();
@@ -182,7 +177,6 @@ export function App() {
       if (!undoable || !pressed(event, Shortcuts.undo)) return;
       event.preventDefault();
       event.stopPropagation();
-      undoable = false;
       runAction();
     },
     true,
@@ -213,7 +207,7 @@ export function App() {
   addEventListener("input", () => (undoable = false));
 
   onBack((fromSheet) => {
-    closePalette(true, true);
+    closePalette(true);
     // Back off the sheet shows the page beneath it, whose note may have been deleted meanwhile.
     if (fromSheet) navigate(current() ? `/${current()}` : "/", "replace");
     else void go(idFrom(location.pathname), "none");
@@ -237,27 +231,21 @@ export function App() {
 
   return (
     <>
-      <div class="page" inert={palette.open} onInput={() => setTyping(!touch.matches)}>
+      <div inert={palette.open}>
         <Editor ref={(api) => (editor = api)} text={note()?.text ?? null} readonly={opening()} onCreate={onCreate} />
       </div>
 
-      <Corner
-        current={current()}
-        away={typing()}
-        onReturn={() => setTyping(false)}
-        onBlank={goBlank}
-        focusEditor={() => editor.focus()}
-      />
+      <Corner current={current()} onBlank={goBlank} focusEditor={() => editor.focus()} />
 
       <Palette
         current={current()}
         previous={previous()}
-        onPick={(id, pointer) => void go(id, "push", !touch.matches || !pointer)}
+        onPick={(id, pointer) => void go(id, "push", hasKeyboard(pointer))}
         onDelete={onDelete}
         onBlank={goBlank}
         onSignedIn={onSignedIn}
         onClose={(pointer) => {
-          if (!opening() && (!touch.matches || !pointer)) editor.focus();
+          if (!opening() && hasKeyboard(pointer)) editor.focus();
         }}
       />
 

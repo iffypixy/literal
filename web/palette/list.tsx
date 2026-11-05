@@ -1,8 +1,7 @@
 import { batch, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
-import { Apple, Fragile, reducedMotion, touch } from "#web/device.ts";
+import { Apple, Fragile, hasKeyboard, reducedMotion, touch } from "#web/device.ts";
 import { ago } from "#web/format.ts";
 import * as notes from "#web/notes/notes.ts";
-import type { Note } from "#web/notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "#web/notes/search.ts";
 import { pressed, Shortcuts } from "#web/shortcuts.ts";
 import { account } from "#web/sync/account.ts";
@@ -30,7 +29,7 @@ type Props = {
   onDelete: (id: string) => void;
   onBlank: () => void;
   onView: (view: View) => void;
-  onClose: (pointer: boolean) => void;
+  close: (pointer: boolean) => void;
   onSignOut: () => void;
 };
 
@@ -53,27 +52,27 @@ export function List(props: Props) {
     export: {
       label: "Export all notes",
       run: (pointer) => {
-        props.onClose(pointer);
+        props.close(pointer);
         exportAll();
       },
     },
     sync: { label: "Sync across devices", run: () => props.onView("sign-in") },
     signOut: { label: "Sign out", run: () => props.onSignOut() },
     deleteAccount: { label: "Delete account", danger: true, run: () => props.onView("delete") },
-    keys: { label: "Keyboard shortcuts", run: () => props.onView("keys") },
+    shortcuts: { label: "Keyboard shortcuts", run: () => props.onView("shortcuts") },
     about: { label: "About Literal", run: () => props.onView("about") },
   } satisfies Record<string, Action>;
 
-  const commands = createMemo<Action[]>(() => [
+  const commands = (): Action[] => [
     actions.new,
     actions.import,
     actions.export,
     account.email ? actions.signOut : actions.sync,
-    ...(touch.matches ? [] : [actions.keys]),
+    ...(touch.matches ? [] : [actions.shortcuts]),
     actions.about,
-  ]);
+  ];
   const menu = (): Action[][] => [
-    touch.matches ? [actions.about] : [actions.keys, actions.about],
+    touch.matches ? [actions.about] : [actions.shortcuts, actions.about],
     [actions.import, actions.export],
     ...(account.email ? [[actions.signOut, actions.deleteAccount]] : []),
   ];
@@ -85,7 +84,8 @@ export function List(props: Props) {
   );
   const results = createMemo(() => search(notes.list(), words()));
   const shown = createMemo(() => results().slice(0, limit()));
-  const entries = createMemo<(Action | Note)[]>(() => [...commandsFound(), ...shown()]);
+  const entries = createMemo<(Action | notes.Note)[]>(() => [...commandsFound(), ...shown()]);
+  const total = () => commandsFound().length + results().length;
   /**
    * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
    * one), so Enter goes back. Typing, on the first note, or the first command if no note matches, so Enter after
@@ -103,16 +103,12 @@ export function List(props: Props) {
   });
   const at = () => (active() >= 0 ? active() : first());
   const selected = () => entries()[at()];
-  const selectedId = () => {
-    const entry = selected();
-    return entry && rowId(entry);
-  };
   /** Opened by a tap, no row is highlighted until a key moves the highlight, since nothing there could act on it. */
   const highlighted = () => props.focus || active() >= 0;
 
   onMount(() => props.focus && input.focus());
 
-  function pick(entry: Action | Note | undefined, pointer: boolean) {
+  function pick(entry: Action | notes.Note | undefined, pointer: boolean) {
     if (!entry) return;
     if (isAction(entry)) return entry.run(pointer);
     if (removing.has(entry.id)) return;
@@ -125,20 +121,19 @@ export function List(props: Props) {
    * A click or swipe closes the note's row first, since a row has no way out once its note is gone from the list. A
    * key just takes it away, like any key.
    */
-  async function remove(note: Note | undefined, row?: HTMLElement) {
+  async function remove(note: notes.Note | undefined, row?: HTMLElement) {
     if (!note || removing.has(note.id)) return;
     removing.add(note.id);
     if (row && !reducedMotion.matches) await collapse(row);
     // The highlight stays put, on the next note, or the one before if the last one went.
-    setActive(Math.min(entries().indexOf(note), commandsFound().length + results().length - 2));
+    setActive(Math.min(entries().indexOf(note), total() - 2));
     props.onDelete(note.id);
     removing.delete(note.id);
   }
 
   function move(by: number) {
-    const total = commandsFound().length + results().length;
-    if (!total) return;
-    const next = Math.min(total - 1, Math.max(0, at() + by));
+    if (!total()) return;
+    const next = Math.min(total() - 1, Math.max(0, at() + by));
     setActive(next);
     if (next - commandsFound().length >= limit()) setLimit(limit() + PageSize);
     rows.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
@@ -179,10 +174,6 @@ export function List(props: Props) {
     onCleanup(() => observer.disconnect());
   }
 
-  function rowId(entry: Action | Note): string {
-    return isAction(entry) ? `command-${commandsFound().indexOf(entry)}` : `note-${entry.id}`;
-  }
-
   function onPicked(field: HTMLInputElement) {
     const files = [...(field.files ?? [])];
     field.value = "";
@@ -203,7 +194,7 @@ export function List(props: Props) {
           role="combobox"
           aria-expanded={entries().length > 0}
           aria-controls="notes-list"
-          aria-activedescendant={selectedId()}
+          aria-activedescendant={selected() && `option-${at()}`}
           aria-label="Search notes and commands"
           placeholder="Search…"
           autocomplete="off"
@@ -230,7 +221,7 @@ export function List(props: Props) {
             <For each={commandsFound()}>
               {(command, index) => (
                 <Option
-                  id={`command-${index()}`}
+                  id={`option-${index()}`}
                   selected={index() === at()}
                   onHover={() => setActive(index())}
                   onPick={() => pick(command, true)}
@@ -264,7 +255,7 @@ export function List(props: Props) {
               return (
                 <Option
                   ref={option}
-                  id={`note-${note.id}`}
+                  id={`option-${index()}`}
                   selected={index() === at()}
                   current={note.id === props.current}
                   onHover={() => setActive(index())}
@@ -326,7 +317,7 @@ export function List(props: Props) {
             </span>
           )}
         </Show>
-        <Menu groups={menu()} onEscape={() => !touch.matches && input.focus()} />
+        <Menu groups={menu()} onEscape={() => hasKeyboard() && input.focus()} />
         <input
           ref={picker}
           type="file"
@@ -379,7 +370,7 @@ function Option(props: {
   );
 }
 
-function isAction(entry: Action | Note): entry is Action {
+function isAction(entry: Action | notes.Note): entry is Action {
   return "run" in entry;
 }
 

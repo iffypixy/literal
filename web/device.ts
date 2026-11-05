@@ -10,3 +10,12 @@ export const sheet = matchMedia("(max-width: 640px)");
 export const Apple = /Mac|iPhone|iPad/.test(navigator.userAgent);
 /** Safari, outside the Home Screen, erases a site's storage after 7 days without a visit. */
 export const Fragile = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigator.userAgent) && !installed.matches;
+
+/**
+ * Whether there's surely a keyboard to type with: on a computer, or when a key did it (an iPad's). Only then does a
+ * field take the cursor, so a tap on a phone doesn't pop the keyboard up over the page. A click or tap is assumed
+ * unless `pointer` says otherwise.
+ */
+export function hasKeyboard(pointer = true): boolean {
+  return !pointer || !touch.matches;
+}
