@@ -67,8 +67,10 @@ export function title(text: string): string {
   return split(text).first;
 }
 
+/** The title, short and in quotes, like "Groceries"; or nothing, if the note has no words. */
 export function quoted(text: string): string {
-  return shorten(title(text), QuoteLength);
+  const name = shorten(title(text), QuoteLength);
+  return name && `"${name}"`;
 }
 
 /** Cut at the end of a word if one ends near enough, then "…". Counts what shows as one character, emoji too. */

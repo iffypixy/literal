@@ -149,7 +149,7 @@ export function App() {
     if (deleted.length) dismiss();
     deleted.push({ id, wasOpen });
     const batch = deleted;
-    toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted "${name}"` : "Deleted", {
+    toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted ${name}` : "Deleted", {
       action: {
         label: "Undo",
         keys: touch.matches ? undefined : Shortcuts.undo,

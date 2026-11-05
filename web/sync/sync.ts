@@ -263,7 +263,7 @@ function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
 
 /** Why a note doesn't sync, naming it, or meaning the open one. */
 export function tooLong(name = ""): string {
-  return `Notes sync up to ${number(MaxLength)} characters, so split ${name ? `"${name}"` : "this one"} into shorter notes`;
+  return `Notes sync up to ${number(MaxLength)} characters, so split ${name || "this one"} into shorter notes`;
 }
 
 /** It stays on this device, dirty and behind, until it's short enough again. */
