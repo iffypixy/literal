@@ -61,7 +61,7 @@ export function write(db: IDBDatabase, work: (tx: IDBTransaction) => void): Prom
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["notes", "docs", "meta"], "readwrite", { durability: "strict" });
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(new Error(`write: ${tx.error?.message}`));
+    // A failed request aborts the whole write, and only by then does the transaction hold the error.
     tx.onabort = () => reject(new Error(`write: ${tx.error?.message ?? "aborted"}`));
     work(tx);
   });
