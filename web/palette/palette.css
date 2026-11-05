@@ -43,7 +43,7 @@
   }
 
   &[data-closing] .scrim {
-    animation: fade-in var(--press) var(--ease-out) reverse forwards;
+    animation: fade-out var(--press) var(--ease-out) forwards;
   }
 
   @media (max-width: 640px) {
@@ -84,17 +84,22 @@
     &[data-closing] .card {
       animation: sheet-out var(--sheet-out) var(--ease-drawer) forwards;
     }
+
+    /* Dragged away, the sheet slides off from where the finger let go, and the scrim fades with it. */
+    &[data-dragged] .scrim {
+      animation: fade-out var(--sheet-out) var(--ease-drawer) forwards;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    &[data-motion] .card,
-    &[data-closing] .card {
+    &[data-motion] .card {
       animation-name: fade-in;
       animation-duration: var(--press);
     }
 
     &[data-closing] .card {
-      animation-direction: reverse;
+      animation-name: fade-out;
+      animation-duration: var(--press);
     }
   }
 }

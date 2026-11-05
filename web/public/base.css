@@ -268,3 +268,10 @@ a,
     opacity: 0;
   }
 }
+
+/* Its own animation, not fade-in reversed, which on what already faded in would jump to the end at once. */
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}

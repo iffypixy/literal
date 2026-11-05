@@ -52,6 +52,7 @@ export function togglePalette(pointer: boolean) {
 export function openPalette(pointer: boolean, start: View = "notes") {
   if (palette.open) return setView(start);
   delete overlay.dataset.closing;
+  delete overlay.dataset.dragged;
   overlay.toggleAttribute("data-motion", pointer);
   card.style.transform = "";
   card.style.transition = "";
@@ -184,6 +185,7 @@ export function Palette(props: Props) {
 function dismiss() {
   palette.open = false;
   closedByPointer = true;
+  overlay.dataset.dragged = "";
   leaveSheet();
   if (reducedMotion.matches) finish();
   else card.addEventListener("transitionend", finish, { once: true });
@@ -196,6 +198,7 @@ function finish() {
   card.style.transition = "";
   overlay.hidden = true;
   delete overlay.dataset.closing;
+  delete overlay.dataset.dragged;
   setVisible(false);
   host.onClose(closedByPointer);
 }
