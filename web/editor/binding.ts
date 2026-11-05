@@ -23,6 +23,8 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   /** Changes from elsewhere, waiting for the textarea to be free. */
   let held: Delta[] = [];
   let composing = false;
+  /** A composition's end, put off a moment. A new one may start before it comes. */
+  let ending: ReturnType<typeof setTimeout> | undefined;
 
   if (text.length === 0 && area.value) {
     type();
@@ -110,12 +112,13 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function onCompositionStart() {
+    clearTimeout(ending);
     composing = true;
   }
 
   function onCompositionEnd() {
     // Some browsers send the composition's last input right after this event, so changes wait until it lands.
-    setTimeout(() => {
+    ending = setTimeout(() => {
       composing = false;
       release();
     });
@@ -143,6 +146,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   document.addEventListener("visibilitychange", onVisibilityChange, { signal });
 
   return () => {
+    clearTimeout(ending);
     listening.abort();
     text.unobserve(receive);
     undo.destroy();
