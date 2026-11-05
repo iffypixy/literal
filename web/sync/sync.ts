@@ -2,7 +2,17 @@
 
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message, type Refusal } from "#protocol.ts";
+import {
+  decode,
+  encode,
+  MaxBytes,
+  MaxLength,
+  MaxNotes,
+  Ping,
+  SignedOut,
+  type Message,
+  type Refusal,
+} from "#protocol.ts";
 import { number } from "#web/format.ts";
 import * as notes from "#web/notes/notes.ts";
 import { quoted } from "#web/notes/search.ts";
@@ -107,7 +117,8 @@ function connect() {
   ws.onmessage = (event) => {
     lastHeard = Date.now();
     pingSent = 0;
-    if (!(event.data instanceof ArrayBuffer)) return; // a pong
+    // The only text is the server's answer to a ping, which, like anything heard, shows the connection is alive.
+    if (!(event.data instanceof ArrayBuffer)) return;
     const data = new Uint8Array(event.data);
     run(ws, () => handle(ws, decode(data)));
   };
@@ -285,7 +296,7 @@ function tick() {
     if (late || (pingSent && now - pingSent > DeadAfter)) drop();
     else if (!pingSent && now - lastHeard > PingEvery) {
       pingSent = now;
-      socket.send("ping");
+      socket.send(Ping);
     }
   }
   report();

@@ -39,6 +39,13 @@ export const MaxLength = 100_000;
 export const MaxNotes = 10_000;
 export const MaxBytes = 100_000_000;
 
+/**
+ * Text, not binary, and all the text there is: an idle device sends Ping to learn its connection is still alive, and
+ * the server answers Pong without waking up.
+ */
+export const Ping = "ping";
+export const Pong = "pong";
+
 /** The close code that tells a device to stop reconnecting and ask to sign in. */
 export const SignedOut = 4001;
 

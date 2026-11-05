@@ -6,6 +6,8 @@ import {
   isDocDeleted,
   MaxBytes,
   MaxNotes,
+  Ping,
+  Pong,
   SignedOut,
   type Message,
   type Of,
@@ -48,8 +50,7 @@ export class UserNotes extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    // Answered without waking the object. Devices ping to learn their connection is still alive.
-    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(Ping, Pong));
     this.setUp();
   }
 
