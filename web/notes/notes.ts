@@ -1,12 +1,12 @@
 import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { isDeleted } from "#protocol.ts";
+import { isDeleted, lastEdited, markEdited } from "#protocol.ts";
 import * as storage from "#web/storage.ts";
 import { account } from "#web/sync/account.ts";
 import { deleteDb, get, openDb, readNotes, write } from "./db.ts";
 
-/** What the list and search know about a note. The note itself is a Yjs doc: its `text`, and its `meta` (the times). */
+/** What the list and search know about a note. The note itself is a Yjs doc of its `text`, `meta` and `edits` times. */
 export type Note = {
   id: string;
   text: string;
@@ -151,9 +151,8 @@ export function create(at = Date.now()): { id: string; text: Y.Text } {
   const id = newId();
   const doc = adopt(id, new Y.Doc());
   doc.transact(() => {
-    const meta = doc.getMap<number>("meta");
-    meta.set("createdAt", at);
-    meta.set("editedAt", at);
+    doc.getMap<number>("meta").set("createdAt", at);
+    markEdited(doc, at);
   });
   // Counts as the first touch, so an import keeps the file's own time.
   entryFor(id).touched = Date.now();
@@ -266,7 +265,7 @@ export async function forgotten(id: string) {
     const doc = await load(id);
     const row = await get(await db, "notes", id);
     const unsent = entries.get(id)?.unsaved || (row !== undefined && parseRow(row).dirty);
-    if (doc && unsent && !deleted(doc)) add(doc.getText("text").toString(), summarize(id, doc).editedAt);
+    if (doc && unsent && !deleted(doc)) add(doc.getText("text").toString(), lastEdited(doc));
     await purge(id);
   });
 }
@@ -374,8 +373,7 @@ function isWritten(text: string): boolean {
 
 /** From its times alone: summarizing it would copy out all of its text. */
 function deleted(doc: Y.Doc): boolean {
-  const meta = doc.getMap<number>("meta");
-  return isDeleted(meta.get("deletedAt"), meta.get("editedAt") ?? 0);
+  return isDeleted(doc.getMap<number>("meta").get("deletedAt"), lastEdited(doc));
 }
 
 function entryFor(id: string): Entry {
@@ -459,7 +457,7 @@ function touch(entry: Entry, doc: Y.Doc) {
   if (now - entry.touched < TouchEvery) return;
   entry.touched = now;
   // Yjs runs observers inside the transaction; a change made from one belongs in its own.
-  queueMicrotask(() => doc.getMap<number>("meta").set("editedAt", now));
+  queueMicrotask(() => markEdited(doc, now));
 }
 
 /** Writes the note to disk, first merging in whatever another tab wrote there since this one last looked. */
@@ -588,7 +586,7 @@ function summarize(id: string, doc: Y.Doc): Note {
     id,
     text: doc.getText("text").toString(),
     createdAt: meta.get("createdAt") ?? 0,
-    editedAt: meta.get("editedAt") ?? 0,
+    editedAt: lastEdited(doc),
     deletedAt: meta.get("deletedAt") ?? null,
   };
 }

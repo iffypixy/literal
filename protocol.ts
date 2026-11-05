@@ -11,6 +11,7 @@
  */
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
+import type * as Y from "yjs";
 
 export type Message =
   | { type: "hello"; since: number; notes: { id: string; vector: Uint8Array; dirty: boolean }[] }
@@ -174,4 +175,22 @@ export function isNoteId(id: string): boolean {
 /** Decided by a note's own times, alike on every device and the server: an edit made after a delete brings it back. */
 export function isDeleted(deletedAt: number | null | undefined, editedAt: number): boolean {
   return typeof deletedAt === "number" && deletedAt >= editedAt;
+}
+
+/**
+ * When the note was last edited: the latest of each device's own time. With one time for all, two devices editing at
+ * once would leave whichever time Yjs picks, not the later one. Older notes have only `meta.editedAt`.
+ */
+export function lastEdited(doc: Y.Doc): number {
+  const times = [...doc.getMap<number>("edits").values()];
+  return times.length ? Math.max(...times) : (doc.getMap<number>("meta").get("editedAt") ?? 0);
+}
+
+/** Sets this device's time, and drops the earlier ones it has seen from other devices. */
+export function markEdited(doc: Y.Doc, at: number) {
+  const edits = doc.getMap<number>("edits");
+  doc.transact(() => {
+    for (const [device, time] of edits) if (time <= at) edits.delete(device);
+    edits.set(String(doc.clientID), at);
+  });
 }

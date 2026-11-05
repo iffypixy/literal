@@ -1,6 +1,16 @@
 import { DurableObject } from "cloudflare:workers";
 import * as Y from "yjs";
-import { decode, encode, isDeleted, MaxBytes, MaxNotes, SignedOut, type Message, type Refusal } from "#protocol.ts";
+import {
+  decode,
+  encode,
+  isDeleted,
+  lastEdited,
+  MaxBytes,
+  MaxNotes,
+  SignedOut,
+  type Message,
+  type Refusal,
+} from "#protocol.ts";
 import type { Env } from "./index.ts";
 
 /** How the Worker tells this object which session opened a socket. */
@@ -288,7 +298,7 @@ function read(state: Uint8Array): Read {
   Y.applyUpdate(doc, state);
   const meta = doc.getMap<number>("meta");
   // The note's own times say whether it's deleted; the server's clock says only for how long.
-  const deleted = isDeleted(meta.get("deletedAt"), meta.get("editedAt") ?? 0);
+  const deleted = isDeleted(meta.get("deletedAt"), lastEdited(doc));
   const compacted = Y.encodeStateAsUpdate(doc);
   doc.destroy();
   return { state: compacted, deleted };
