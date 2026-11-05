@@ -77,6 +77,8 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function onKeydown(event: KeyboardEvent) {
+    // Read-only while the next note loads, and these would change this one regardless.
+    if (area.readOnly) return;
     if (pressed(event, "Mod+Z")) {
       event.preventDefault();
       undo.undo();
