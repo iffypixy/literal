@@ -17,6 +17,20 @@ const RequestTimeout = 15_000;
 
 export const WrongCode = "That code didn't work";
 
+/** What a failed request says, by its status. */
+const SendProblems: Partial<Record<number, string>> = {
+  400: "That doesn't look like an email address",
+  429: "Wait a few minutes, then try again",
+  503: "Can't send more codes today. Try again tomorrow.",
+};
+const VerifyProblems: Partial<Record<number, string>> = {
+  400: WrongCode,
+  401: WrongCode,
+  // After 5 wrong tries the code is locked, and even the right one won't work.
+  403: "Send a new code to try again",
+  429: "Wait a few minutes, then try again",
+};
+
 export const account = createMutable<{ email: string | null }>({ email: storage.read(AccountKey) });
 
 /** Tells the other tabs about each sign-in, even to the same account, so a tab the server signed out syncs again. */
@@ -24,11 +38,8 @@ const signIns = new BroadcastChannel("literal:sign-in");
 
 /** Null when nobody is signed in; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
-  const response = await fetch("/api/auth/get-session", {
-    credentials: "same-origin",
-    signal: AbortSignal.timeout(RequestTimeout),
-  });
-  if (!response.ok) throw new Error(`get session: ${response.status}`);
+  const response = await request("GET", "/api/auth/get-session");
+  if (!response?.ok) throw new Error(`get session: ${response?.status ?? "unreachable"}`);
   const body: unknown = await response.json();
   if (body === null) return null;
   if (isRecord(body) && isRecord(body.user) && typeof body.user.email === "string") return body.user.email;
@@ -61,24 +72,15 @@ export async function sendCode(email: string): Promise<string | null> {
   const response = await request("POST", "/api/auth/email-otp/send-verification-otp", { email, type: "sign-in" });
   if (!response) return unreachable();
   if (response.ok) return null;
-  if (response.status === 429) return "Wait a few minutes, then try again";
-  if (response.status === 400) return "That doesn't look like an email address";
-  if (response.status === 503) return "Can't send more codes today. Try again tomorrow.";
-  return "Couldn't send the code. Try again.";
+  return SendProblems[response.status] ?? "Couldn't send the code. Try again.";
 }
 
 export async function verify(email: string, code: string): Promise<string | null> {
   const response = await request("POST", "/api/auth/sign-in/email-otp", { email, otp: code });
   if (!response) return unreachable();
-  if (response.ok) {
-    signedIn(email);
-    return null;
-  }
-  if (response.status === 429) return "Wait a few minutes, then try again";
-  // After 5 wrong tries the code is locked, and even the right one won't work.
-  if (response.status === 403) return "Send a new code to try again";
-  if (response.status === 400 || response.status === 401) return WrongCode;
-  return "Couldn't sign in. Try again.";
+  if (!response.ok) return VerifyProblems[response.status] ?? "Couldn't sign in. Try again.";
+  signedIn(email);
+  return null;
 }
 
 /**
@@ -112,14 +114,9 @@ async function forget(farewell: string) {
 }
 
 /** Null when the request didn't reach the server, or never came back. */
-function request(method: string, path: string, body?: unknown): Promise<Response | null> {
-  return fetch(path, {
-    method,
-    credentials: "same-origin",
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(RequestTimeout),
-  }).catch(() => null);
+function request(method: string, path: string, body?: object): Promise<Response | null> {
+  const json = body && { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  return fetch(path, { method, ...json, signal: AbortSignal.timeout(RequestTimeout) }).catch(() => null);
 }
 
 function unreachable(): string {
