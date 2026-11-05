@@ -46,7 +46,8 @@ export async function importFiles(files: File[]) {
     const text = attempt(() => decoder.decode(bytes), null)?.replace(/\r\n?/g, "\n");
     // Not UTF-8, blank, or too long to sync, it counts as skipped.
     if (!text?.trim() || text.length > MaxLength) continue;
-    notes.add(text, file.lastModified || Date.now());
+    // A file dated in the future would sit at the top of the list for good.
+    notes.add(text, Math.min(file.lastModified || Date.now(), Date.now()));
     imported++;
   }
   const skipped = files.length - imported;
@@ -60,8 +61,7 @@ function fileName(title: string): string {
   const safe = title
     .replace(/[/\\:*?"<>|\u0000-\u001f]/g, "")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 60)
     .trim();
-  return safe || "Untitled";
+  // Cut by code point, since half an emoji turns into "�".
+  return Array.from(safe).slice(0, 60).join("").trim() || "Untitled";
 }

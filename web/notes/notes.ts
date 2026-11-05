@@ -172,7 +172,8 @@ export async function open(id: string): Promise<Y.Text | null> {
 export async function remove(id: string) {
   const doc = await load(id).catch(failed);
   if (!doc) return;
-  doc.getMap<number>("meta").set("deletedAt", Date.now());
+  // Never before its last edit, which a device with its clock ahead may have put in the future.
+  doc.getMap<number>("meta").set("deletedAt", Math.max(Date.now(), lastEdited(doc)));
   refresh(id, doc);
 }
 
