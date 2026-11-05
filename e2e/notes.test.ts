@@ -54,7 +54,10 @@ test("an empty note opened right after another stays empty", async ({ page, cont
   await expect(note(other)).toHaveValue("Second");
   await other.keyboard.press("Control+a");
   await other.keyboard.press("Delete");
-  await expect(note(page)).toHaveValue("First note");
+  // Once this tab hears of it, the emptied note leaves its list.
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.keyboard.press("Escape");
 
   await page.goForward();
   await expect(page).toHaveURL(second);

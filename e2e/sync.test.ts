@@ -191,13 +191,12 @@ async function open(page: Page, title: string) {
 }
 
 /** Opens the list until it shows `count` notes (with `text`, if given), since another device's take a while. */
+/** The list follows changes as they arrive, so it's opened once and watched. */
 async function expectListed(page: Page, count: number, text?: string) {
-  await expect(async () => {
-    await page.keyboard.press("Control+k");
-    const rows = page.getByRole("option");
-    await expect(text ? rows.filter({ hasText: text }) : rows).toHaveCount(count, { timeout: 1000 });
-    await page.keyboard.press("Escape");
-  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Control+k");
+  const rows = page.getByRole("option");
+  await expect(text ? rows.filter({ hasText: text }) : rows).toHaveCount(count, { timeout: 15_000 });
+  await page.keyboard.press("Escape");
 }
 
 function note(page: Page) {
