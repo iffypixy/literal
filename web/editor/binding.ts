@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import { Apple } from "#web/device.ts";
-import { letter, mod } from "#web/shortcuts.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { diff, end, shift, type Delta } from "./diff.ts";
 
 /** Marks the changes this textarea makes, so they aren't echoed back into it. */
@@ -77,14 +77,13 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function onKeydown(event: KeyboardEvent) {
-    if (mod(event) && !event.altKey && letter(event, "z")) {
+    if (pressed(event, "Mod+Z")) {
       event.preventDefault();
-      if (event.shiftKey) undo.redo();
-      else undo.undo();
-    } else if (!Apple && event.ctrlKey && !event.metaKey && letter(event, "y")) {
+      undo.undo();
+    } else if (pressed(event, "Mod+Shift+Z") || (!Apple && pressed(event, "Mod+Y"))) {
       event.preventDefault();
       undo.redo();
-    } else if (event.key === "Tab" && !event.shiftKey && !mod(event) && !event.altKey) {
+    } else if (pressed(event, "Tab")) {
       event.preventDefault();
       area.setRangeText("\t", area.selectionStart, area.selectionEnd, "end");
       type();

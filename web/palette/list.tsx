@@ -3,7 +3,7 @@ import { Apple, Fragile, reducedMotion, touch } from "#web/device.ts";
 import { ago } from "#web/format.ts";
 import { library, list, type Note } from "#web/notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "#web/notes/search.ts";
-import { composing, Shortcuts } from "#web/shortcuts.ts";
+import { pressed, Shortcuts } from "#web/shortcuts.ts";
 import { account } from "#web/sync/account.ts";
 import { exportAll, importFiles } from "#web/transfer/transfer.ts";
 import { IconButton } from "#web/ui/icon.tsx";
@@ -154,15 +154,14 @@ export function List(props: Props) {
   }
 
   function onKeyDown(event: KeyboardEvent & { currentTarget: HTMLInputElement }) {
-    if (composing(event)) return;
     const entry = selected();
-    if (event.key === "ArrowDown") {
+    if (pressed(event, "ArrowDown")) {
       event.preventDefault();
       move(1);
-    } else if (event.key === "ArrowUp") {
+    } else if (pressed(event, "ArrowUp")) {
       event.preventDefault();
       move(-1);
-    } else if (event.key === "Enter") {
+    } else if (pressed(event, "Enter")) {
       event.preventDefault();
       pick(entry, false);
     } else if (highlighted() && entry && !isAction(entry) && deletes(event, event.currentTarget)) {
@@ -387,15 +386,14 @@ function Marked(props: { parts: Segment[] }) {
 }
 
 /**
- * Delete deletes, with nothing after the cursor to erase (fn⌫ on a Mac); and on Apple devices ⌘⌫, as in Finder,
- * with nothing before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held down, a key deletes
- * one note.
+ * Delete deletes when there's nothing after the cursor to erase (fn⌫ on a Mac), and on Apple devices so does ⌘⌫, as
+ * in Finder, when there's nothing before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held
+ * down, a key deletes just one note.
  */
 function deletes(event: KeyboardEvent, field: HTMLInputElement): boolean {
-  if (event.repeat || event.altKey || event.shiftKey) return false;
-  if (field.selectionStart !== field.selectionEnd) return false;
-  if (event.key === "Delete") return !event.ctrlKey && !event.metaKey && field.selectionEnd === field.value.length;
-  return Apple && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
+  if (event.repeat || field.selectionStart !== field.selectionEnd) return false;
+  if (pressed(event, "Delete")) return field.selectionEnd === field.value.length;
+  return Apple && pressed(event, "Mod+Backspace") && field.selectionStart === 0;
 }
 
 function collapse(row: HTMLElement): Promise<unknown> {

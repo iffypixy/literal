@@ -1,10 +1,10 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
-import { composing } from "#web/shortcuts.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import "./menu.css";
 
 /** Something to do besides opening a note: from the menu, or found as a command. */
-export type Action = { label: string; keys?: string[]; danger?: boolean; run: (pointer: boolean) => void };
+export type Action = { label: string; keys?: string; danger?: boolean; run: (pointer: boolean) => void };
 
 type Props = {
   /** Divided by a line between each. */
@@ -22,7 +22,7 @@ export function Menu(props: Props) {
     if (!open()) return;
     // Before the palette's own Esc, which would close more than the menu.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || composing(event)) return;
+      if (!pressed(event, "Escape")) return;
       event.preventDefault();
       setOpen(false);
       props.onEscape();
@@ -48,10 +48,10 @@ export function Menu(props: Props) {
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const step = pressed(event, "ArrowDown") ? 1 : pressed(event, "ArrowUp") ? -1 : 0;
+    if (!step) return;
     event.preventDefault();
     const items = [...(box?.querySelectorAll("button") ?? [])];
-    const step = event.key === "ArrowDown" ? 1 : -1;
     const at = items.findIndex((item) => item === document.activeElement);
     items.at(at < 0 ? (step > 0 ? 0 : -1) : (at + step) % items.length)?.focus();
   }

@@ -7,7 +7,7 @@ import { sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { toast } from "#web/ui/toast.tsx";
-import { Apple, mouse } from "./device.ts";
+import { mouse } from "./device.ts";
 import { plural } from "./format.ts";
 import { Shortcuts } from "./shortcuts.ts";
 import "./corner.css";
@@ -81,20 +81,8 @@ export function Corner(props: Props) {
             </button>
           )}
         </Show>
-        <IconButton
-          label="New note"
-          icon="plus"
-          keys={Shortcuts.new}
-          aria-keyshortcuts="Alt+N"
-          onClick={props.onBlank}
-        />
-        <IconButton
-          label="Notes"
-          icon="list"
-          keys={Shortcuts.notes}
-          aria-keyshortcuts={Apple ? "Meta+K" : "Control+K"}
-          onClick={() => togglePalette(true)}
-        />
+        <IconButton label="New note" icon="plus" keys={Shortcuts.new} onClick={props.onBlank} />
+        <IconButton label="Notes" icon="list" keys={Shortcuts.notes} onClick={() => togglePalette(true)} />
       </div>
 
       {/* Only on a blank page, where it covers nothing: gone with the first word. */}

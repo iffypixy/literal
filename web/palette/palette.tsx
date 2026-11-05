@@ -5,7 +5,7 @@ import { createMutable } from "solid-js/store";
 import { sheet, touch } from "#web/device.ts";
 import { plural } from "#web/format.ts";
 import { unsynced } from "#web/notes/notes.ts";
-import { composing } from "#web/shortcuts.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { deleteAccount, signOut } from "#web/sync/account.ts";
 import { drain, sync } from "#web/sync/sync.ts";
 import { exportAll } from "#web/transfer/transfer.ts";
@@ -104,7 +104,7 @@ export function Palette(props: Props) {
 
   // Esc goes back a step: out of a view, then out of the palette.
   addEventListener("keydown", (event) => {
-    if (!palette.open || event.key !== "Escape" || event.defaultPrevented || composing(event)) return;
+    if (!palette.open || event.defaultPrevented || !pressed(event, "Escape")) return;
     event.preventDefault();
     if (view() !== "notes") showList();
     else closePalette(false);

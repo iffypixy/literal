@@ -7,7 +7,7 @@ import "./tooltip.css";
  * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it; moving on
  * to the next while one is up shows it at once. Set up from the button's ref, so it goes when the button does.
  */
-export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
+export function tooltip(node: HTMLElement, label: string, keys: string) {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function enter() {
@@ -37,7 +37,7 @@ let tip: HTMLElement | null = null;
 let owner: HTMLElement | null = null;
 let warmUntil = 0;
 
-function show(node: HTMLElement, label: string, keys: string[] | undefined, instant: boolean) {
+function show(node: HTMLElement, label: string, keys: string, instant: boolean) {
   if (!tip) {
     tip = document.body.appendChild(document.createElement("div"));
     tip.className = "tooltip surface";
@@ -47,7 +47,7 @@ function show(node: HTMLElement, label: string, keys: string[] | undefined, inst
   }
   owner = node;
   tip.replaceChildren(label);
-  if (keys) tip.append(Keys({ keys }));
+  tip.append(Keys({ keys }));
   tip.toggleAttribute("data-instant", instant);
 
   // Under the button, right edges aligned (every button with one sits on the right); above if there's no room.

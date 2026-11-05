@@ -25,7 +25,7 @@ import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
 import { mouse } from "./device.ts";
 import { Drop } from "./drop.tsx";
-import { letter, mod, Shortcuts } from "./shortcuts.ts";
+import { pressed, Shortcuts } from "./shortcuts.ts";
 import { stayUpToDate } from "./update.ts";
 
 const TitleShown = 60;
@@ -205,7 +205,7 @@ export function App() {
     "keydown",
     (event) => {
       if (!undoable) return;
-      if (!mod(event) || event.shiftKey || event.altKey || !letter(event, "z")) return;
+      if (!pressed(event, Shortcuts.undo)) return;
       event.preventDefault();
       event.stopPropagation();
       undoable = false;
@@ -215,10 +215,10 @@ export function App() {
   );
 
   addEventListener("keydown", (event) => {
-    if (mod(event) && !event.altKey && !event.shiftKey && letter(event, "k")) {
+    if (pressed(event, Shortcuts.notes)) {
       event.preventDefault();
       togglePalette(false);
-    } else if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && letter(event, "n")) {
+    } else if (pressed(event, Shortcuts.new)) {
       // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
       goBlank();

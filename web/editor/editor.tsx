@@ -1,6 +1,6 @@
 import { createEffect, onCleanup } from "solid-js";
 import type * as Y from "yjs";
-import { composing } from "#web/shortcuts.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { bind } from "./binding.ts";
 
 export type Position = [start: number, end: number, scroll?: number];
@@ -59,7 +59,7 @@ export function Editor(props: Props) {
       autocapitalize="sentences"
       readOnly={props.readonly}
       onInput={(event) => !props.text && event.currentTarget.value.trim() && props.onCreate()}
-      onKeyDown={(event) => event.key === "Escape" && !composing(event) && event.currentTarget.blur()}
+      onKeyDown={(event) => pressed(event, "Escape") && event.currentTarget.blur()}
     />
   );
 }

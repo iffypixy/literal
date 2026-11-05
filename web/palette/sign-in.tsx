@@ -1,7 +1,7 @@
 import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { CodeLength } from "#protocol.ts";
 import { Fragile, reducedMotion, touch } from "#web/device.ts";
-import { composing } from "#web/shortcuts.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { sendCode, verify, WrongCode } from "#web/sync/account.ts";
 import { Alert } from "#web/ui/alert.tsx";
 import { Button } from "#web/ui/button.tsx";
@@ -102,7 +102,7 @@ export function SignIn(props: Props) {
 
   // Esc on the code step goes back to the email; on the email step it's the palette's.
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key !== "Escape" || step() !== "code" || composing(event)) return;
+    if (step() !== "code" || !pressed(event, "Escape")) return;
     event.preventDefault();
     restart();
   }

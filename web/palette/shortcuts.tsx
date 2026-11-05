@@ -4,16 +4,16 @@ import { Keys } from "#web/ui/keys.ts";
 import { Back } from "./back.tsx";
 import "./shortcuts.css";
 
-const KeyList: [string[], string][] = [
+const KeyList: [string, string][] = [
   [Shortcuts.notes, "Notes and commands"],
   [Shortcuts.new, "New note"],
-  [Shortcuts.move, "Choose a note"],
-  [Shortcuts.open, "Open note"],
+  ["ArrowUp+ArrowDown", "Choose a note"],
+  ["Enter", "Open note"],
   [Shortcuts.delete, "Delete note"],
   [Shortcuts.undo, "Undo delete"],
-  [Shortcuts.close, "Close"],
+  ["Escape", "Close"],
   // Tab types a tab in a note: Esc first lets Tab move on, out of it.
-  [["Esc", "Tab"], "Leave the note"],
+  ["Escape+Tab", "Leave the note"],
 ];
 
 export function KeyboardShortcuts(props: { onBack: () => void }) {

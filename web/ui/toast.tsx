@@ -5,7 +5,7 @@ import { Keys } from "./keys.ts";
 import "./toast.css";
 
 /** `keys`: the shortcut that also takes the action, shown beside it. */
-type Action = { label: string; keys?: string[]; run: () => void };
+type Action = { label: string; keys?: string; run: () => void };
 
 type Toast = {
   message: string;
