@@ -2,7 +2,7 @@
 
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "#protocol.ts";
+import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message, type Refusal } from "#protocol.ts";
 import { number } from "#web/format.ts";
 import * as notes from "#web/notes/notes.ts";
 import { quoted } from "#web/notes/search.ts";
@@ -55,6 +55,14 @@ let chain = Promise.resolve();
 const explained = new Set<string>();
 /** Notes whose history is too large for the server to keep. Until the page reloads, they aren't sent again. */
 const tooLarge = new Set<string>();
+
+/** What each refusal says, naming the note it's about. */
+const Refused: Record<Refusal, (name: string) => string> = {
+  "too-many": () => `Sync stops at ${number(MaxNotes)} notes, so delete some to make room`,
+  "too-full": () => `Sync stops at ${number(MaxBytes / 1_000_000)} MB, so delete some notes to make room`,
+  // Under the length limit, but so much has been typed and erased in it that its history is too large.
+  "too-large": (name) => `${name || "This note"} is too large to sync, so copy its text into a new note`,
+};
 
 /** Called again after a sign-in, it starts over on a new connection, as the old one may belong to another session. */
 export function startSync() {
@@ -168,34 +176,26 @@ async function handle(ws: WebSocket, message: Message) {
       await notes.receive(message.id, message.update);
       break;
     case "ack": {
-      const sent = unacked.get(message.seq);
-      unacked.delete(message.seq);
+      const sent = answered(message.seq);
       if (!sent) break;
+      // A note that's behind is synced only by a whole copy sent after it fell behind.
       const since = behind.get(sent.id);
-      if (since !== undefined) {
-        if (!sent.whole || message.seq <= since) break;
-        behind.delete(sent.id);
-      }
+      if (since !== undefined && (!sent.whole || message.seq <= since)) break;
+      behind.delete(sent.id);
       await notes.acked(sent.id, sent.upTo);
       break;
     }
     case "refused": {
-      const sent = unacked.get(message.seq);
-      unacked.delete(message.seq);
-      if (sent) fallBehind(sent.id, message.seq);
-      if (sent && message.reason === "too-large") tooLarge.add(sent.id);
+      const sent = answered(message.seq);
+      // Sent on a connection since dropped, the note is behind anyway, and is refused, and explained, again.
+      if (!sent) break;
+      fallBehind(sent.id, message.seq);
+      if (message.reason === "too-large") tooLarge.add(sent.id);
       // A note's own limit is explained for each note, the account's just once.
-      const about = message.reason === "too-large" ? (sent?.id ?? message.reason) : message.reason;
+      const about = message.reason === "too-large" ? sent.id : message.reason;
       if (explained.has(about)) break;
       explained.add(about);
-      if (message.reason === "too-many") toast(`Sync stops at ${number(MaxNotes)} notes, so delete some to make room`);
-      else if (message.reason === "too-full")
-        toast(`Sync stops at ${number(MaxBytes / 1_000_000)} MB, so delete some notes to make room`);
-      else {
-        // Under the length limit, but so much has been typed and erased in it that its history is too large.
-        const name = sent ? quoted(notes.find(sent.id)?.text ?? "") : "";
-        toast(`${name || "This note"} is too large to sync, so copy its text into a new note`);
-      }
+      toast(Refused[message.reason](quoted(notes.find(sent.id)?.text ?? "")));
       break;
     }
     case "purge":
@@ -204,6 +204,13 @@ async function handle(ws: WebSocket, message: Message) {
     case "hello":
       throw new Error("sync: the server said hello");
   }
+}
+
+/** The update `seq` was, now that the server has answered it. */
+function answered(seq: number) {
+  const sent = unacked.get(seq);
+  unacked.delete(seq);
+  return sent;
 }
 
 /** Before signing out, sends every change still waiting, then gives the server a moment to take them all. */
