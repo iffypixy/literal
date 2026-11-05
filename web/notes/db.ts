@@ -2,6 +2,8 @@ type Store = "notes" | "docs" | "meta";
 
 const Name = "literal";
 const Version = 1;
+/** Rows read at a time. */
+const Batch = 500;
 
 /** `onVersionChange` runs when another tab deletes or upgrades the database, once this connection has let it go. */
 export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void): Promise<IDBDatabase> {
@@ -35,18 +37,17 @@ export function deleteDb(): Promise<void> {
   });
 }
 
-/** Every row of `notes`, `size` at a time, leaving the page free in between. */
+/** Every row of `notes`, a batch at a time, leaving the page free in between. */
 export async function* readNotes<T extends { id: string }>(
   db: IDBDatabase,
   parse: (value: unknown) => T,
-  size: number,
 ): AsyncGenerator<T[]> {
   let after: string | undefined;
   for (;;) {
     const range = after === undefined ? undefined : IDBKeyRange.lowerBound(after, true);
-    const rows = (await done(db.transaction("notes").objectStore("notes").getAll(range, size))).map(parse);
+    const rows = (await done(db.transaction("notes").objectStore("notes").getAll(range, Batch))).map(parse);
     if (rows.length) yield rows;
-    if (rows.length < size) return;
+    if (rows.length < Batch) return;
     after = rows.at(-1)?.id;
   }
 }

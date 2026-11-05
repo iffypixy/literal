@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { isDeleted, lastEdited, markEdited, type Of } from "#protocol.ts";
+import { isDocDeleted, isDeleted, lastEdited, markEdited, newId, type Of } from "#protocol.ts";
 import { attempt, isRecord } from "#web/safe.ts";
 import * as storage from "#web/storage.ts";
 import { account } from "#web/sync/account.ts";
@@ -47,14 +47,11 @@ type Entry = {
   generation: number;
 };
 
-type Message =
-  | { type: "update"; id: string; update: Uint8Array }
-  | { type: "note"; row: Row }
-  | { type: "purge"; id: string };
+/** `stamp`: the stored state (`writer:rev`) the save left on disk. */
+type TabMessage = { type: "note"; note: Note; stamp: string } | { type: "purge"; id: string };
 
-/** Origins of changes that arrive from outside this tab. Any other change was made here. */
+/** Origins of changes that arrive from outside this tab: another tab's, read from disk, and the server's. */
 const Disk = "disk";
-const Tab = "tab";
 const Remote = "remote";
 
 /** Where unsaved changes go as the page closes, since localStorage writes at once and IndexedDB may not finish. */
@@ -63,7 +60,6 @@ const Rescued = "unsaved:";
 /** A pause in typing this long saves; so does typing this long without one. */
 const SaveDelay = 250;
 const SaveAtMost = 1000;
-const ReadBatch = 500;
 /** How often typing moves a note's `editedAt`. Often enough to sort by, rarely enough not to bloat the doc. */
 const TouchEvery = 1000;
 const TabId = crypto.randomUUID();
@@ -95,18 +91,19 @@ const channel = new BroadcastChannel("literal");
 
 channel.onmessage = ({ data }: MessageEvent<unknown>) => {
   const message = parseMessage(data);
-  if (message.type === "update") {
-    void entries.get(message.id)?.loading?.then((doc) => {
-      if (doc) Y.applyUpdate(doc, message.update, Tab);
-    });
-  } else if (message.type === "note") {
-    keep(message.row);
+  if (message.type === "note") {
+    keep(message.note);
     changed();
-  } else {
-    // Erased in another tab. A change made here and not saved yet stays, and its save brings the note back.
-    const entry = entries.get(message.id);
-    if (entry && !entry.pending && !entry.saving) forget(message.id);
+    const entry = entries.get(message.note.id);
+    if (entry?.doc && entry.seen !== message.stamp) void catchUp(message.note.id, entry.doc).catch(failed);
+    return;
   }
+  // Erased in another tab. A change here that isn't on disk for good stays, and saving it again brings the note back.
+  const entry = entries.get(message.id);
+  if (!entry) return;
+  if (!isWriting(entry)) return forget(message.id);
+  entry.unsaved = true;
+  schedule(entry, message.id);
 };
 
 /**
@@ -168,7 +165,7 @@ export function add(text: string, at: number) {
 
 export async function open(id: string): Promise<Y.Text | null> {
   const doc = await load(id);
-  if (!doc || deleted(doc)) return null;
+  if (!doc || isDocDeleted(doc)) return null;
   return doc.getText("text");
 }
 
@@ -209,7 +206,7 @@ export async function flush() {
 export function rescue() {
   if (wiped) return;
   for (const [id, entry] of entries) {
-    if (!entry.doc || (!entry.pending && !entry.saving)) continue;
+    if (!entry.doc || !isWriting(entry)) continue;
     // Without storage, the IndexedDB save started alongside is all there is.
     if (!storage.write(Rescued + id, toBase64(Y.encodeStateAsUpdate(entry.doc))))
       console.error(`rescue ${id}: no storage`);
@@ -226,7 +223,7 @@ export async function wipe() {
 
 // For sync.ts.
 
-/** `update`: a change made here, to send. Null: a change from another tab, which this tab never sends. */
+/** `update`: a change made here, to send. Null: a change another tab made, which that tab sends. */
 export function onChange(listen: typeof listener) {
   listener = listen;
 }
@@ -236,7 +233,7 @@ export async function hello(): Promise<Omit<Of<"hello">, "type">> {
   await flush();
   const since = (await readSince()) ?? 0;
   const notes: Of<"hello">["notes"] = [];
-  for await (const rows of readNotes(await db, parseRow, ReadBatch)) {
+  for await (const rows of readNotes(await db, parseRow)) {
     for (const { id, vector, dirty } of rows) notes.push({ id, vector, dirty });
   }
   return { since, notes };
@@ -247,15 +244,15 @@ export async function hello(): Promise<Omit<Of<"hello">, "type">> {
  * here were written by someone who hadn't seen the delete, so the note comes back with them.
  */
 export async function receive(id: string, update: Uint8Array) {
-  const doc = (await load(id)) ?? entries.get(id)?.doc ?? adopt(id, new Y.Doc());
-  const wasDeleted = Boolean(entries.get(id)?.note) && deleted(doc);
+  const doc = (await load(id)) ?? adopt(id, new Y.Doc());
+  const wasDeleted = isDocDeleted(doc);
   let wrote = false;
   const text = doc.getText("text");
   const watch = () => (wrote = true);
   text.observe(watch);
   Y.applyUpdate(doc, update, Remote);
   text.unobserve(watch);
-  if (wasDeleted && wrote && deleted(doc)) await restore(id);
+  if (wasDeleted && wrote && isDocDeleted(doc)) await restore(id);
 }
 
 /**
@@ -263,11 +260,11 @@ export async function receive(id: string, update: Uint8Array) {
  * made by one tab only so that it's made once.
  */
 export async function purged(id: string) {
-  await navigator.locks.request(`forget ${id}`, async () => {
+  await navigator.locks.request(`purge ${id}`, async () => {
     const doc = await load(id);
     const row = await get(await db, "notes", id);
     const unsent = entries.get(id)?.unsaved || (row !== undefined && parseRow(row).dirty);
-    if (doc && unsent && !deleted(doc)) add(doc.getText("text").toString(), lastEdited(doc));
+    if (doc && unsent && !isDocDeleted(doc)) add(doc.getText("text").toString(), lastEdited(doc));
     await purge(id);
   });
 }
@@ -334,7 +331,7 @@ export async function unsynced(): Promise<number> {
   await flush();
   // Changes whose save failed live only in memory.
   const ids = new Set([...entries].filter(([, entry]) => entry.unsaved).map(([id]) => id));
-  for await (const rows of readNotes(await db, parseRow, ReadBatch)) {
+  for await (const rows of readNotes(await db, parseRow)) {
     for (const row of rows) if (row.dirty) ids.add(row.id);
   }
   return ids.size;
@@ -343,7 +340,7 @@ export async function unsynced(): Promise<number> {
 async function readEverything() {
   try {
     const rescues = new Set(storage.keys(Rescued));
-    for await (const rows of readNotes(await db, parseRow, ReadBatch)) {
+    for await (const rows of readNotes(await db, parseRow)) {
       for (const row of rows) {
         // Words a closing page left unsaved may bring a deleted or empty note back, so it waits for them.
         if (!isSignedIn() && !rescues.has(row.id) && !isLive(row)) void purge(row.id);
@@ -373,11 +370,6 @@ function isWritten(text: string): boolean {
   return /\S/.test(text);
 }
 
-/** From its times alone, since summarizing it would copy out all of its text. */
-function deleted(doc: Y.Doc): boolean {
-  return isDeleted(doc.getMap<number>("meta").get("deletedAt"), lastEdited(doc));
-}
-
 function entryFor(id: string): Entry {
   let entry = entries.get(id);
   if (!entry) {
@@ -400,16 +392,16 @@ function load(id: string): Promise<Y.Doc | null> {
 async function read(id: string): Promise<Y.Doc | null> {
   const [value, known] = await Promise.all([get(await db, "docs", id), get(await db, "notes", id)]);
   const stored = value === undefined ? undefined : parseStored(value);
-  const unsaved = rescued(id);
   const entry = entries.get(id);
-  if (!stored && !unsaved) {
-    // Not on disk, so the next look reads again.
-    if (entry && !entry.note && !entry.doc) entries.delete(id);
-    else if (entry) entry.loading = undefined;
-    return null;
-  }
   // Another call may have made the note meanwhile.
   if (entry?.doc) return entry.doc;
+  const unsaved = rescued(id);
+  if (!stored && !unsaved) {
+    // Not on disk, so the next look reads again.
+    if (entry?.note) entry.loading = undefined;
+    else entries.delete(id);
+    return null;
+  }
   const doc = new Y.Doc();
   if (stored) Y.applyUpdate(doc, stored.state, Disk);
   adopt(id, doc);
@@ -430,11 +422,7 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
   entry.doc = doc;
   entry.loading = Promise.resolve(doc);
   doc.on("update", (update: Uint8Array, origin: unknown) => {
-    if (origin === Disk || origin === Tab) {
-      listener(id, null);
-      return;
-    }
-    channel.postMessage({ type: "update", id, update } satisfies Message);
+    if (origin === Disk) return listener(id, null);
     if (origin !== Remote) {
       entry.unsaved = true;
       entry.generation++;
@@ -466,6 +454,15 @@ function touch(entry: Entry, doc: Y.Doc) {
   queueMicrotask(() => markEdited(doc, now));
 }
 
+/** Merges in what another tab saved since this one last looked. */
+async function catchUp(id: string, doc: Y.Doc) {
+  const value = await get(await db, "docs", id);
+  if (value === undefined || entries.get(id)?.doc !== doc) return;
+  const stored = parseStored(value);
+  Y.applyUpdate(doc, stored.state, Disk);
+  entryFor(id).seen = `${stored.writer}:${stored.rev}`;
+}
+
 /** Writes the note to disk, first merging in whatever another tab wrote there since this one last looked. */
 async function save(id: string) {
   const entry = entries.get(id);
@@ -476,7 +473,7 @@ async function save(id: string) {
   if (!doc || wiped) return;
   const local = entry.unsaved;
   entry.unsaved = false;
-  let row: Row | undefined;
+  let stamp: string | undefined;
   entry.saving++;
   const saved = await store((tx) => {
     const docs = tx.objectStore("docs");
@@ -489,28 +486,24 @@ async function save(id: string) {
       if (stored && entry.seen !== `${stored.writer}:${stored.rev}`) Y.applyUpdate(doc, stored.state, Disk);
       const rev = (stored?.rev ?? 0) + 1;
       docs.put({ state: Y.encodeStateAsUpdate(doc), writer: TabId, rev } satisfies Stored, id);
-      entry.seen = `${TabId}:${rev}`;
+      stamp = entry.seen = `${TabId}:${rev}`;
       const dirty = local || (known.result !== undefined && parseRow(known.result).dirty);
-      row = { ...summarize(id, doc), vector: Y.encodeStateVector(doc), dirty };
-      rows.put(row);
+      rows.put({ ...summarize(id, doc), vector: Y.encodeStateVector(doc), dirty } satisfies Row);
     };
   });
   entry.saving--;
   if (!saved && local) entry.unsaved = true;
-  if (!row || !saved || entries.get(id) !== entry) return;
+  if (!stamp || !saved || entries.get(id) !== entry) return;
   // A rescued copy may be newer than what this save wrote, so only the note's last save clears it.
-  if (!entry.pending && !entry.saving) storage.remove(Rescued + id);
+  if (!isWriting(entry)) storage.remove(Rescued + id);
   // The note may have changed while the write was on its way (a sync, an undo), so describe it as it is now.
-  const fresh: Row = { ...row, ...summarize(id, doc) };
-  keep(fresh);
-  changed();
-  channel.postMessage({ type: "note", row: fresh } satisfies Message);
+  post({ type: "note", note: refresh(id, doc), stamp });
 }
 
 async function purge(id: string) {
   forget(id);
   storage.remove(Rescued + id);
-  channel.postMessage({ type: "purge", id } satisfies Message);
+  post({ type: "purge", id });
   await store((tx) => {
     tx.objectStore("docs").delete(id);
     tx.objectStore("notes").delete(id);
@@ -571,15 +564,26 @@ function fromBase64(text: string): Uint8Array {
   return Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 }
 
-function keep({ id, text, createdAt, editedAt, deletedAt }: Row) {
+/** A save waits, or is on its way to disk. */
+function isWriting(entry: Entry): boolean {
+  return Boolean(entry.pending) || entry.saving > 0;
+}
+
+function post(message: TabMessage) {
+  channel.postMessage(message);
+}
+
+function keep({ id, text, createdAt, editedAt, deletedAt }: Note) {
   entryFor(id).note = { id, text, createdAt, editedAt, deletedAt };
   sorted = null;
 }
 
-function refresh(id: string, doc: Y.Doc) {
-  entryFor(id).note = summarize(id, doc);
+function refresh(id: string, doc: Y.Doc): Note {
+  const note = summarize(id, doc);
+  entryFor(id).note = note;
   sorted = null;
   changed();
+  return note;
 }
 
 function summarize(id: string, doc: Y.Doc): Note {
@@ -595,20 +599,25 @@ function summarize(id: string, doc: Y.Doc): Note {
 
 // What's read back from disk, or from another tab, was written by this app; but maybe by an older version of it.
 
-function parseRow(value: unknown): Row {
+function parseNote(value: unknown): Note {
   if (!isRecord(value)) throw new Error("read note: not a record");
-  const { id, text, createdAt, editedAt, deletedAt, vector, dirty } = value;
+  const { id, text, createdAt, editedAt, deletedAt } = value;
   if (
     typeof id !== "string" ||
     typeof text !== "string" ||
     typeof createdAt !== "number" ||
     typeof editedAt !== "number" ||
-    (deletedAt !== null && typeof deletedAt !== "number") ||
-    !(vector instanceof Uint8Array) ||
-    typeof dirty !== "boolean"
+    (deletedAt !== null && typeof deletedAt !== "number")
   )
     throw new Error("read note: unexpected fields");
-  return { id, text, createdAt, editedAt, deletedAt, vector, dirty };
+  return { id, text, createdAt, editedAt, deletedAt };
+}
+
+function parseRow(value: unknown): Row {
+  const note = parseNote(value);
+  if (!isRecord(value) || !(value.vector instanceof Uint8Array) || typeof value.dirty !== "boolean")
+    throw new Error("read note: unexpected fields");
+  return { ...note, vector: value.vector, dirty: value.dirty };
 }
 
 function parseStored(value: unknown): Stored {
@@ -619,21 +628,11 @@ function parseStored(value: unknown): Stored {
   return { state, writer, rev };
 }
 
-function parseMessage(data: unknown): Message {
+function parseMessage(data: unknown): TabMessage {
   if (isRecord(data)) {
-    const { type, id, update, row } = data;
-    if (type === "update" && typeof id === "string" && update instanceof Uint8Array) return { type, id, update };
-    if (type === "note") return { type, row: parseRow(row) };
+    const { type, id, note, stamp } = data;
+    if (type === "note" && typeof stamp === "string") return { type, note: parseNote(note), stamp };
     if (type === "purge" && typeof id === "string") return { type, id };
   }
   throw new Error("tab message: unexpected shape");
-}
-
-/**
- * 10 random characters of lowercase Crockford base32. No letter passes for a digit, it's 50 bits, and there's no bias,
- * since 32 divides 256.
- */
-function newId(): string {
-  const alphabet = "0123456789abcdefghjkmnpqrstvwxyz";
-  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (byte) => alphabet[byte & 31]).join("");
 }
