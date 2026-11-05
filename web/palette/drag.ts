@@ -29,7 +29,8 @@ export function grab(handle: HTMLElement, sheet: HTMLElement, onDismiss: () => v
     start = null;
     const velocity = recent.velocity(event.timeStamp);
     sheet.style.transition = reducedMotion.matches ? "none" : "transform var(--sheet-out) var(--ease-drawer)";
-    if (dy > 120 || (velocity > 0.5 && dy > 24)) {
+    // A drag the system cancels (a call, a gesture of its own) springs back.
+    if (event.type === "pointerup" && (dy > 120 || (velocity > 0.5 && dy > 24))) {
       sheet.style.transform = "translateY(100%)";
       onDismiss();
     } else {
@@ -86,7 +87,7 @@ export function swipe(row: HTMLElement, onSwiped: () => void) {
     dragging = false;
     const velocity = -recent.velocity(event.timeStamp);
     row.style.transition = reducedMotion.matches ? "none" : "transform var(--sheet-out) var(--ease-out)";
-    const swiped = -dx > row.offsetWidth * 0.4 || (velocity > 0.5 && dx < -40);
+    const swiped = event.type === "pointerup" && (-dx > row.offsetWidth * 0.4 || (velocity > 0.5 && dx < -40));
     row.style.transform = swiped ? "translateX(-100%)" : "";
     const done = swiped ? onSwiped : () => row.parentElement?.removeAttribute("data-swiping");
     // Without motion, there's no transition to wait for.
