@@ -394,7 +394,7 @@ function load(id: string): Promise<Y.Doc | null> {
 
 /** Loads the note from disk, with any changes a closing page left unsaved. */
 async function read(id: string): Promise<Y.Doc | null> {
-  const value = await get(await db, "docs", id);
+  const [value, known] = await Promise.all([get(await db, "docs", id), get(await db, "notes", id)]);
   const stored = value === undefined ? undefined : parseStored(value);
   const unsaved = rescued(id);
   const entry = entries.get(id);
@@ -410,6 +410,8 @@ async function read(id: string): Promise<Y.Doc | null> {
   if (stored) Y.applyUpdate(doc, stored.state, Disk);
   adopt(id, doc);
   if (stored) entryFor(id).seen = `${stored.writer}:${stored.rev}`;
+  // A dirty note may hold words another tab couldn't send, so the next send from this tab has to be the whole note.
+  if (known !== undefined && parseRow(known).dirty) for (const listener of listeners) listener(id, null);
   if (unsaved) {
     // With no origin, the copy counts as a change made here: it gets saved, and sent.
     Y.applyUpdate(doc, unsaved);

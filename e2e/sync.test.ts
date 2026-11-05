@@ -107,21 +107,27 @@ test("deleting the account on one device erases it, and another device's notes g
 
 test("words typed in a tab that can't connect reach the account through another tab", async ({ browser }) => {
   const [a, b] = await devices(browser);
-  await open(a, "written on a");
+  // The first reload catches A up past B's note. After the second, A has B's note only as a row in its list.
+  await a.reload();
+  await a.waitForTimeout(2000);
+  await a.reload();
   const cut = await a.context().newPage();
   await cut.routeWebSocket(/\/sync$/, (ws) => ws.close());
-  await cut.goto(a.url());
+  await cut.goto("/");
+  await open(cut, "written on b");
   await cut.keyboard.press("Control+End");
   await cut.keyboard.type(" milk");
-  await expect(note(a)).toHaveValue("Written on A\nbefore signing in milk");
   // Long enough for the cut tab to have tried, and failed, to send.
   await cut.waitForTimeout(1500);
+
+  // So it reads the note from disk, with the words the cut tab couldn't send.
+  await open(a, "written on b");
+  await expect(note(a)).toHaveValue("Written on B\nbefore signing in milk");
   await a.keyboard.press("Control+End");
   await a.keyboard.type(" eggs");
   await cut.close();
 
-  await open(b, "written on a");
-  await expect(note(b)).toHaveValue("Written on A\nbefore signing in milk eggs", { timeout: 15_000 });
+  await expect(note(b)).toHaveValue("Written on B\nbefore signing in milk eggs", { timeout: 15_000 });
 });
 
 test("a tab opened signed out syncs once another tab signs in", async ({ browser }) => {
@@ -188,6 +194,8 @@ async function open(page: Page, title: string) {
   await page.keyboard.type(title);
   await expect(page.getByRole("option").first()).toContainText(title, { ignoreCase: true });
   await page.keyboard.press("Enter");
+  // Until the note shows, the page is read-only and drops whatever is typed.
+  await expect(page).toHaveTitle(new RegExp(`^${title}`, "i"));
 }
 
 function note(page: Page) {
