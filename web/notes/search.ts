@@ -53,12 +53,12 @@ export function startsWords(label: string, words: string[]): boolean {
 export function describe(note: Note, words: string[]): { title: Segment[]; snippet: Segment[] } {
   const { first, restAt } = split(note.text);
   const { text, title } = folded(note);
-  // Folding keeps positions for nearly all text, so a match found in the folded copy marks the same place.
+  // A word the title doesn't hold can only be found past it.
   const hits = words
     .filter((word) => !title.includes(word))
-    .map((word) => text.indexOf(word, restAt))
+    .map((word) => text.indexOf(word))
     .filter((at) => at >= 0);
-  const snippet = hits.length ? around(note.text, Math.min(...hits), restAt) : "";
+  const snippet = hits.length ? around(note.text, unfolded(note.text, text, Math.min(...hits)), restAt) : "";
   return { title: mark(first, words), snippet: mark(snippet, words) };
 }
 
@@ -107,12 +107,16 @@ function around(text: string, at: number, from: number): string {
     const space = text.lastIndexOf(" ", start);
     if (space >= Math.max(from, start - SnippetReach)) start = space + 1;
   }
-  if (end < text.length) end = Math.max(text.lastIndexOf(" ", end), at + 1);
+  if (end < text.length) {
+    // Only a space past the hit, which holds none, so the hit stays whole.
+    const space = text.lastIndexOf(" ", end);
+    if (space > at) end = space;
+  }
   const line = text.slice(start, end).replace(/\s+/g, " ").trim();
   return `${start > from ? "…" : ""}${line}${end < text.length ? "…" : ""}`;
 }
 
-/** "Café" and "cafe" fold the same. Positions hold, since a letter stays one letter. */
+/** "Café" and "cafe" fold the same. */
 function fold(text: string): string {
   // Most notes are plain ASCII, with nothing to fold but case.
   if (/^[\x00-\x7f]*$/.test(text)) return text.toLowerCase();
@@ -145,6 +149,14 @@ function marked(text: string, words: string[], counts: (folded: string, at: numb
     else segments.push({ text: text[i] ?? "", hit: hit[i] ?? false });
   }
   return segments;
+}
+
+/**
+ * Where `at` in the folded copy of `text` is in `text` itself. Folding keeps positions unless an accent was a
+ * character of its own, so only then is it worked out.
+ */
+function unfolded(text: string, folded: string, at: number): number {
+  return folded.length === text.length ? at : (foldWithOrigin(text).origin[at] ?? at);
 }
 
 /** For each folded character, the index it came from (plus one past the end). */

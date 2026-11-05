@@ -29,3 +29,14 @@ test("a match the title doesn't show gets a snippet, with the hit marked, accent
     [{ text: "brûlée".normalize("NFD"), hit: true }],
   );
 });
+
+test("a snippet keeps its hit whole, far into a note and inside a long link", () => {
+  const hit = (text: string, query: string) =>
+    describe(note("a", text), parse(query))
+      .snippet.filter((part) => part.hit)
+      .map((part) => part.text);
+  const accents = "Trip\n" + "résumé ".normalize("NFD").repeat(200) + "target";
+  assert.deepEqual(hit(accents, "target"), ["target"]);
+  const link = `Links\nsee https://example.com/${"a".repeat(80)}`;
+  assert.deepEqual(hit(link, "example"), ["example"]);
+});
