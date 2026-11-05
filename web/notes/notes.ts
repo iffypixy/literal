@@ -389,7 +389,11 @@ function entryFor(id: string): Entry {
 
 function load(id: string): Promise<Y.Doc | null> {
   const entry = entryFor(id);
-  return (entry.loading ??= read(id));
+  // A read that failed is let go, so the next look tries again.
+  return (entry.loading ??= read(id).catch((error: unknown) => {
+    entry.loading = undefined;
+    throw error;
+  }));
 }
 
 /** Loads the note from disk, with any changes a closing page left unsaved. */
