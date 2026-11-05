@@ -17,7 +17,7 @@ import {
   start,
 } from "#web/notes/notes.ts";
 import { prepare, quoted, shorten, title } from "#web/notes/search.ts";
-import { closePalette, hasStep, Palette, palette, takeStep, togglePalette } from "#web/palette/palette.tsx";
+import { closePalette, Palette, palette, togglePalette } from "#web/palette/palette.tsx";
 import { account, farewell, onSignInElsewhere, session, signedIn } from "#web/sync/account.ts";
 import { start as startSync } from "#web/sync/sync.ts";
 import { dismiss, runAction, toast, Toasts } from "#web/ui/toast.tsx";
@@ -25,13 +25,11 @@ import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
 import { mouse } from "./device.ts";
 import { Drop } from "./drop.tsx";
+import { isOnSheet, navigate, onBack, type Step } from "./history.ts";
 import { pressed, Shortcuts } from "./shortcuts.ts";
 import { stayUpToDate } from "./update.ts";
 
 const TitleShown = 60;
-
-/** How a page change goes into history: as a new step, in place of the current one, or not at all (Back did it). */
-type HistoryStep = "push" | "replace" | "none";
 
 export function App() {
   // Set by Editor as it renders, before anything here runs.
@@ -95,7 +93,7 @@ export function App() {
    * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
    * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
    */
-  async function go(id: string | null, how: HistoryStep, focus = mouse.matches) {
+  async function go(id: string | null, how: Step, focus = mouse.matches) {
     const turn = ++goes;
     setOpening(false);
     if (id !== null && id === current()) {
@@ -140,15 +138,6 @@ export function App() {
     discardIfEmpty(id);
   }
 
-  function navigate(path: string, how: HistoryStep) {
-    if (how === "none") return;
-    // The sheet is a step in history, so Back closes it: a note it opens takes that step's place.
-    const sheet = takeStep();
-    if (location.pathname === path && !sheet) return;
-    if (how === "push" && !sheet) history.pushState(null, "", path);
-    else history.replaceState(null, "", path);
-  }
-
   function onCreate() {
     const created = create();
     setNote(created);
@@ -168,7 +157,7 @@ export function App() {
     if (wasOpen) {
       setNote(null);
       // Under the sheet, the address is set once the sheet has stepped back to the page beneath it.
-      if (!hasStep()) navigate("/", "replace");
+      if (!isOnSheet()) navigate("/", "replace");
     }
     // Deletes in a row share one toast, so the earlier ones keep their Undo.
     if (deleted.length) dismiss();
@@ -204,8 +193,7 @@ export function App() {
   addEventListener(
     "keydown",
     (event) => {
-      if (!undoable) return;
-      if (!pressed(event, Shortcuts.undo)) return;
+      if (!undoable || !pressed(event, Shortcuts.undo)) return;
       event.preventDefault();
       event.stopPropagation();
       undoable = false;
@@ -238,10 +226,9 @@ export function App() {
 
   addEventListener("input", () => (undoable = false));
 
-  addEventListener("popstate", () => {
-    // Back closes the palette. Off the sheet's step, the page beneath may still show a note deleted meanwhile.
-    const fromSheet = takeStep();
+  onBack((fromSheet) => {
     closePalette(true, true);
+    // Back off the sheet shows the page beneath it, whose note may have been deleted meanwhile.
     if (fromSheet) navigate(current() ? `/${current()}` : "/", "replace");
     else void go(idFrom(location.pathname), "none");
   });

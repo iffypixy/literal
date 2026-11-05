@@ -4,6 +4,7 @@ import { batch, createEffect, createSignal, Match, Switch } from "solid-js";
 import { createMutable } from "solid-js/store";
 import { sheet, touch } from "#web/device.ts";
 import { plural } from "#web/format.ts";
+import { leaveSheet, pushSheet } from "#web/history.ts";
 import { unsynced } from "#web/notes/notes.ts";
 import { pressed } from "#web/shortcuts.ts";
 import { deleteAccount, signOut } from "#web/sync/account.ts";
@@ -45,8 +46,6 @@ const [visible, setVisible] = createSignal(false);
 const [waiting, setWaiting] = createSignal(0);
 let focusSearch = true;
 let closedByPointer = false;
-/** As a sheet, the palette is a step in history, so Back closes it: whether that step is still there. */
-let step = false;
 
 export function togglePalette(pointer: boolean) {
   if (palette.open) closePalette(pointer);
@@ -69,10 +68,7 @@ export function openPalette(pointer: boolean, start: View = "notes") {
     setView(start);
     setVisible(true);
   });
-  if (sheet.matches && !step) {
-    history.pushState(null, "");
-    step = true;
-  }
+  if (sheet.matches) pushSheet();
   if ((start !== "notes" || !focusSearch) && !card.contains(document.activeElement)) card.focus();
 }
 
@@ -81,22 +77,10 @@ export function closePalette(pointer: boolean, replaced = false) {
   if (!palette.open) return;
   palette.open = false;
   closedByPointer = pointer;
-  if (!replaced) leaveStep();
+  if (!replaced) leaveSheet();
   if (!pointer) return finish();
   overlay.dataset.closing = "";
   card.addEventListener("animationend", finish, { once: true });
-}
-
-/** Whether the sheet's step is the current one in history. */
-export function hasStep(): boolean {
-  return step;
-}
-
-/** For a note the sheet opens, or for Back: whether there was a step to take. */
-export function takeStep(): boolean {
-  const had = step;
-  step = false;
-  return had;
 }
 
 export function Palette(props: Props) {
@@ -219,7 +203,7 @@ export function Palette(props: Props) {
 function dismiss() {
   palette.open = false;
   closedByPointer = true;
-  leaveStep();
+  leaveSheet();
   card.addEventListener("transitionend", finish, { once: true });
 }
 
@@ -237,11 +221,6 @@ function finish() {
 function showList() {
   focusSearch = !touch.matches;
   setView("notes");
-}
-
-/** Steps back off the sheet's step; App hears it as popstate. */
-function leaveStep() {
-  if (step) history.back();
 }
 
 function notSynced(count: number): string {
