@@ -1,8 +1,8 @@
-import { cloudflare } from "@cloudflare/vite-plugin";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { cloudflare } from "@cloudflare/vite-plugin";
 import { defineConfig, type Plugin } from "vite";
 import solid from "vite-plugin-solid";
 

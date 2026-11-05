@@ -1,6 +1,6 @@
 import * as Y from "yjs";
-import { Apple } from "../device.ts";
-import { letter, mod } from "../shortcuts.ts";
+import { Apple } from "#web/device.ts";
+import { letter, mod } from "#web/shortcuts.ts";
 import { diff, end, shift, type Delta } from "./diff.ts";
 
 /** Marks the changes this textarea makes, so they aren't echoed back into it. */

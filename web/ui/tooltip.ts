@@ -1,5 +1,5 @@
 import { onCleanup } from "solid-js";
-import { mouse } from "../device.ts";
+import { mouse } from "#web/device.ts";
 import { Keys } from "./keys.ts";
 import "./tooltip.css";
 

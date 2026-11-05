@@ -1,9 +1,9 @@
 import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { isDeleted } from "../../protocol.ts";
-import * as storage from "../storage.ts";
-import { account } from "../sync/account.ts";
+import { isDeleted } from "#protocol.ts";
+import * as storage from "#web/storage.ts";
+import { account } from "#web/sync/account.ts";
 import { deleteDb, get, openDb, readNotes, write } from "./db.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc: its `text`, and its `meta` (the times). */

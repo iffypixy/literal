@@ -1,4 +1,4 @@
-import { IconButton } from "../ui/icon.tsx";
+import { IconButton } from "#web/ui/icon.tsx";
 import "./back.css";
 
 export function Back(props: { onClick: () => void }) {

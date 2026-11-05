@@ -1,5 +1,5 @@
-import { expect, test, type Browser, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 
 /** Where the test server writes, sign-in codes included, since tests have no inbox (see playwright.config.ts). */
 const ServerLog = "test-results/server.log";

@@ -1,4 +1,4 @@
-import { reducedMotion } from "../device.ts";
+import { reducedMotion } from "#web/device.ts";
 
 /** Drag the sheet down by its handle to close it, as on any phone; a tap on the handle closes it too. */
 export function grab(handle: HTMLElement, sheet: HTMLElement, onDismiss: () => void) {

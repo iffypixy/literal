@@ -1,6 +1,6 @@
 import { createSignal, type JSX } from "solid-js";
-import { Alert } from "../ui/alert.tsx";
-import { Button } from "../ui/button.tsx";
+import { Alert } from "#web/ui/alert.tsx";
+import { Button } from "#web/ui/button.tsx";
 import "./confirm.css";
 
 type Props = {

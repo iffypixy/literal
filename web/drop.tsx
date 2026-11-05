@@ -1,5 +1,5 @@
 import { createSignal, Show } from "solid-js";
-import { importFiles } from "./transfer/transfer.ts";
+import { importFiles } from "#web/transfer/transfer.ts";
 import "./drop.css";
 
 export function Drop() {

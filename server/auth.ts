@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { emailOTP } from "better-auth/plugins";
-import { CodeLength } from "../protocol.ts";
+import { CodeLength } from "#protocol.ts";
 import type { Env } from "./index.ts";
 
 // In seconds, as the library takes them.

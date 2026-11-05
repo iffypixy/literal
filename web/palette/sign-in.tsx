@@ -1,10 +1,10 @@
 import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { CodeLength } from "../../protocol.ts";
-import { Fragile, reducedMotion, touch } from "../device.ts";
-import { composing } from "../shortcuts.ts";
-import { sendCode, verify, WrongCode } from "../sync/account.ts";
-import { Alert } from "../ui/alert.tsx";
-import { Button } from "../ui/button.tsx";
+import { CodeLength } from "#protocol.ts";
+import { Fragile, reducedMotion, touch } from "#web/device.ts";
+import { composing } from "#web/shortcuts.ts";
+import { sendCode, verify, WrongCode } from "#web/sync/account.ts";
+import { Alert } from "#web/ui/alert.tsx";
+import { Button } from "#web/ui/button.tsx";
 import { Back } from "./back.tsx";
 import { Legal } from "./legal.tsx";
 import "./sign-in.css";

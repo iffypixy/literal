@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { zip } from "../web/transfer/zip.ts";
+import { zip } from "#web/transfer/zip.ts";
 
 test("an export is a zip whose directory points at each file, with its checksum", async () => {
   const data = new Uint8Array(

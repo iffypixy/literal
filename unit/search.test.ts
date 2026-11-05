@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Note } from "../web/notes/notes.ts";
-import { describe, markStarts, parse, search, shorten, startsWords, title } from "../web/notes/search.ts";
+import type { Note } from "#web/notes/notes.ts";
+import { describe, markStarts, parse, search, shorten, startsWords, title } from "#web/notes/search.ts";
 
 function note(id: string, text: string): Note {
   return { id, text, createdAt: 0, editedAt: 0, deletedAt: null };

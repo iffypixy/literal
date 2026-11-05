@@ -4,8 +4,8 @@
  */
 
 import { createMutable } from "solid-js/store";
-import { wipe } from "../notes/notes.ts";
-import * as storage from "../storage.ts";
+import { wipe } from "#web/notes/notes.ts";
+import * as storage from "#web/storage.ts";
 
 /** Remembered, so the app knows it's signed in before the server answers, or when it can't. */
 const AccountKey = "account";

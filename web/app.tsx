@@ -1,11 +1,7 @@
 import { createEffect, createSignal, onMount } from "solid-js";
 import type * as Y from "yjs";
-import { isNoteId } from "../protocol.ts";
-import { Corner } from "./corner.tsx";
-import { recall, remember } from "./cursors.ts";
-import { mouse } from "./device.ts";
-import { Drop } from "./drop.tsx";
-import { Editor, type EditorApi } from "./editor/editor.tsx";
+import { isNoteId } from "#protocol.ts";
+import { Editor, type EditorApi } from "#web/editor/editor.tsx";
 import {
   create,
   discardIfEmpty,
@@ -19,13 +15,17 @@ import {
   restore,
   settle,
   start,
-} from "./notes/notes.ts";
-import { prepare, quoted, shorten, title } from "./notes/search.ts";
-import { closePalette, hasStep, Palette, palette, takeStep, togglePalette } from "./palette/palette.tsx";
+} from "#web/notes/notes.ts";
+import { prepare, quoted, shorten, title } from "#web/notes/search.ts";
+import { closePalette, hasStep, Palette, palette, takeStep, togglePalette } from "#web/palette/palette.tsx";
+import { account, farewell, onSignInElsewhere, session, signedIn } from "#web/sync/account.ts";
+import { start as startSync } from "#web/sync/sync.ts";
+import { dismiss, runAction, toast, Toasts } from "#web/ui/toast.tsx";
+import { Corner } from "./corner.tsx";
+import { recall, remember } from "./cursors.ts";
+import { mouse } from "./device.ts";
+import { Drop } from "./drop.tsx";
 import { letter, mod, Shortcuts } from "./shortcuts.ts";
-import { account, farewell, onSignInElsewhere, session, signedIn } from "./sync/account.ts";
-import { start as startSync } from "./sync/sync.ts";
-import { dismiss, runAction, toast, Toasts } from "./ui/toast.tsx";
 import { stayUpToDate } from "./update.ts";
 
 const TitleShown = 60;

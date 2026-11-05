@@ -1,6 +1,6 @@
 import { For } from "solid-js";
-import { Shortcuts } from "../shortcuts.ts";
-import { Keys } from "../ui/keys.ts";
+import { Shortcuts } from "#web/shortcuts.ts";
+import { Keys } from "#web/ui/keys.ts";
 import { Back } from "./back.tsx";
 import "./shortcuts.css";
 

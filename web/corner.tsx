@@ -1,15 +1,15 @@
 import { createEffect, createMemo, on, Show } from "solid-js";
-import { MaxLength } from "../protocol.ts";
+import { MaxLength } from "#protocol.ts";
+import { length, library, list } from "#web/notes/notes.ts";
+import { openPalette, palette, togglePalette } from "#web/palette/palette.tsx";
+import { account } from "#web/sync/account.ts";
+import { sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
+import { IconButton } from "#web/ui/icon.tsx";
+import { Keys } from "#web/ui/keys.ts";
+import { toast } from "#web/ui/toast.tsx";
 import { Apple, mouse } from "./device.ts";
 import { plural } from "./format.ts";
-import { length, library, list } from "./notes/notes.ts";
-import { openPalette, palette, togglePalette } from "./palette/palette.tsx";
 import { Shortcuts } from "./shortcuts.ts";
-import { account } from "./sync/account.ts";
-import { sync, tooLong, type Problem as SyncProblem } from "./sync/sync.ts";
-import { IconButton } from "./ui/icon.tsx";
-import { Keys } from "./ui/keys.ts";
-import { toast } from "./ui/toast.tsx";
 import "./corner.css";
 
 type Problem = "cant-save" | "too-long" | SyncProblem;

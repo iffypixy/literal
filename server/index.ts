@@ -1,4 +1,4 @@
-import { SignedOut } from "../protocol.ts";
+import { SignedOut } from "#protocol.ts";
 import { createAuth, forgetSignIns, handleAuth } from "./auth.ts";
 import { SessionHeader, type UserNotes } from "./notes.ts";
 

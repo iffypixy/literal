@@ -1,6 +1,6 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
-import { composing } from "../shortcuts.ts";
-import { IconButton } from "../ui/icon.tsx";
+import { composing } from "#web/shortcuts.ts";
+import { IconButton } from "#web/ui/icon.tsx";
 import "./menu.css";
 
 /** Something to do besides opening a note: from the menu, or found as a command. */

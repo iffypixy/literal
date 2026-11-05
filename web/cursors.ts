@@ -1,6 +1,6 @@
 /** Where the cursor was in each note, and how far it was scrolled: kept on this device only. */
 
-import type { Position } from "./editor/editor.tsx";
+import type { Position } from "#web/editor/editor.tsx";
 import * as storage from "./storage.ts";
 
 const Key = "cursors";

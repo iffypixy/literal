@@ -2,11 +2,11 @@
 
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "../../protocol.ts";
-import { number } from "../format.ts";
-import * as notes from "../notes/notes.ts";
-import { quoted } from "../notes/search.ts";
-import { toast } from "../ui/toast.tsx";
+import { decode, encode, MaxBytes, MaxLength, MaxNotes, SignedOut, type Message } from "#protocol.ts";
+import { number } from "#web/format.ts";
+import * as notes from "#web/notes/notes.ts";
+import { quoted } from "#web/notes/search.ts";
+import { toast } from "#web/ui/toast.tsx";
 
 /** What keeps notes from syncing: null while nothing does. `unreachable`: online, but the server can't be reached. */
 export type Problem = "offline" | "unreachable" | "signed-out";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diff, end, shift } from "../web/editor/diff.ts";
+import { diff, end, shift } from "#web/editor/diff.ts";
 
 test("typing is found as the smallest change, wherever the caret says it is", () => {
   assert.deepEqual(diff("hello", "hello!", 6), { at: 5, removed: 0, inserted: "!" });

@@ -1,8 +1,8 @@
-import { MaxLength } from "../../protocol.ts";
-import { number, plural } from "../format.ts";
-import { add, list } from "../notes/notes.ts";
-import { title } from "../notes/search.ts";
-import { toast } from "../ui/toast.tsx";
+import { MaxLength } from "#protocol.ts";
+import { number, plural } from "#web/format.ts";
+import { add, list } from "#web/notes/notes.ts";
+import { title } from "#web/notes/search.ts";
+import { toast } from "#web/ui/toast.tsx";
 import { zip, type Entry } from "./zip.ts";
 
 const MaxFiles = 500;

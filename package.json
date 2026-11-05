@@ -2,6 +2,9 @@
   "name": "literal",
   "private": true,
   "type": "module",
+  "imports": {
+    "#*": "./*"
+  },
   "scripts": {
     "dev": "vite --host --port 5390 --strictPort",
     "build": "vite build",

@@ -2,15 +2,15 @@
 
 import { batch, createEffect, createSignal, Match, Switch } from "solid-js";
 import { createMutable } from "solid-js/store";
-import { sheet, touch } from "../device.ts";
-import { plural } from "../format.ts";
-import { unsynced } from "../notes/notes.ts";
-import { composing } from "../shortcuts.ts";
-import { deleteAccount, signOut } from "../sync/account.ts";
-import { drain, sync } from "../sync/sync.ts";
-import { exportAll } from "../transfer/transfer.ts";
-import { Button } from "../ui/button.tsx";
-import { toast } from "../ui/toast.tsx";
+import { sheet, touch } from "#web/device.ts";
+import { plural } from "#web/format.ts";
+import { unsynced } from "#web/notes/notes.ts";
+import { composing } from "#web/shortcuts.ts";
+import { deleteAccount, signOut } from "#web/sync/account.ts";
+import { drain, sync } from "#web/sync/sync.ts";
+import { exportAll } from "#web/transfer/transfer.ts";
+import { Button } from "#web/ui/button.tsx";
+import { toast } from "#web/ui/toast.tsx";
 import { About } from "./about.tsx";
 import { Confirm } from "./confirm.tsx";
 import { grab } from "./drag.ts";

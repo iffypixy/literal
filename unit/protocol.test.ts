@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decode, encode, type Message } from "../protocol.ts";
+import { decode, encode, type Message } from "#protocol.ts";
 
 const id = "7k3qx9m2da";
 const bytes = new Uint8Array([1, 2, 3]);
