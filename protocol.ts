@@ -29,6 +29,8 @@ export type Message =
   /** Notes deleted over 30 days ago, erased for good: devices erase them too. */
   | { type: "purge"; ids: string[] };
 
+export type Of<T extends Message["type"]> = Extract<Message, { type: T }>;
+
 /** The longest note that syncs, in UTF-16 code units, as Yjs counts. The device holds a longer one back. */
 export const MaxLength = 100_000;
 /** Deleted notes don't count toward these. */

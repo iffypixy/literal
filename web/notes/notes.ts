@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
-import { isDeleted, lastEdited, markEdited } from "#protocol.ts";
+import { isDeleted, lastEdited, markEdited, type Of } from "#protocol.ts";
 import { attempt, isRecord } from "#web/safe.ts";
 import * as storage from "#web/storage.ts";
 import { account } from "#web/sync/account.ts";
@@ -79,7 +79,7 @@ const [changes, changed] = createSignal(undefined, { equals: false });
 
 const entries = new Map<string, Entry>();
 let sorted: Note[] | null = null;
-const listeners = new Set<(id: string, update: Uint8Array | null) => void>();
+let listener: (id: string, update: Uint8Array | null) => void = () => {};
 
 /** Everything here is being erased: nothing may be saved or rescued from now on. */
 let wiped = false;
@@ -227,16 +227,15 @@ export async function wipe() {
 // For sync.ts.
 
 /** `update`: a change made here, to send. Null: a change from another tab, which this tab never sends. */
-export function onChange(listener: (id: string, update: Uint8Array | null) => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+export function onChange(listen: typeof listener) {
+  listener = listen;
 }
 
-export async function hello(): Promise<{ since: number; notes: { id: string; vector: Uint8Array; dirty: boolean }[] }> {
+export async function hello(): Promise<Omit<Of<"hello">, "type">> {
   await start();
   await flush();
   const since = (await readSince()) ?? 0;
-  const notes: { id: string; vector: Uint8Array; dirty: boolean }[] = [];
+  const notes: Of<"hello">["notes"] = [];
   for await (const rows of readNotes(await db, parseRow, ReadBatch)) {
     for (const { id, vector, dirty } of rows) notes.push({ id, vector, dirty });
   }
@@ -412,7 +411,7 @@ async function read(id: string): Promise<Y.Doc | null> {
   adopt(id, doc);
   if (stored) entryFor(id).seen = `${stored.writer}:${stored.rev}`;
   // A dirty note may hold words another tab couldn't send, so the next send from this tab has to be the whole note.
-  if (known !== undefined && parseRow(known).dirty) for (const listener of listeners) listener(id, null);
+  if (known !== undefined && parseRow(known).dirty) listener(id, null);
   if (unsaved) {
     // With no origin, the copy counts as a change made here: it gets saved, and sent.
     Y.applyUpdate(doc, unsaved);
@@ -428,14 +427,14 @@ function adopt(id: string, doc: Y.Doc): Y.Doc {
   entry.loading = Promise.resolve(doc);
   doc.on("update", (update: Uint8Array, origin: unknown) => {
     if (origin === Disk || origin === Tab) {
-      for (const listener of listeners) listener(id, null);
+      listener(id, null);
       return;
     }
     channel.postMessage({ type: "update", id, update } satisfies Message);
     if (origin !== Remote) {
       entry.unsaved = true;
       entry.generation++;
-      for (const listener of listeners) listener(id, update);
+      listener(id, update);
     }
     schedule(entry, id);
   });

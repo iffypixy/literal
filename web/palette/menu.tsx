@@ -30,12 +30,10 @@ export function Menu(props: Props) {
     const onClick = (event: MouseEvent) => {
       if (event.target instanceof Element && !event.target.closest(".menu, .more")) setOpen(false);
     };
-    addEventListener("keydown", onKeyDown, true);
-    addEventListener("click", onClick);
-    onCleanup(() => {
-      removeEventListener("keydown", onKeyDown, true);
-      removeEventListener("click", onClick);
-    });
+    const listening = new AbortController();
+    addEventListener("keydown", onKeyDown, { capture: true, signal: listening.signal });
+    addEventListener("click", onClick, { signal: listening.signal });
+    onCleanup(() => listening.abort());
   });
 
   function toggle(event: MouseEvent) {

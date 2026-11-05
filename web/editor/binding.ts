@@ -130,22 +130,19 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     show(deltas, null);
   }
 
+  const listening = new AbortController();
+  const { signal } = listening;
   text.observe(receive);
-  area.addEventListener("input", type);
-  area.addEventListener("keydown", onKeydown);
-  area.addEventListener("beforeinput", onBeforeInput);
-  area.addEventListener("compositionstart", onCompositionStart);
-  area.addEventListener("compositionend", onCompositionEnd);
-  document.addEventListener("visibilitychange", onVisibilityChange);
+  area.addEventListener("input", type, { signal });
+  area.addEventListener("keydown", onKeydown, { signal });
+  area.addEventListener("beforeinput", onBeforeInput, { signal });
+  area.addEventListener("compositionstart", onCompositionStart, { signal });
+  area.addEventListener("compositionend", onCompositionEnd, { signal });
+  document.addEventListener("visibilitychange", onVisibilityChange, { signal });
 
   return () => {
+    listening.abort();
     text.unobserve(receive);
-    area.removeEventListener("input", type);
-    area.removeEventListener("keydown", onKeydown);
-    area.removeEventListener("beforeinput", onBeforeInput);
-    area.removeEventListener("compositionstart", onCompositionStart);
-    area.removeEventListener("compositionend", onCompositionEnd);
-    document.removeEventListener("visibilitychange", onVisibilityChange);
     undo.destroy();
   };
 }

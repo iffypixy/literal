@@ -9,6 +9,7 @@ import {
   MaxNotes,
   SignedOut,
   type Message,
+  type Of,
   type Refusal,
 } from "#protocol.ts";
 import type { Env } from "./index.ts";
@@ -148,7 +149,7 @@ export class UserNotes extends DurableObject<Env> {
     for (const socket of this.openSockets(session)) socket.close(SignedOut, "signed out");
   }
 
-  private hello(socket: WebSocket, { since, notes }: Extract<Message, { type: "hello" }>) {
+  private hello(socket: WebSocket, { since, notes }: Of<"hello">) {
     const theirs = new Map(notes.map((note) => [note.id, note]));
     const gone = this.sql
       .exec<{ id: string }>(
@@ -162,7 +163,7 @@ export class UserNotes extends DurableObject<Env> {
 
     // Everything written up to now goes out below; anything later reaches the device live.
     const now = this.last;
-    let batch: Extract<Message, { type: "catch-up" }>["notes"] = [];
+    let batch: Of<"catch-up">["notes"] = [];
     let size = 0;
     const changed = this.sql.exec<{ id: string; state: ArrayBuffer; vector: ArrayBuffer }>(
       "SELECT id, state, vector FROM notes WHERE updated_at > ?",
@@ -192,7 +193,7 @@ export class UserNotes extends DurableObject<Env> {
     socket.send(encode({ type: "catch-up", done: true, now, notes: batch }));
   }
 
-  private update(socket: WebSocket, { seq, id, update }: Extract<Message, { type: "update" }>) {
+  private update(socket: WebSocket, { seq, id, update }: Of<"update">) {
     if (this.sql.exec("SELECT 1 FROM purged WHERE id = ?", id).toArray().length) {
       socket.send(encode({ type: "ack", seq }));
       return;
