@@ -7,7 +7,7 @@ import { sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { toast } from "#web/ui/toast.tsx";
-import { mouse } from "./device.ts";
+import { touch } from "./device.ts";
 import { plural } from "./format.ts";
 import { Shortcuts } from "./shortcuts.ts";
 import "./corner.css";
@@ -68,7 +68,7 @@ export function Corner(props: Props) {
         action: { label: "Sync", run: () => openPalette(true, "sign-in") },
       });
     // A word of explanation, then back to writing: the click shouldn't take the cursor away.
-    if (mouse.matches) props.focusEditor();
+    if (!touch.matches) props.focusEditor();
   }
 
   return (
@@ -86,7 +86,7 @@ export function Corner(props: Props) {
       </div>
 
       {/* Only on a blank page, where it covers nothing: gone with the first word. */}
-      {mouse.matches && (
+      {!touch.matches && (
         <p class="hint" classList={{ gone: props.current !== null }} aria-hidden="true">
           <span>
             <Keys keys={Shortcuts.new} /> new note

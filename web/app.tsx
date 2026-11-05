@@ -23,7 +23,7 @@ import { start as startSync } from "#web/sync/sync.ts";
 import { dismiss, runAction, toast, Toasts } from "#web/ui/toast.tsx";
 import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
-import { mouse } from "./device.ts";
+import { touch } from "./device.ts";
 import { Drop } from "./drop.tsx";
 import { isOnSheet, navigate, onBack, type Step } from "./history.ts";
 import { pressed, Shortcuts } from "./shortcuts.ts";
@@ -93,7 +93,7 @@ export function App() {
    * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
    * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
    */
-  async function go(id: string | null, how: Step, focus = mouse.matches) {
+  async function go(id: string | null, how: Step, focus = !touch.matches) {
     const turn = ++goes;
     setOpening(false);
     if (id !== null && id === current()) {
@@ -166,7 +166,7 @@ export function App() {
     toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted "${name}"` : "Deleted", {
       action: {
         label: "Undo",
-        keys: mouse.matches ? Shortcuts.undo : undefined,
+        keys: touch.matches ? undefined : Shortcuts.undo,
         run: () => {
           deleted = [];
           undoable = false;
@@ -251,7 +251,7 @@ export function App() {
 
   return (
     <>
-      <div class="page" inert={palette.open} onInput={() => setTyping(mouse.matches)}>
+      <div class="page" inert={palette.open} onInput={() => setTyping(!touch.matches)}>
         <Editor ref={(api) => (editor = api)} text={note()?.text ?? null} readonly={opening()} onCreate={onCreate} />
       </div>
 
@@ -266,12 +266,12 @@ export function App() {
       <Palette
         current={current()}
         previous={previous()}
-        onPick={(id, pointer) => void go(id, "push", mouse.matches || !pointer)}
+        onPick={(id, pointer) => void go(id, "push", !touch.matches || !pointer)}
         onDelete={onDelete}
         onBlank={goBlank}
         onSignedIn={onSignedIn}
         onClose={(pointer) => {
-          if (!opening() && (mouse.matches || !pointer)) editor.focus();
+          if (!opening() && (!touch.matches || !pointer)) editor.focus();
         }}
       />
 

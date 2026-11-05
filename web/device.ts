@@ -1,5 +1,4 @@
-// Read live: a tablet can gain a mouse.
-export const mouse = matchMedia("(hover: hover) and (pointer: fine)");
+/** A finger, not a mouse: like `(pointer: coarse)` in the CSS. Read live, since a tablet can gain a mouse. */
 export const touch = matchMedia("(pointer: coarse)");
 export const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 /** Opened from the Home Screen, or as an app on a computer: not in a browser tab. */

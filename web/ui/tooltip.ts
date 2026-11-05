@@ -1,5 +1,5 @@
 import { onCleanup } from "solid-js";
-import { mouse } from "#web/device.ts";
+import { touch } from "#web/device.ts";
 import { Keys } from "./keys.ts";
 import "./tooltip.css";
 
@@ -11,7 +11,7 @@ export function tooltip(node: HTMLElement, label: string, keys: string) {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function enter() {
-    if (!mouse.matches) return;
+    if (touch.matches) return;
     const instant = performance.now() < warmUntil;
     timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : Delay);
   }
