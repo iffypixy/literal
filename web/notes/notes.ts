@@ -565,9 +565,9 @@ function fromBase64(text: string): Uint8Array {
   return Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 }
 
-/** A save waits, or is on its way to disk. */
+/** Holds changes that aren't on disk for good: a save waits, is on its way, or failed. */
 function isWriting(entry: Entry): boolean {
-  return Boolean(entry.pending) || entry.saving > 0;
+  return entry.unsaved || Boolean(entry.pending) || entry.saving > 0;
 }
 
 function post(message: TabMessage) {
