@@ -5,11 +5,8 @@ import { createMutable } from "solid-js/store";
 import { hasKeyboard, reducedMotion, sheet } from "#web/device.ts";
 import { leaveSheet, pushSheet } from "#web/history.ts";
 import { pressed } from "#web/shortcuts.ts";
-import { deleteAccount } from "#web/sync/account.ts";
-import { exportAll } from "#web/transfer/transfer.ts";
-import { Button } from "#web/ui/button.tsx";
 import { About } from "./about.tsx";
-import { Confirm } from "./confirm.tsx";
+import { DeleteAccount } from "./delete-account.tsx";
 import { grab } from "./drag.ts";
 import { List } from "./list.tsx";
 import { KeyboardShortcuts } from "./shortcuts.tsx";
@@ -17,7 +14,7 @@ import { SignIn } from "./sign-in.tsx";
 import { SignOut } from "./sign-out.tsx";
 import "./palette.css";
 
-export type View = "notes" | "sign-in" | "sign-out" | "delete" | "shortcuts" | "about";
+export type ViewName = "notes" | "sign-in" | "sign-out" | "delete" | "shortcuts" | "about";
 
 type Props = {
   current: string | null;
@@ -37,11 +34,10 @@ let overlay!: HTMLDivElement;
 let card!: HTMLDivElement;
 let host!: Props;
 
-const [view, setView] = createSignal<View>("notes");
+const [view, setView] = createSignal<ViewName>("notes");
 /** Open, or still sliding away. What it shows stays until it's gone, and each opening starts afresh. */
 const [visible, setVisible] = createSignal(false);
 let focusSearch = true;
-let closedByPointer = false;
 
 export function togglePalette(pointer: boolean) {
   if (palette.open) closePalette(pointer);
@@ -49,13 +45,11 @@ export function togglePalette(pointer: boolean) {
 }
 
 /** Keys open it instantly; a click or tap gets a short animation. */
-export function openPalette(pointer: boolean, start: View = "notes") {
+export function openPalette(pointer: boolean, start: ViewName = "notes") {
   if (palette.open) return setView(start);
-  delete overlay.dataset.closing;
-  delete overlay.dataset.dragged;
+  // A close still under way is called off.
+  rest();
   overlay.toggleAttribute("data-motion", pointer);
-  card.style.transform = "";
-  card.style.transition = "";
   overlay.hidden = false;
   // Tapped open on a phone, the keyboard would cover the list, and the search field is a tap away.
   focusSearch = hasKeyboard(pointer);
@@ -65,18 +59,18 @@ export function openPalette(pointer: boolean, start: View = "notes") {
     setVisible(true);
   });
   if (sheet.matches) pushSheet();
-  if ((start !== "notes" || !focusSearch) && !card.contains(document.activeElement)) card.focus();
+  // Whatever in it didn't take the keyboard, the card does, so keys reach the palette and not the page behind.
+  if (!card.contains(document.activeElement)) card.focus();
 }
 
 /** `replaced`: a note is about to take the sheet's step in history, so it stays. */
 export function closePalette(pointer: boolean, replaced = false) {
   if (!palette.open) return;
   palette.open = false;
-  closedByPointer = pointer;
   if (!replaced) leaveSheet();
-  if (!pointer) return finish();
+  if (!pointer) return finish(false);
   overlay.dataset.closing = "";
-  card.addEventListener("animationend", finish, { once: true });
+  afterCard("animationend", () => finish(true));
 }
 
 export function Palette(props: Props) {
@@ -152,19 +146,7 @@ export function Palette(props: Props) {
             </Match>
 
             <Match when={view() === "delete"}>
-              <Confirm
-                title="Delete your account and all your notes?"
-                action="Delete account"
-                busy="Deleting…"
-                run={deleteAccount}
-                onCancel={showList}
-              >
-                Your notes will be erased from Literal and this device. This can't be undone.{" "}
-                <Button variant="link" onClick={exportAll}>
-                  Export your notes
-                </Button>{" "}
-                first.
-              </Confirm>
+              <DeleteAccount onCancel={showList} />
             </Match>
 
             <Match when={view() === "shortcuts"}>
@@ -184,23 +166,36 @@ export function Palette(props: Props) {
 /** Dragged away, it slides off from where the finger let go. */
 function dismiss() {
   palette.open = false;
-  closedByPointer = true;
   overlay.dataset.dragged = "";
   leaveSheet();
-  if (reducedMotion.matches) finish();
-  else card.addEventListener("transitionend", finish, { once: true });
+  if (reducedMotion.matches) finish(true);
+  else afterCard("transitionend", () => finish(true));
 }
 
-function finish() {
+function finish(pointer: boolean) {
   // Reopened while closing, so the close is off.
   if (palette.open) return;
-  card.style.transform = "";
-  card.style.transition = "";
+  rest();
   overlay.hidden = true;
+  setVisible(false);
+  host.onClose(pointer);
+}
+
+/** Back at rest, with nothing left of a close or a drag. */
+function rest() {
   delete overlay.dataset.closing;
   delete overlay.dataset.dragged;
-  setVisible(false);
-  host.onClose(closedByPointer);
+  card.style.transform = "";
+  card.style.transition = "";
+}
+
+/** Once the card's own animation or transition ends, not one inside it, which would bubble up to it first. */
+function afterCard(type: "animationend" | "transitionend", then: () => void) {
+  card.addEventListener(type, function end(event) {
+    if (event.target !== card) return;
+    card.removeEventListener(type, end);
+    then();
+  });
 }
 
 function showList() {

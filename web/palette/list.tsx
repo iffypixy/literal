@@ -10,7 +10,7 @@ import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { swipe } from "./drag.ts";
 import { Menu, type Action } from "./menu.tsx";
-import type { View } from "./palette.tsx";
+import type { ViewName } from "./palette.tsx";
 import "./list.css";
 
 /** Rows rendered at a time; more appear as the list scrolls. */
@@ -28,7 +28,7 @@ type Props = {
   onPick: (id: string, pointer: boolean) => void;
   onDelete: (id: string) => void;
   onBlank: () => void;
-  onView: (view: View) => void;
+  onView: (view: ViewName) => void;
   close: (pointer: boolean) => void;
 };
 
