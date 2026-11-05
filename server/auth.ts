@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins";
 import { CodeLength } from "#protocol.ts";
 import type { Env } from "./index.ts";
@@ -22,15 +23,9 @@ const CodesAnAddress = 5;
  * it, and the person would wait for an email that never comes.
  */
 export async function handleAuth(request: Request, env: Env): Promise<Response> {
-  let unsent: Response | undefined;
-  const auth = createAuth(env, (error) => {
-    unsent =
-      error instanceof Refused
-        ? new Response(error.message, { status: error.status })
-        : new Response("couldn't send the code", { status: 502 });
-  });
-  const response = await auth.handler(request);
-  return unsent ?? response;
+  let unsent = false;
+  const response = await createAuth(env, () => (unsent = true)).handler(request);
+  return unsent ? new Response("couldn't send the code", { status: 502 }) : response;
 }
 
 /**
@@ -46,7 +41,7 @@ export async function forgetSignIns(db: D1Database) {
   ]);
 }
 
-export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
+export function createAuth(env: Env, onUnsent?: () => void) {
   return betterAuth({
     baseURL: env.APP_URL,
     secret: env.BETTER_AUTH_SECRET,
@@ -59,13 +54,20 @@ export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
         expiresIn: CodeLife,
         allowedAttempts: 5,
         storeOTP: "hashed",
-        sendVerificationOTP: ({ email, otp, type }) =>
-          sendCode(env, email, otp, type).catch((error: unknown) => {
-            onUnsent?.(error);
+        sendVerificationOTP: ({ email, otp }) =>
+          sendCode(env, email, otp).catch((error: unknown) => {
+            onUnsent?.();
             throw error;
           }),
       }),
     ],
+    // The library makes a code before it asks for it to be sent, and a code it made can be guessed whether or not it
+    // went out. So a code is refused here, before it exists.
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === "/email-otp/send-verification-otp") await allowCode(env, ctx.body ?? {});
+      }),
+    },
     rateLimit: {
       enabled: !isLocal(env),
       storage: "database",
@@ -88,14 +90,19 @@ export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
   });
 }
 
-/** The local dev server sends no email, and prints the code instead. */
-async function sendCode(env: Env, email: string, code: string, type: string) {
-  if (type !== "sign-in") throw new Refused(400, "sign-in codes only");
+/** Only sign-in codes, and only so many a day. The local dev server counts none. */
+async function allowCode(env: Env, body: { email?: unknown; type?: unknown }) {
+  if (body.type !== "sign-in") throw APIError.fromStatus("BAD_REQUEST", { message: "sign-in codes only" });
+  if (isLocal(env) || typeof body.email !== "string") return;
+  await countCode(env, body.email.toLowerCase());
+}
+
+/** Emails the code. The local dev server prints it instead. */
+async function sendCode(env: Env, email: string, code: string) {
   if (isLocal(env)) {
     console.log(`sign-in code for ${email}: ${code}`);
     return;
   }
-  await countCode(env.DB, email);
   await env.EMAIL.send({
     from: { name: "Literal", email: env.EMAIL_FROM },
     to: email,
@@ -104,35 +111,29 @@ async function sendCode(env: Env, email: string, code: string, type: string) {
   });
 }
 
-/** A code not sent on purpose. The request fails with `status`, and the message as its body. */
-class Refused extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-async function countCode(db: D1Database, email: string) {
+async function countCode(env: Env, email: string) {
   const add = async (key: string) => {
-    const count = await db
-      .prepare(
-        `insert into "codesSent" ("day", "key", "count") values (?, ?, 1)
+    const count = await env.DB.prepare(
+      `insert into "codesSent" ("day", "key", "count") values (?, ?, 1)
          on conflict ("day", "key") do update set "count" = "count" + 1 returning "count"`,
-      )
+    )
       .bind(today(), key)
       .first<number>("count");
     if (count === null) throw new Error("count code: no count returned");
     return count;
   };
-  if ((await add(await sha256(email))) > CodesAnAddress) throw new Refused(503, "no more codes today");
-  if ((await add("all")) > CodesADay) throw new Refused(503, "no more codes today");
+  const full = APIError.fromStatus("SERVICE_UNAVAILABLE", { message: "no more codes today" });
+  if ((await add(await keyed(env.BETTER_AUTH_SECRET, email))) > CodesAnAddress) throw full;
+  if ((await add("all")) > CodesADay) throw full;
 }
 
-/** Hex SHA-256, so addresses are counted without being kept. */
-async function sha256(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+/** Hex HMAC-SHA-256 under the app's secret, so addresses are counted without being kept, nor guessed from it. */
+async function keyed(secret: string, text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
+  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(text));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
