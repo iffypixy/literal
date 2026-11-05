@@ -6,7 +6,6 @@
 import * as notes from "#web/notes/notes.ts";
 import { quoted } from "#web/notes/search.ts";
 import { dismiss, runAction, toast } from "#web/ui/toast.tsx";
-import { touch } from "./device.ts";
 import { plural } from "./format.ts";
 import { pressed, Shortcuts } from "./shortcuts.ts";
 
@@ -26,7 +25,7 @@ export function deleteNote(id: string, reopen: () => void) {
   toast(what ? `Deleted ${what}` : "Note deleted", {
     action: {
       label: "Undo",
-      keys: touch.matches ? undefined : Shortcuts.undo,
+      keys: Shortcuts.undo,
       run: () => {
         settled();
         void Promise.all(batch.map((note) => notes.restore(note.id))).then(() => {

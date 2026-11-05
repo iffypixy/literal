@@ -18,4 +18,9 @@
     text-align: center;
     color: var(--muted);
   }
+
+  /* Under a finger there's no keyboard to speak of, so shortcuts go unsaid, wherever they'd show. */
+  @media (pointer: coarse) {
+    display: none;
+  }
 }
