@@ -34,12 +34,13 @@ export async function handleAuth(request: Request, env: Env): Promise<Response> 
 }
 
 /**
- * Erases what signing in no longer needs, so none of it outlasts what the privacy page says: expired codes, past
- * days' counts, and attempts that no longer count. The library keeps dates as ISO text.
+ * Erases what signing in no longer needs, so none of it outlasts what the privacy page says: expired codes and
+ * sessions, past days' counts, and attempts that no longer count. The library keeps dates as ISO text.
  */
 export async function forgetSignIns(db: D1Database) {
   await db.batch([
     db.prepare(`delete from "verification" where "expiresAt" < ?`).bind(new Date().toISOString()),
+    db.prepare(`delete from "session" where "expiresAt" < ?`).bind(new Date().toISOString()),
     db.prepare(`delete from "codesSent" where "day" < ?`).bind(today()),
     db.prepare(`delete from "rateLimit" where "lastRequest" < ?`).bind(Date.now() - AttemptWindow * 1000),
   ]);
