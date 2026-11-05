@@ -44,8 +44,8 @@ const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: R
 const behind = new Map<string, number>();
 let retry = RetryMin;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
-/** Null while the connection is up. Down from the start, until the first one opens. */
-let downSince: number | null = Date.now();
+/** Null while the connection is up. */
+let downSince: number | null = null;
 let tried = 0;
 let lastHeard = 0;
 let pingSent = 0;
@@ -53,16 +53,20 @@ let pingSent = 0;
 let chain = Promise.resolve();
 /** Each refusal is explained once, not once for every change the server turns away. */
 const explained = new Set<string>();
+/** Notes whose history is too large for the server to keep. Until the page reloads, they aren't sent again. */
+const tooLarge = new Set<string>();
 
 /** Called again after a sign-in, it starts over on a new connection, as the old one may belong to another session. */
 export function startSync() {
+  if (!running) listen();
   signedOut = false;
-  if (running) {
-    drop();
-    reconnect();
-    report();
-    return;
-  }
+  drop();
+  downSince = Date.now();
+  reconnect();
+  report();
+}
+
+function listen() {
   running = true;
   notes.onChange((id, update) => (update ? hold(id, update) : fallBehind(id, seq)));
   // A connection from before the network dropped is usually dead even if it looks open, so start over.
@@ -72,10 +76,9 @@ export function startSync() {
   });
   addEventListener("offline", drop);
   // Leaving the app sends what's waiting at once; coming back reconnects.
-  document.addEventListener("visibilitychange", () => (document.hidden ? releaseAll() : reconnect()));
-  addEventListener("pagehide", releaseAll);
+  document.addEventListener("visibilitychange", () => (document.hidden ? void releaseAll() : reconnect()));
+  addEventListener("pagehide", () => void releaseAll());
   setInterval(tick, 1000);
-  connect();
 }
 
 function connect() {
@@ -103,12 +106,8 @@ function connect() {
   ws.onclose = (event) => {
     if (socket !== ws) return;
     if (event.code === SignedOut) {
-      socket = null;
-      abandon();
       signedOut = true;
-      report();
       void notes.unsync();
-      return;
     }
     drop();
   };
@@ -131,8 +130,8 @@ function drop() {
   downSince ??= Date.now();
   ws.close();
   clearTimeout(retryTimer);
-  // Without a network, the `online` event is the time to try again.
-  if (navigator.onLine) {
+  // Without a network, the `online` event is the time to try again. Signed out, a sign-in is.
+  if (navigator.onLine && !signedOut) {
     retryTimer = setTimeout(connect, retry * (0.75 + Math.random() / 2));
     retry = Math.min(retry * 2, RetryMax);
   }
@@ -156,12 +155,7 @@ async function handle(ws: WebSocket, message: Message) {
     case "catch-up":
       for (const note of message.notes) {
         if (note.update) await notes.receive(note.id, note.update);
-        if (!note.vector) continue;
-        if (isTooLong(note.id)) {
-          fallBehind(note.id, seq);
-          continue;
-        }
-        const update = await notes.missing(note.id, note.vector);
+        const update = note.vector && (await notes.missing(note.id, note.vector));
         if (update) send(note.id, update, true, ws);
       }
       if (!message.done) break;
@@ -188,15 +182,19 @@ async function handle(ws: WebSocket, message: Message) {
       const sent = unacked.get(message.seq);
       unacked.delete(message.seq);
       if (sent) fallBehind(sent.id, message.seq);
+      if (sent && message.reason === "too-large") tooLarge.add(sent.id);
       // A note's own limit is explained for each note, the account's just once.
       const about = message.reason === "too-large" ? (sent?.id ?? message.reason) : message.reason;
       if (explained.has(about)) break;
       explained.add(about);
-      const name = sent ? quoted(notes.find(sent.id)?.text ?? "") : "";
       if (message.reason === "too-many") toast(`Sync stops at ${number(MaxNotes)} notes, so delete some to make room`);
       else if (message.reason === "too-full")
         toast(`Sync stops at ${number(MaxBytes / 1_000_000)} MB, so delete some notes to make room`);
-      else toast(tooLong(name));
+      else {
+        // Under the length limit, but so much has been typed and erased in it that its history is too large.
+        const name = sent ? quoted(notes.find(sent.id)?.text ?? "") : "";
+        toast(`${name || "This note"} is too large to sync, so copy its text into a new note`);
+      }
       break;
     }
     case "purge":
@@ -210,7 +208,7 @@ async function handle(ws: WebSocket, message: Message) {
 /** Before signing out, sends every change still waiting, then gives the server a moment to take them all. */
 export async function drain() {
   await notes.flush();
-  await Promise.all([...outbox.keys()].map((id) => release(id)));
+  await releaseAll();
   const until = Date.now() + DrainFor;
   while (unacked.size && socket?.readyState === WebSocket.OPEN && Date.now() < until) {
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -229,8 +227,8 @@ function hold(id: string, update: Uint8Array) {
   outbox.set(id, waiting);
 }
 
-function releaseAll() {
-  for (const id of outbox.keys()) void release(id);
+function releaseAll(): Promise<unknown> {
+  return Promise.all([...outbox.keys()].map(release));
 }
 
 /** Sends the note's held changes as one update; or all of the note, if the server is behind on it. */
@@ -239,21 +237,14 @@ async function release(id: string) {
   if (!waiting) return;
   clearTimeout(waiting.timer);
   outbox.delete(id);
-  if (isTooLong(id)) {
-    fallBehind(id, seq);
-    return;
-  }
-  if (!behind.has(id)) {
-    send(id, Y.mergeUpdates(waiting.updates), false);
-    return;
-  }
-  const whole = await notes.missing(id);
-  if (whole) send(id, whole, true);
+  const whole = behind.has(id);
+  const update = whole ? await notes.missing(id) : Y.mergeUpdates(waiting.updates);
+  if (update) send(id, update, whole);
 }
 
-/** If not connected, the note stays dirty, and goes with the next hello. */
+/** If not connected, or the note can't sync, it stays dirty and behind, and goes with a later hello. */
 function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
+  if (!ws || ws.readyState !== WebSocket.OPEN || isTooLong(id) || tooLarge.has(id)) {
     fallBehind(id, seq);
     return;
   }
@@ -267,7 +258,7 @@ export function tooLong(name = ""): string {
 }
 
 /** It stays on this device, dirty and behind, until it's short enough again. */
-function isTooLong(id: string): boolean {
+export function isTooLong(id: string): boolean {
   return notes.length(id) > MaxLength;
 }
 
