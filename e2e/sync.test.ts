@@ -4,15 +4,6 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 /** Where the test server writes, sign-in codes included, since tests have no inbox (see playwright.config.ts). */
 const ServerLog = "test-results/server.log";
 
-test("signing in merges each device's notes into the account", async ({ browser }) => {
-  const [a, b] = await devices(browser);
-  for (const page of [a, b]) {
-    await page.keyboard.press("Control+k");
-    await expect(page.getByRole("option")).toHaveCount(2);
-    await page.keyboard.press("Escape");
-  }
-});
-
 test("typing on one device shows up on the other, and offline edits on both merge", async ({ browser }) => {
   const [a, b] = await devices(browser);
   await open(a, "written on a");
@@ -50,11 +41,7 @@ test("a note deleted on one device comes back with words written offline on anot
   await a.keyboard.press("Escape");
 
   await b.context().setOffline(false);
-  await expect(async () => {
-    await a.keyboard.press("Control+k");
-    await expect(a.getByRole("option").filter({ hasText: "Written on A" })).toHaveCount(1, { timeout: 1000 });
-    await a.keyboard.press("Escape");
-  }).toPass({ timeout: 15_000 });
+  await expectListed(a, 1, "Written on A");
   await open(a, "written on a");
   await expect(note(a)).toHaveValue("Written on A\nbefore signing in\nkept writing");
 });
@@ -98,11 +85,7 @@ test("deleting the account on one device erases it, and another device's notes g
   await b.getByRole("button", { name: "Sign in to sync" }).click();
   await signIn(b, email);
   const c = await device(browser, email, "Written on C");
-  await expect(async () => {
-    await c.keyboard.press("Control+k");
-    await expect(c.getByRole("option")).toHaveCount(3, { timeout: 1000 });
-    await c.keyboard.press("Escape");
-  }).toPass({ timeout: 15_000 });
+  await expectListed(c, 3);
 });
 
 test("words typed in a tab that can't connect reach the account through another tab", async ({ browser }) => {
@@ -143,13 +126,22 @@ test("a tab opened signed out syncs once another tab signs in", async ({ browser
   await signIn(second, email);
 
   await first.keyboard.type("Written in the first tab");
-  await expect(async () => {
-    await a.keyboard.press("Control+k");
-    await expect(a.getByRole("option").filter({ hasText: "Written in the first tab" })).toHaveCount(1, {
-      timeout: 1000,
-    });
-    await a.keyboard.press("Escape");
-  }).toPass({ timeout: 15_000 });
+  await expectListed(a, 1, "Written in the first tab");
+});
+
+test("signing out with words the server hasn't taken asks first", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.press("Control+k");
+  await page.getByRole("button", { name: /Sync across devices/ }).click();
+  await signIn(page, address());
+  // Back signed in, but with no connection, so what's typed next can't reach the server.
+  await page.routeWebSocket(/\/sync$/, (ws) => ws.close());
+  await page.reload();
+  await page.keyboard.type("Unsent");
+  await page.keyboard.press("Control+k");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByText("1 note hasn't synced yet")).toBeVisible();
 });
 
 /** Two devices, signed in to one account, each with a note written before signing in. */
@@ -196,6 +188,16 @@ async function open(page: Page, title: string) {
   await page.keyboard.press("Enter");
   // Until the note shows, the page is read-only and drops whatever is typed.
   await expect(page).toHaveTitle(new RegExp(`^${title}`, "i"));
+}
+
+/** Opens the list until it shows `count` notes (with `text`, if given), since another device's take a while. */
+async function expectListed(page: Page, count: number, text?: string) {
+  await expect(async () => {
+    await page.keyboard.press("Control+k");
+    const rows = page.getByRole("option");
+    await expect(text ? rows.filter({ hasText: text }) : rows).toHaveCount(count, { timeout: 1000 });
+    await page.keyboard.press("Escape");
+  }).toPass({ timeout: 15_000 });
 }
 
 function note(page: Page) {

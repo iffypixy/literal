@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { diff, end, shift } from "#web/editor/diff.ts";
+import { diff, shift } from "./diff.ts";
 
 test("typing is found as the smallest change, wherever the caret says it is", () => {
   assert.deepEqual(diff("hello", "hello!", 6), { at: 5, removed: 0, inserted: "!" });
@@ -25,9 +25,4 @@ test("a position moves with text inserted or deleted before it, not after", () =
   // "abcd" becomes "ad": a position inside the deletion lands where it was.
   assert.equal(shift(2, [{ retain: 1 }, { delete: 2 }]), 1);
   assert.equal(shift(4, [{ retain: 1 }, { delete: 2 }]), 2);
-});
-
-test("an undo puts the caret at the end of what it changed", () => {
-  assert.equal(end([{ retain: 3 }, { insert: "xy" }, { retain: 5 }]), 5);
-  assert.equal(end([{ retain: 3 }, { delete: 2 }, { retain: 5 }]), 3);
 });

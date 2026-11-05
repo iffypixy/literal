@@ -11,7 +11,7 @@
     "preview": "vite preview --host --port 5390 --strictPort",
     "check": "tsc && tsc -p tsconfig.node.json && tsc -p server && oxlint --type-aware --deny-warnings && oxfmt --check",
     "deploy": "pnpm check && vite build && wrangler d1 migrations apply literal --remote && wrangler deploy --config web/dist/literal/wrangler.json",
-    "test": "node --test 'unit/*.test.ts' && playwright test",
+    "test": "node --test 'web/**/*.test.ts' protocol.test.ts && playwright test",
     "format": "oxfmt"
   },
   "dependencies": {

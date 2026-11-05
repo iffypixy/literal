@@ -16,7 +16,7 @@
   "overrides": [
     {
       // node:test runs every test() it's given, awaiting the promise it returns.
-      "files": ["unit/**"],
+      "files": ["web/**/*.test.ts", "protocol.test.ts"],
       "rules": { "typescript/no-floating-promises": "off" }
     }
   ]

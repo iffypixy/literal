@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "e2e",
+  forbidOnly: Boolean(process.env.CI),
   workers: 1,
   use: { baseURL: "http://localhost:5390", ...devices["Desktop Chrome"] },
   // The production build with the real Worker, served locally. It sends no email, and writes codes to its log instead.

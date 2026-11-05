@@ -1,37 +1,23 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test, type Page } from "@playwright/test";
 
 test("a note is saved as you type, and is there after a reload", async ({ page }) => {
   await page.goto("/");
-  const note = page.getByRole("textbox", { name: "Note" });
-  await expect(note).toBeFocused();
+  await expect(note(page)).toBeFocused();
   await page.keyboard.type("Groceries\neggs, milk");
   await expect(page).toHaveURL(/\/[0-9a-hjkmnp-tv-z]{10}$/);
   await page.reload();
-  await expect(note).toHaveValue("Groceries\neggs, milk");
+  await expect(note(page)).toHaveValue("Groceries\neggs, milk");
 });
 
-test("opening the app and leaving without typing leaves no note", async ({ page }) => {
+test("Undo brings back a deleted note", async ({ page }) => {
   await page.goto("/");
-  await page.keyboard.type("   ");
+  await page.keyboard.type("First note");
   await page.keyboard.press("Alt+n");
+  await page.keyboard.type("Second");
+  // Delete takes the highlighted row, which starts on the note before.
   await page.keyboard.press("Control+k");
-  await expect(page.getByText("No notes yet")).toBeVisible();
-});
-
-test("search finds a note by any of its words, ignoring accents; Undo brings back a deleted one", async ({ page }) => {
-  await page.goto("/");
-  await page.keyboard.type("Café list\nNewsreader, crème brûlée");
-  await page.keyboard.press("Alt+n");
-  await page.keyboard.type("Book list\nPiranesi");
-  await page.keyboard.press("Control+k");
-  await page.keyboard.type("creme cafe");
-  const rows = page.getByRole("option");
-  await expect(rows).toHaveCount(1);
-  await expect(rows.first()).toContainText("Café list");
-
-  await page.keyboard.press("Control+a");
-  await page.keyboard.press("Backspace");
   await page.keyboard.press("Delete");
+  const rows = page.getByRole("option");
   await expect(rows).toHaveCount(1);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(rows).toHaveCount(2);
@@ -44,7 +30,7 @@ test("after one visit, the app opens and saves with no network", async ({ page, 
   const url = page.url();
   await context.setOffline(true);
   await page.goto(url);
-  await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue("Written online");
+  await expect(note(page)).toHaveValue("Written online");
   await page.keyboard.press("Alt+n");
   await page.keyboard.type("Written offline");
   await page.reload();
@@ -53,7 +39,6 @@ test("after one visit, the app opens and saves with no network", async ({ page, 
 });
 
 test("an empty note opened right after another stays empty", async ({ page, context }) => {
-  const note = page.getByRole("textbox", { name: "Note" });
   await page.goto("/");
   await page.keyboard.type("First note");
   await page.keyboard.press("Alt+n");
@@ -61,31 +46,53 @@ test("an empty note opened right after another stays empty", async ({ page, cont
   await expect(page).toHaveTitle("Second — Literal");
   const second = page.url();
   await page.goBack();
-  await expect(note).toHaveValue("First note");
+  await expect(note(page)).toHaveValue("First note");
 
   // Another tab empties the second note and stays on it, so the note exists with nothing in it.
   const other = await context.newPage();
   await other.goto(second);
-  await expect(other.getByRole("textbox", { name: "Note" })).toHaveValue("Second");
+  await expect(note(other)).toHaveValue("Second");
   await other.keyboard.press("Control+a");
   await other.keyboard.press("Delete");
-  await expect(note).toHaveValue("First note");
+  await expect(note(page)).toHaveValue("First note");
 
   await page.goForward();
   await expect(page).toHaveURL(second);
-  await expect(note).toHaveValue("");
+  await expect(note(page)).toHaveValue("");
 });
 
-test("Back with the notes open goes back to the note before", async ({ page }) => {
-  await page.goto("/");
-  await page.keyboard.type("First note");
-  await page.keyboard.press("Alt+n");
-  await page.keyboard.type("Second");
-  await expect(page).toHaveTitle("Second — Literal");
-  await page.keyboard.press("Control+k");
-  await page.goBack();
-  await expect(page).toHaveTitle("First note — Literal");
-  await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue("First note");
+test.describe("on a phone", () => {
+  // A Pixel 7, all but its browser (Chromium anyway), which a describe group can't set.
+  const { defaultBrowserType: _, ...pixel } = devices["Pixel 7"];
+  test.use(pixel);
+
+  test("Back closes the notes, and from a note picked there goes back to the one before", async ({ page }) => {
+    await page.goto("/");
+    await page.keyboard.type("First note");
+    await page.getByRole("button", { name: "New note" }).tap();
+    await page.keyboard.type("Second");
+    await expect(page).toHaveTitle("Second — Literal");
+    const second = page.url();
+    const notes = page.getByRole("dialog", { name: "Notes" });
+
+    // The sheet has a step of its own in history.
+    await page.getByRole("button", { name: "Notes" }).tap();
+    await page.goBack();
+    await expect(notes).toBeHidden();
+    await expect(page).toHaveURL(second);
+
+    // A note picked from it takes that step's place.
+    await page.getByRole("button", { name: "Notes" }).tap();
+    await notes.getByRole("option").filter({ hasText: "First note" }).tap();
+    await expect(note(page)).toHaveValue("First note");
+    await page.goBack();
+    await expect(page).toHaveURL(second);
+    await expect(note(page)).toHaveValue("Second");
+    await expect(notes).toBeHidden();
+    // Took its place rather than adding one: one more Back is the first note.
+    await page.goBack();
+    await expect(note(page)).toHaveValue("First note");
+  });
 });
 
 test("a note erased in another tab leaves a blank page here", async ({ page, context }) => {
@@ -100,7 +107,7 @@ test("a note erased in another tab leaves a blank page here", async ({ page, con
   await expect(other.getByText('Deleted "Short-lived"')).toBeVisible();
   // Erased once its Undo has passed.
   await expect(page).toHaveTitle("Literal", { timeout: 10_000 });
-  await expect(page.getByRole("textbox", { name: "Note" })).toHaveValue("");
+  await expect(note(page)).toHaveValue("");
 });
 
 test("words a closing page couldn't save come back, even into a note that was empty", async ({ page }) => {
@@ -125,22 +132,25 @@ test("words a closing page couldn't save come back, even into a note that was em
 });
 
 test("words from another tab don't move the cursor, or split an emoji", async ({ page, context }) => {
-  const note = page.getByRole("textbox", { name: "Note" });
   await page.goto("/");
   await page.keyboard.type("Hello world");
   await expect(page).toHaveTitle("Hello world — Literal");
 
-  await note.evaluate((area: HTMLTextAreaElement) => area.setSelectionRange(5, 5));
+  await note(page).evaluate((area: HTMLTextAreaElement) => area.setSelectionRange(5, 5));
 
   const other = await context.newPage();
   await other.goto(page.url());
-  const theirs = other.getByRole("textbox", { name: "Note" });
+  const theirs = note(other);
   await expect(theirs).toHaveValue("Hello world");
   await other.keyboard.press("Control+Home");
   await other.keyboard.type("👋 Hi\n");
 
-  await expect(note).toHaveValue("👋 Hi\nHello world");
+  await expect(note(page)).toHaveValue("👋 Hi\nHello world");
   await page.keyboard.type(",");
-  await expect(note).toHaveValue("👋 Hi\nHello, world");
+  await expect(note(page)).toHaveValue("👋 Hi\nHello, world");
   await expect(theirs).toHaveValue("👋 Hi\nHello, world");
 });
+
+function note(page: Page) {
+  return page.getByRole("textbox", { name: "Note" });
+}

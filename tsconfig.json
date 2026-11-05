@@ -15,5 +15,6 @@
     "isolatedModules": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["web", "protocol.ts"]
+  "include": ["web", "protocol.ts"],
+  "exclude": ["**/*.test.ts"]
 }
