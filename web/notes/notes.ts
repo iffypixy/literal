@@ -50,7 +50,7 @@ type Entry = {
 /** `stamp`: the stored state (`writer:rev`) the save left on disk. */
 type TabMessage = { type: "note"; note: Note; stamp: string } | { type: "purge"; id: string };
 
-/** Origins of changes that arrive from outside this tab: another tab's, read from disk, and the server's. */
+/** Where a change from outside this tab came from: disk, where another tab saved it, or the server. */
 const Disk = "disk";
 const Remote = "remote";
 
@@ -62,7 +62,8 @@ const TouchEvery = 1000;
 const TabId = crypto.randomUUID();
 
 /**
- * `ready`: every note has been read from disk. `failed`: a save failed, so changes may live only in memory.
+ * `ready`: every note has been read from disk. `failed`: reading or writing the disk failed, so changes may live
+ * only in memory.
  * `synced`: this device has caught up with its account at least once, so its list is the whole list.
  */
 export const library = createMutable({ ready: false, failed: false, synced: false });
@@ -194,7 +195,7 @@ export function discardIfEmpty(id: string) {
   else void purge(id);
 }
 
-/** Saves every change still waiting, then waits for saves under way: writes run in order, so an empty one does. */
+/** Saves every change still waiting, then waits for saves under way, since an empty write lands after them all. */
 export async function flush() {
   await Promise.all([...entries].filter(([, entry]) => entry.pending).map(([id]) => save(id)));
   await store(() => {});

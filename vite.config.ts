@@ -51,7 +51,7 @@ function serviceWorker(): Plugin {
   };
 }
 
-// Cloudflare serves pages at their clean URL, redirecting `/privacy.html` to `/privacy`.
+/** Cloudflare serves pages at their clean URL, redirecting `/privacy.html` to `/privacy`. */
 function url(file: string): string {
   return `/${file.replace(/(^|\/)index\.html$/, "$1").replace(/\.html$/, "")}`;
 }

@@ -24,9 +24,10 @@ export type Message =
       now: number;
       notes: { id: string; update: Uint8Array | null; vector: Uint8Array | null }[];
     }
-  /** `seq` numbers a device's updates so the server can ack them. The server's own updates carry 0. */
+  /** `seq` numbers a device's updates so the server can ack them. Those it passes on from other devices carry 0. */
   | { type: "update"; seq: number; id: string; update: Uint8Array }
   | { type: "ack"; seq: number }
+  /** The update would pass a limit, so it wasn't stored. */
   | { type: "refused"; seq: number; reason: Refusal }
   /** Notes deleted over 30 days ago and erased for good. Devices erase them too. */
   | { type: "purge"; ids: string[] };
@@ -35,7 +36,7 @@ export type Of<T extends Message["type"]> = Extract<Message, { type: T }>;
 
 /** The longest note that syncs, in UTF-16 code units, as Yjs counts. The device holds a longer one back. */
 export const MaxLength = 100_000;
-/** Deleted notes don't count toward these. */
+/** The most notes an account syncs, and bytes of their Yjs state. Deleted notes don't count. */
 export const MaxNotes = 10_000;
 export const MaxBytes = 100_000_000;
 

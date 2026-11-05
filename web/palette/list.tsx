@@ -121,8 +121,8 @@ export function List(props: Props) {
   }
 
   /**
-   * A click or swipe closes the note's row first, since a row has no way out once its note is gone from the list. A
-   * key just takes it away, like any key.
+   * A click or swipe folds the note's row away first, since once the note leaves the list its row is gone at once. A
+   * key deletes straight away, like any key.
    */
   async function remove(note: notes.Note | undefined, row?: HTMLElement) {
     if (!note || removing.has(note.id)) return;

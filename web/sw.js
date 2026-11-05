@@ -29,6 +29,6 @@ self.addEventListener("fetch", (event) => {
   // Every address is the app's one page, except the few pages of their own (the terms and privacy policy).
   const page = Files.includes(url.pathname) ? url.pathname : "/";
   const key = request.mode === "navigate" ? page : request;
-  // Scripts and fonts are requested with an Origin header the cached copies were fetched without.
+  // Scripts and stylesheets are requested with an Origin header the cached copies were fetched without.
   event.respondWith(caches.match(key, { cacheName: Version, ignoreVary: true }).then((hit) => hit ?? fetch(request)));
 });

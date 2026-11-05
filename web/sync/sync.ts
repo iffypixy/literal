@@ -23,6 +23,7 @@ export type Problem = "offline" | "unreachable" | "signed-out";
 
 export const sync = createMutable<{ problem: Problem | null }>({ problem: null });
 
+/** How long the connection can be down before the corner says so. */
 const DownAfter = 5000;
 /**
  * A lost network often leaves a WebSocket open and silent. So the device pings when idle, and treats the
