@@ -55,7 +55,7 @@ export function Toasts() {
   const cards = () => (shown.toast ? [...shown.leaving, shown.toast] : shown.leaving);
 
   return (
-    <div class="dock" role="status" aria-live="polite">
+    <div class="dock viewport" role="status" aria-live="polite">
       <For each={cards()}>
         {(toast) => {
           const gone = () => toast !== shown.toast;

@@ -75,7 +75,7 @@
   /* It fades out, and comes back at once. */
   &.gone {
     opacity: 0;
-    transition: opacity var(--fade);
+    transition: opacity var(--fade) ease;
   }
 
   & > span {

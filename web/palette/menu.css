@@ -4,6 +4,7 @@
 
 .menu {
   position: absolute;
+  /* Lined up with the More button above it, as the footer places it. */
   right: 6px;
   bottom: calc(100% + 2px);
   display: flex;

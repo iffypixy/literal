@@ -2,11 +2,7 @@
   display: flex;
   flex-direction: column;
 
-  & .lead {
-    margin: var(--pair) 0 var(--group);
-  }
-
-  & .lead strong {
+  & strong {
     overflow-wrap: anywhere;
   }
 
@@ -29,7 +25,7 @@
   & .code {
     text-align: center;
     letter-spacing: 0.4em;
-    padding: 0 var(--inset) 0 calc(var(--inset) + 0.4em);
+    padding-left: calc(var(--inset) + 0.4em);
   }
 
   & .code.wrong {

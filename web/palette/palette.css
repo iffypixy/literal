@@ -1,11 +1,8 @@
 /*
- * As tall as what's visible, so with a phone's keyboard up the sheet ends above it. It never scrolls, because focusing
- * the sheet while it's still below the screen would scroll it into view and undo its slide up.
+ * Over what's visible, so with a phone's keyboard up the sheet ends above it. It never scrolls, because focusing the
+ * sheet while it's still below the screen would scroll it into view and undo its slide up.
  */
 .palette {
-  position: fixed;
-  inset: 0 0 auto;
-  height: var(--viewport-height);
   overflow: clip;
   z-index: 20;
 
@@ -22,7 +19,7 @@
     width: min(560px, calc(100vw - 2 * var(--edge)));
     max-height: calc(0.7 * var(--viewport-height));
     margin: calc(0.12 * var(--viewport-height)) auto 0;
-    outline: none;
+    outline: 0;
   }
 
   & .grab {
@@ -49,9 +46,7 @@
   @media (max-width: 640px) {
     & .card {
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: auto 0 0;
       width: auto;
       height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
       max-height: none;
@@ -78,16 +73,16 @@
     }
 
     &[data-motion] .card {
-      animation: sheet-in var(--sheet-in) var(--ease-drawer);
+      animation: sheet-in var(--sheet-in) var(--ease-sheet);
     }
 
     &[data-closing] .card {
-      animation: sheet-out var(--sheet-out) var(--ease-drawer) forwards;
+      animation: sheet-out var(--sheet-out) var(--ease-sheet) forwards;
     }
 
     /* Dragged away, the sheet slides off from where the finger let go, and the scrim fades with it. */
     &[data-dragged] .scrim {
-      animation: fade-out var(--sheet-out) var(--ease-drawer) forwards;
+      animation: fade-out var(--sheet-out) var(--ease-sheet) forwards;
     }
   }
 

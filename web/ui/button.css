@@ -7,8 +7,7 @@
     transform var(--press) var(--ease-out),
     color var(--press) ease,
     background-color var(--press) ease,
-    border-color var(--press) ease,
-    opacity var(--press) ease;
+    border-color var(--press) ease;
 
   &.primary {
     border-color: var(--accent);

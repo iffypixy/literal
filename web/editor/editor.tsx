@@ -54,7 +54,7 @@ export function Editor(props: Props) {
   return (
     <textarea
       ref={attach}
-      class="editor"
+      class="editor viewport scroll"
       aria-label="Note"
       autocapitalize="sentences"
       readOnly={props.readonly}

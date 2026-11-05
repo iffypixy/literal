@@ -41,7 +41,7 @@ export function grab(handle: HTMLElement, sheet: HTMLElement, onDismiss: () => v
     if (!start || event.pointerId !== start.id) return;
     start = null;
     const velocity = recent.velocity(event.timeStamp);
-    sheet.style.transition = reducedMotion.matches ? "none" : "transform var(--sheet-out) var(--ease-drawer)";
+    sheet.style.transition = reducedMotion.matches ? "none" : "transform var(--sheet-out) var(--ease-sheet)";
     // A drag the system cancels (a call, a gesture of its own) springs back.
     if (event.type === "pointerup" && (dy > SheetAway.drag || (velocity > Flick && dy > SheetAway.flick))) {
       sheet.style.transform = "translateY(100%)";

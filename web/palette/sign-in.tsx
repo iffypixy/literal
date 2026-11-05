@@ -117,12 +117,12 @@ export function SignIn(props: Props) {
     >
       <Switch>
         <Match when={step() === "email"}>
-          <p class="lead">
+          <p>
             Sign in to keep your notes on all your devices.
             {Fragile && " Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them."}
           </p>
 
-          <form onSubmit={send}>
+          <form class="section" onSubmit={send}>
             <label class="visually-hidden" for="sign-in-email">
               Email
             </label>
@@ -151,7 +151,7 @@ export function SignIn(props: Props) {
         </Match>
 
         <Match when={step() === "code"}>
-          <p class="lead">
+          <p>
             Enter the code we sent to <strong>{address()}</strong>.
           </p>
           <label class="visually-hidden" for="sign-in-code">
@@ -160,7 +160,7 @@ export function SignIn(props: Props) {
           <input
             ref={field}
             id="sign-in-code"
-            class="code"
+            class="code section"
             classList={{ wrong: Boolean(error()) }}
             value={code()}
             onInput={(event) => onCode(event.currentTarget)}

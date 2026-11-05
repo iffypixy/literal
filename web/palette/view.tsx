@@ -22,7 +22,7 @@ export function View(props: Props) {
   onMount(() => view.contains(document.activeElement) || heading.focus());
 
   return (
-    <div ref={view} class={props.class ? `view ${props.class}` : "view"} onKeyDown={props.onKeyDown}>
+    <div ref={view} class={props.class ? `view scroll ${props.class}` : "view scroll"} onKeyDown={props.onKeyDown}>
       {props.onBack && <IconButton class="back" label="Back" icon="back" onClick={props.onBack} />}
       <h2 ref={heading} id="view-title" tabindex="-1">
         {props.title}

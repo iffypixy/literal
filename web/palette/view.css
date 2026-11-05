@@ -1,7 +1,6 @@
 .view {
   min-height: 0;
   padding: var(--edge);
-  overflow-y: auto;
 
   /*
    * The chevron's ink, not the button around it, sits on the text's left edge and on the top padding, at any control

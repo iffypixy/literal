@@ -1,9 +1,5 @@
-/* As tall as what's visible, like the editor and the palette, so a toast stays above a phone's keyboard. */
+/* Over what's visible, so a toast stays above a phone's keyboard. */
 .dock {
-  position: fixed;
-  inset: 0 0 auto;
-  box-sizing: border-box;
-  height: var(--viewport-height);
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
   display: grid;
   align-content: end;

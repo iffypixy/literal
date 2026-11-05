@@ -110,7 +110,7 @@ export function Palette(props: Props) {
   return (
     <div
       ref={overlay}
-      class="palette"
+      class="palette viewport"
       role="dialog"
       aria-label={view() === "notes" ? "Notes" : undefined}
       aria-labelledby={view() === "notes" ? undefined : "view-title"}

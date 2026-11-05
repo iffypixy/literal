@@ -1,3 +1,5 @@
+/* Served as written, unlike the CSS beside the app's code, so nothing here nests. */
+
 /*
  * The system monospace, soft black on white or soft white on near-black (17.7:1 and 15.9:1). One accent, Klein
  * blue, wherever you act: the caret, focus, selection, the main button.
@@ -47,12 +49,12 @@
   --fade: 160ms;
   --sheet-in: 320ms;
   --sheet-out: 220ms;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
   /* What's visible of the page, which main.tsx keeps up to date as a phone's keyboard comes and goes. */
   --viewport-height: 100dvh;
 
   --font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   color-scheme: light;
 }
 
@@ -76,9 +78,9 @@
     --accent: #6a8cff;
     --on-accent: #111215;
     --accent-hover: color-mix(in srgb, var(--accent) 88%, white);
+    --selection: color-mix(in srgb, var(--accent) 32%, transparent);
     /* The hairline is a touch stronger than in light, since in the dark the shadow alone barely shows. */
     --shadow: 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 16px rgb(0 0 0 / 0.4);
-    --selection: color-mix(in srgb, var(--accent) 32%, transparent);
     color-scheme: dark;
   }
 }
@@ -158,16 +160,35 @@ a,
   text-decoration: underline;
 }
 
-/* Here, not beside editor.tsx, because index.html's textarea must look the same before the app's code arrives. */
-.editor {
+/*
+ * Fixed over what's visible of the page, which on a phone with its keyboard up is less than the window. The editor,
+ * the palette and the toasts all sit in it.
+ */
+.viewport {
   position: fixed;
   inset: 0 0 auto;
   box-sizing: border-box;
-  width: 100%;
   height: var(--viewport-height);
+}
+
+/* Scrolls on its own, without carrying the page along, with a thin and quiet scrollbar. */
+.scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+
+/* Here, not beside editor.tsx, because index.html's textarea must look the same before the app's code arrives. */
+.editor {
+  width: 100%;
   margin: 0;
-  /* Like a .txt file, from the top-left corner and as wide as the window, with room to scroll the end up. */
-  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) calc(0.4 * var(--viewport-height))
+  /*
+   * Like a .txt file, from the top-left corner and as wide as the window, with room to scroll the end up. That room
+   * follows the visible height, so with a phone's keyboard up the line being typed stays above it.
+   */
+  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px))
+    calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height))
     max(var(--edge), env(safe-area-inset-left, 0px));
   border: 0;
   outline: 0;
@@ -176,17 +197,12 @@ a,
   tab-size: 4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
 }
 
 /*
  * On a phone text is at least 16px, since iOS zooms into any field smaller. The buttons are always there, so the text
- * starts a control's height lower, under them. The room below follows the visible height, so with the keyboard up the
- * line being typed stays above it. And a finger needs more than a line of text to aim at, so inline actions reach a
- * control's height without moving anything.
+ * starts a control's height lower, under them. And a finger needs more than a line of text to aim at, so inline
+ * actions reach a control's height without moving anything.
  */
 @media (pointer: coarse) {
   html {
@@ -195,7 +211,6 @@ a,
 
   .editor {
     padding-top: calc(env(safe-area-inset-top, 0px) + var(--edge) + var(--control));
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height));
   }
 
   a,

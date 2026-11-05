@@ -23,10 +23,6 @@
     min-height: 0;
     margin: 0;
     padding: var(--gutter);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--line) transparent;
   }
 
   & .option {
@@ -63,12 +59,16 @@
 
   & .rows[data-highlighted] [aria-selected="true"] .row {
     background: linear-gradient(var(--hover), var(--hover)) var(--surface);
-  }
 
-  /* The wash alone (1.13:1) is too faint to find, so the accent's edge marks the row. */
-  @media (prefers-contrast: more) {
-    & .rows[data-highlighted] [aria-selected="true"] .row {
+    /* The wash alone (1.13:1) is too faint to find, so the accent's edge marks the row. */
+    @media (prefers-contrast: more) {
       box-shadow: inset 2px 0 var(--accent);
+    }
+
+    /* Windows High Contrast drops washes, so the row takes the system's highlight. */
+    @media (forced-colors: active) {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
     }
   }
 
@@ -149,6 +149,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 2ch;
+    /* 6px, so the More dots end on the 16px edge, like the text across from them. */
     padding: var(--gutter) 6px var(--gutter) var(--edge);
     border-top: 1px solid var(--line);
     color: var(--muted);
@@ -173,13 +174,8 @@
     }
   }
 
-  /* Windows High Contrast drops washes, so the highlighted row and hits use system colors. */
+  /* Windows High Contrast drops washes, so hits use system colors too. */
   @media (forced-colors: active) {
-    & .rows[data-highlighted] [aria-selected="true"] .row {
-      outline: 2px solid Highlight;
-      outline-offset: -2px;
-    }
-
     & mark {
       background: Mark;
       color: MarkText;

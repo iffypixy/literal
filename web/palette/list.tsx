@@ -217,7 +217,7 @@ export function List(props: Props) {
 
       <div
         ref={rows}
-        class="rows"
+        class="rows scroll"
         role="listbox"
         id="notes-list"
         aria-label="Notes and commands"
