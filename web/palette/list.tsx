@@ -2,7 +2,7 @@ import { batch, createMemo, createSignal, For, onCleanup, onMount, Show, type JS
 import { Apple, Fragile, hasKeyboard, reducedMotion, touch } from "#web/device.ts";
 import { ago } from "#web/format.ts";
 import * as notes from "#web/notes/notes.ts";
-import { describe, markStarts, parse, search, startsWords, type Segment } from "#web/notes/search.ts";
+import { describe, markStarts, parse, search, startRow, startsWords, type Segment } from "#web/notes/search.ts";
 import { pressed, Shortcuts } from "#web/shortcuts.ts";
 import { account } from "#web/sync/account.ts";
 import { exportAll, importFiles } from "#web/transfer/transfer.ts";
@@ -83,20 +83,14 @@ export function List(props: Props) {
   );
   const results = createMemo(() => search(notes.list(), words()));
   const total = () => commandsFound().length + results().length;
-  /**
-   * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
-   * one), so Enter goes back. Typing, on the first note, or the first command if no note matches, so Enter after
-   * "new" still opens a note about New York, and Enter after "export" exports.
-   */
-  const first = createMemo(() => {
-    if (words().length) return results().length ? commandsFound().length : 0;
-    const back = results().findIndex((note) => note.id === props.previous);
-    if (back >= 0) return back;
-    return Math.max(
-      0,
-      results().findIndex((note) => note.id !== props.current),
-    );
-  });
+  const first = createMemo(() =>
+    startRow(results(), {
+      commands: commandsFound().length,
+      typed: words().length > 0,
+      previous: props.previous,
+      current: props.current,
+    }),
+  );
   /** A page at a time, and always as far as the row the arrows start on, however old its note. */
   const shown = createMemo(() => results().slice(0, Math.max(limit(), first() + 1)));
   const entries = createMemo<(Action | notes.Note)[]>(() => [...commandsFound(), ...shown()]);
@@ -161,19 +155,12 @@ export function List(props: Props) {
 
   function onKeyDown(event: KeyboardEvent & { currentTarget: HTMLInputElement }) {
     const entry = selected();
-    if (pressed(event, "ArrowDown")) {
-      event.preventDefault();
-      move(1);
-    } else if (pressed(event, "ArrowUp")) {
-      event.preventDefault();
-      move(-1);
-    } else if (pressed(event, "Enter")) {
-      event.preventDefault();
-      pick(entry, false);
-    } else if (highlighted() && entry && !isAction(entry) && deletes(event, event.currentTarget)) {
-      event.preventDefault();
-      void remove(entry);
-    }
+    if (pressed(event, "ArrowDown")) move(1);
+    else if (pressed(event, "ArrowUp")) move(-1);
+    else if (pressed(event, "Enter")) pick(entry, false);
+    else if (highlighted() && entry && !isAction(entry) && deletes(event, event.currentTarget)) void remove(entry);
+    else return;
+    event.preventDefault();
   }
 
   function growWhenNear(sentinel: HTMLElement) {
@@ -225,10 +212,8 @@ export function List(props: Props) {
         data-highlighted={highlighted() ? "" : undefined}
       >
         <Show when={commandsFound().length}>
-          <div role="group" aria-labelledby="commands-label">
-            <div class="group" id="commands-label">
-              Commands
-            </div>
+          <div role="group" aria-label="Commands">
+            <div class="group">Commands</div>
             <For each={commandsFound()}>
               {(command, index) => (
                 <Option
@@ -248,15 +233,9 @@ export function List(props: Props) {
             </For>
           </div>
         </Show>
-        <div
-          role="group"
-          aria-labelledby={commandsFound().length ? "notes-label" : undefined}
-          aria-label={commandsFound().length ? undefined : "Notes"}
-        >
+        <div role="group" aria-label="Notes">
           <Show when={commandsFound().length && shown().length}>
-            <div class="group" id="notes-label">
-              Notes
-            </div>
+            <div class="group">Notes</div>
           </Show>
           <For each={shown()}>
             {(note, position) => {
@@ -290,7 +269,7 @@ export function List(props: Props) {
                       }}
                     />
                   </div>
-                  <Show when={parts().snippet.some((part) => part.text)}>
+                  <Show when={parts().snippet.length}>
                     <div class="snippet truncate">
                       <Marked parts={parts().snippet} />
                     </div>

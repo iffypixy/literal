@@ -2,6 +2,9 @@ import type { Note } from "./notes.ts";
 
 export type Segment = { text: string; hit: boolean };
 
+/** Besides the notes found: how many commands come first, whether anything is typed, and the notes open before and now. */
+type Start = { commands: number; typed: boolean; previous: string | null; current: string | null };
+
 /** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
 const SnippetReach = 20;
 const SnippetLength = 60;
@@ -23,7 +26,7 @@ export function search(notes: Note[], words: string[]): Note[] {
   const inTitle: Note[] = [];
   const inText: Note[] = [];
   for (const note of notes) {
-    const { text, title } = folded(note);
+    const { text, title } = foldsOf(note);
     if (!words.every((word) => text.includes(word))) continue;
     (words.some((word) => title.includes(word)) ? inTitle : inText).push(note);
   }
@@ -36,7 +39,8 @@ export function prepare(notes: Note[]) {
   const work = (deadline?: IdleDeadline) => {
     do {
       const note = notes[next++];
-      if (note) folded(note);
+      if (note) foldsOf(note);
+      // Without idle callbacks, a hundred at a time.
     } while (next < notes.length && (deadline ? deadline.timeRemaining() > 1 : next % 100 !== 0));
     if (next < notes.length) later(work);
   };
@@ -49,10 +53,27 @@ export function startsWords(label: string, words: string[]): boolean {
   return words.every((word) => starts.some((start) => start.startsWith(word)));
 }
 
+/** Like `startsWords`, the label with what matched marked. */
+export function markStarts(text: string, words: string[]): Segment[] {
+  return marked(text, words, (folded, at) => at === 0 || /\s/.test(folded[at - 1] ?? ""));
+}
+
+/**
+ * The row the palette's arrows start on, among `commands` found and then the notes `found`. With nothing typed, the
+ * note open before this one (or the latest that isn't this one), so Enter goes back. Typing, the first note, or the
+ * first command if no note matches, so Enter after "new" still opens a note about New York, and after "export" exports.
+ */
+export function startRow(found: Note[], { commands, typed, previous, current }: Start): number {
+  if (typed) return found.length ? commands : 0;
+  const back = found.findIndex((note) => note.id === previous);
+  const latest = found.findIndex((note) => note.id !== current);
+  return back >= 0 ? back : Math.max(0, latest);
+}
+
 /** The title with matches marked, and a snippet around a match it doesn't show, so every row says why it's there. */
 export function describe(note: Note, words: string[]): { title: Segment[]; snippet: Segment[] } {
   const { first, restAt } = split(note.text);
-  const { text, title } = folded(note);
+  const { text, title } = foldsOf(note);
   // A word the title doesn't hold can only be found past it.
   const hits = words
     .filter((word) => !title.includes(word))
@@ -80,15 +101,6 @@ export function shorten(name: string, length: number): string {
   const cut = chars.slice(0, length - 1).join("");
   const space = cut.lastIndexOf(" ");
   return `${space > length / 2 ? cut.slice(0, space) : cut}…`;
-}
-
-function mark(text: string, words: string[]): Segment[] {
-  return marked(text, words, () => true);
-}
-
-/** Like `mark`, but only where a word of `text` starts with one of `words`, the way commands match. */
-export function markStarts(text: string, words: string[]): Segment[] {
-  return marked(text, words, (folded, at) => at === 0 || /\s/.test(folded[at - 1] ?? ""));
 }
 
 function split(text: string): { first: string; restAt: number } {
@@ -124,7 +136,7 @@ function fold(text: string): string {
   return text.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC").toLowerCase();
 }
 
-function folded(note: Note): { text: string; title: string } {
+function foldsOf(note: Note): { text: string; title: string } {
   let known = folds.get(note);
   if (!known) {
     known = { text: fold(note.text), title: fold(split(note.text).first) };
@@ -133,8 +145,14 @@ function folded(note: Note): { text: string; title: string } {
   return known;
 }
 
+function mark(text: string, words: string[]): Segment[] {
+  return marked(text, words, () => true);
+}
+
+/** Nothing for no text, so an empty snippet shows nothing. */
 function marked(text: string, words: string[], counts: (folded: string, at: number) => boolean): Segment[] {
-  if (!words.length || !text) return [{ text, hit: false }];
+  if (!text) return [];
+  if (!words.length) return [{ text, hit: false }];
   const { folded, origin } = foldWithOrigin(text);
   const hit = Array.from({ length: text.length }, () => false);
   for (const word of words) {

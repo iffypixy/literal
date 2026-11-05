@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Note } from "./notes.ts";
-import { describe, parse, search } from "./search.ts";
+import { describe, parse, search, startRow } from "./search.ts";
 
 function note(id: string, text: string): Note {
   return { id, text, createdAt: 0, editedAt: 0, deletedAt: null };
@@ -39,4 +39,16 @@ test("a snippet keeps its hit whole, far into a note and inside a long link", ()
   assert.deepEqual(hit(accents, "target"), ["target"]);
   const link = `Links\nsee https://example.com/${"a".repeat(80)}`;
   assert.deepEqual(hit(link, "example"), ["example"]);
+});
+
+test("the palette starts on the note before, or on what was typed for", () => {
+  const notes = [note("a", "Now"), note("b", "Before"), note("c", "Older")];
+  const start = (typed: boolean, commands: number, found = notes) =>
+    startRow(found, { commands, typed, previous: "c", current: "a" });
+  // Nothing typed: the note open before this one, wherever it is, or else the latest that isn't this one.
+  assert.equal(start(false, 0), 2);
+  assert.equal(start(false, 0, notes.slice(0, 2)), 1);
+  // Typed: the first note, past any commands; or the first command, when no note matches.
+  assert.equal(start(true, 2), 2);
+  assert.equal(start(true, 2, []), 0);
 });
