@@ -39,9 +39,23 @@ const SendAtMost = 5000;
 /** How long signing out waits for the server to take the last changes. */
 const DrainFor = 3000;
 
-let socket: WebSocket | null = null;
-let running = false;
+/** Set by the first sync, and kept as long as the page. */
+let listening = false;
+/** By the server, so the device waits for a sign-in before it connects again. */
 let signedOut = false;
+
+let socket: WebSocket | null = null;
+/** When the connection was last tried, last heard from, and pinged while idle. */
+let tried = 0;
+let lastHeard = 0;
+let pingSent = 0;
+/** Null while the connection is up. */
+let downSince: number | null = null;
+let retry = RetryMin;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+/** Messages are handled one at a time, in order, since each may wait on disk. */
+let chain = Promise.resolve();
+
 let seq = 0;
 /** Updates sent and not yet acked: which note, its generation then, and whether the update was the whole note. */
 const unacked = new Map<number, { id: string; upTo: number; at: number; whole: boolean }>();
@@ -53,15 +67,7 @@ const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: R
  * whole, and no other ack marks it synced.
  */
 const behind = new Map<string, number>();
-let retry = RetryMin;
-let retryTimer: ReturnType<typeof setTimeout> | undefined;
-/** Null while the connection is up. */
-let downSince: number | null = null;
-let tried = 0;
-let lastHeard = 0;
-let pingSent = 0;
-/** Messages are handled one at a time, in order, since each may wait on disk. */
-let chain = Promise.resolve();
+
 /** Each refusal is explained once, not once for every change the server turns away. */
 const explained = new Set<string>();
 /** Notes whose history is too large for the server to keep. Until the page reloads, they aren't sent again. */
@@ -77,7 +83,7 @@ const Refused: Record<Refusal, (name: string) => string> = {
 
 /** Called again after a sign-in, it starts over on a new connection, as the old one may belong to another session. */
 export function startSync() {
-  if (!running) listen();
+  if (!listening) listen();
   signedOut = false;
   drop();
   downSince = Date.now();
@@ -86,7 +92,7 @@ export function startSync() {
 }
 
 function listen() {
-  running = true;
+  listening = true;
   notes.onChange((id, update) => (update ? hold(id, update) : fallBehind(id, seq)));
   // A connection from before the network dropped is usually dead even if it looks open, so start over.
   addEventListener("online", () => {
@@ -166,7 +172,7 @@ function abandon() {
 }
 
 function reconnect() {
-  if (!running || signedOut || socket) return;
+  if (signedOut || socket) return;
   retry = RetryMin;
   connect();
 }
@@ -189,10 +195,7 @@ async function handle(ws: WebSocket, message: Message) {
       break;
     case "ack": {
       const sent = answered(message.seq);
-      if (!sent) break;
-      // A note that's behind is synced only by a whole copy sent after it fell behind.
-      const since = behind.get(sent.id);
-      if (since !== undefined && (!sent.whole || message.seq <= since)) break;
+      if (!sent || !catchesUp(sent, message.seq)) break;
       behind.delete(sent.id);
       await notes.acked(sent.id, sent.upTo);
       break;
@@ -272,11 +275,6 @@ function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   ws.send(encode({ type: "update", seq, id, update }));
 }
 
-/** Why a note doesn't sync, naming it, or meaning the open one. */
-export function tooLong(name = ""): string {
-  return `Notes sync up to ${number(MaxLength)} characters, so split ${name || "this one"} into shorter notes`;
-}
-
 /** It stays on this device, dirty and behind, until it's short enough again. */
 export function isTooLong(id: string): boolean {
   return notes.length(id) > MaxLength;
@@ -286,21 +284,31 @@ function fallBehind(id: string, since: number) {
   behind.set(id, Math.max(since, behind.get(id) ?? 0));
 }
 
+/** A note that's behind catches up only with a whole copy sent after it fell behind. */
+function catchesUp(sent: { id: string; whole: boolean }, seq: number): boolean {
+  const since = behind.get(sent.id);
+  return since === undefined || (sent.whole && seq > since);
+}
+
 function tick() {
   const now = Date.now();
-  if (socket?.readyState === WebSocket.CONNECTING && now - tried > DeadAfter) drop();
-  else if (socket?.readyState === WebSocket.OPEN) {
-    // Hearing anything counts, because acks queue behind the messages before them. An upload under way isn't late.
-    const late =
-      socket.bufferedAmount === 0 &&
-      [...unacked.values()].some((sent) => now - Math.max(sent.at, lastHeard) > DeadAfter);
-    if (late || (pingSent && now - pingSent > DeadAfter)) drop();
-    else if (!pingSent && now - lastHeard > PingEvery) {
-      pingSent = now;
-      socket.send(Ping);
-    }
+  if (isDead(now)) drop();
+  else if (socket?.readyState === WebSocket.OPEN && !pingSent && now - lastHeard > PingEvery) {
+    pingSent = now;
+    socket.send(Ping);
   }
   report();
+}
+
+/** Still connecting, or open with a pong or an ack too late. */
+function isDead(now: number): boolean {
+  if (socket?.readyState === WebSocket.CONNECTING) return now - tried > DeadAfter;
+  if (socket?.readyState !== WebSocket.OPEN) return false;
+  if (pingSent && now - pingSent > DeadAfter) return true;
+  // Hearing anything counts, because acks queue behind the messages before them. An upload under way isn't late.
+  return (
+    socket.bufferedAmount === 0 && [...unacked.values()].some((sent) => now - Math.max(sent.at, lastHeard) > DeadAfter)
+  );
 }
 
 function report() {

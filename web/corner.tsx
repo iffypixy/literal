@@ -1,13 +1,14 @@
 import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import { MaxLength } from "#protocol.ts";
 import * as notes from "#web/notes/notes.ts";
 import { openPalette, palette } from "#web/palette/palette.tsx";
 import { account } from "#web/sync/account.ts";
-import { isTooLong, sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
+import { isTooLong, sync, type Problem as SyncProblem } from "#web/sync/sync.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { toast } from "#web/ui/toast.tsx";
 import { byPointer, hasKeyboard, touch } from "./device.ts";
-import { plural } from "./format.ts";
+import { number, plural } from "./format.ts";
 import { Shortcuts } from "./shortcuts.ts";
 import "./corner.css";
 
@@ -25,7 +26,10 @@ const Problems: Record<Problem, { label: string; explanation?: string }> = {
     explanation: "Notes are saved on this device and will sync when Literal connects",
   },
   "signed-out": { label: "Sign in to sync" },
-  "too-long": { label: "Too long to sync", explanation: tooLong() },
+  "too-long": {
+    label: "Too long to sync",
+    explanation: `Notes sync up to ${number(MaxLength)} characters, so split this one into shorter notes`,
+  },
 };
 
 type Props = {
