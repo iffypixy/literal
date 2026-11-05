@@ -38,10 +38,10 @@ function serviceWorker(): Plugin {
       const publicDir = here("web/public");
       for (const name of readdirSync(publicDir, { recursive: true, encoding: "utf8" })) {
         const path = join(publicDir, name);
-        // `_headers` is read by Cloudflare, not served.
-        if (name.startsWith("_") || !statSync(path).isFile()) continue;
-        files.push(url(name.replaceAll("\\", "/")));
+        if (!statSync(path).isFile()) continue;
+        // `_headers` isn't served, but the cached pages carry its headers, so a change to it is a new version too.
         hash.update(readFileSync(path));
+        if (!name.startsWith("_")) files.push(url(name.replaceAll("\\", "/")));
       }
       const source = readFileSync(here("web/sw.js"), "utf8")
         .replace('"__VERSION__"', JSON.stringify(hash.digest("hex").slice(0, 12)))
