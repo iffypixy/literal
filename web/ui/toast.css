@@ -1,9 +1,12 @@
+/* As tall as what's visible, like the editor and the palette, so a toast stays above a phone's keyboard. */
 .dock {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
+  inset: 0 0 auto;
+  box-sizing: border-box;
+  height: var(--viewport-height);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--edge));
   display: grid;
+  align-content: end;
   justify-items: center;
   pointer-events: none;
   z-index: 30;
@@ -11,7 +14,7 @@
   /* Above the phone sheet's footer, which is a control plus the gutter above and below. */
   @media (max-width: 640px) {
     body:has(.palette:not([hidden])) & {
-      bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 2 * var(--gutter) + var(--edge));
+      padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 2 * var(--gutter) + var(--edge));
     }
   }
 
