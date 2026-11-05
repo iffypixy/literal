@@ -50,7 +50,12 @@ export class UserNotes extends DurableObject<Env> {
     this.sql = ctx.storage.sql;
     // Answered without waking the object: devices ping to learn their connection is still alive.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
-    ctx.storage.transactionSync(() => {
+    this.setUp();
+  }
+
+  /** Creates the tables if they're missing, and reads what's kept in memory. */
+  private setUp() {
+    this.ctx.storage.transactionSync(() => {
       // Reading a note is slow, so it's read (compacted, and checked for deletion) once a day, or near a limit.
       // `checked_at`: the `updated_at` it was last read at. `deleted_at`: set to that same time if the read found it
       // deleted, so its 30 days run from the last write to it.
@@ -134,6 +139,8 @@ export class UserNotes extends DurableObject<Env> {
     for (const socket of this.openSockets()) socket.close(SignedOut, "account deleted");
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
+    // The object lives on: if deleting the account fails after this, it can still be signed in to.
+    this.setUp();
   }
 
   /** Sockets check their session only as they open: they'd otherwise go on syncing. */
@@ -233,8 +240,8 @@ export class UserNotes extends DurableObject<Env> {
 
   /**
    * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes; null if it can.
-   * A deleted note, kept 30 days so other devices hear of it, counts only toward the ceilings. So a delete always
-   * goes through and makes room, and so does any change that doesn't grow a note.
+   * A deleted note, kept 30 days so other devices hear of it, counts only toward the ceilings. So a delete goes
+   * through and makes room, and so does any change that doesn't grow a note, unless the account is at its ceiling.
    */
   private refusal(id: string, isNew: boolean, notes: number, before: number, note: Read): Refusal | null {
     if (notes >= MaxNotes) {
