@@ -1,23 +1,20 @@
 /** ⌘K: notes and commands, and the views they lead to. On a phone, a sheet from the bottom. */
 
-import { batch, createSignal, Match, Switch } from "solid-js";
+import { batch, createSignal, Match, Show, Switch } from "solid-js";
 import { createMutable } from "solid-js/store";
 import { hasKeyboard, reducedMotion, sheet } from "#web/device.ts";
-import { plural } from "#web/format.ts";
 import { leaveSheet, pushSheet } from "#web/history.ts";
-import { unsynced } from "#web/notes/notes.ts";
 import { pressed } from "#web/shortcuts.ts";
-import { deleteAccount, signOut } from "#web/sync/account.ts";
-import { drain, sync } from "#web/sync/sync.ts";
+import { deleteAccount } from "#web/sync/account.ts";
 import { exportAll } from "#web/transfer/transfer.ts";
 import { Button } from "#web/ui/button.tsx";
-import { toast } from "#web/ui/toast.tsx";
 import { About } from "./about.tsx";
 import { Confirm } from "./confirm.tsx";
 import { grab } from "./drag.ts";
 import { List } from "./list.tsx";
 import { KeyboardShortcuts } from "./shortcuts.tsx";
 import { SignIn } from "./sign-in.tsx";
+import { SignOut } from "./sign-out.tsx";
 import "./palette.css";
 
 export type View = "notes" | "sign-in" | "sign-out" | "delete" | "shortcuts" | "about";
@@ -41,9 +38,8 @@ let card!: HTMLDivElement;
 let host!: Props;
 
 const [view, setView] = createSignal<View>("notes");
-/** Open, or still sliding away. The list stays until it's gone. */
+/** Open, or still sliding away. What it shows stays until it's gone, and each opening starts afresh. */
 const [visible, setVisible] = createSignal(false);
-const [waiting, setWaiting] = createSignal(0);
 let focusSearch = true;
 let closedByPointer = false;
 
@@ -106,7 +102,6 @@ export function Palette(props: Props) {
   }
 
   function signedIn(email: string) {
-    setView("notes");
     closePalette(true);
     props.onSignedIn(email);
   }
@@ -132,61 +127,54 @@ export function Palette(props: Props) {
           <span />
         </button>
 
-        <Switch>
-          <Match when={view() === "notes" && visible()}>
-            <List
-              current={props.current}
-              previous={props.previous}
-              focus={focusSearch}
-              onPick={pick}
-              onDelete={props.onDelete}
-              onBlank={props.onBlank}
-              onView={setView}
-              close={closePalette}
-              onSignOut={() => void signOutOrAsk()}
-            />
-          </Match>
+        <Show when={visible()}>
+          <Switch>
+            <Match when={view() === "notes"}>
+              <List
+                current={props.current}
+                previous={props.previous}
+                focus={focusSearch}
+                onPick={pick}
+                onDelete={props.onDelete}
+                onBlank={props.onBlank}
+                onView={setView}
+                close={closePalette}
+              />
+            </Match>
 
-          <Match when={view() === "sign-in"}>
-            <SignIn onBack={showList} onDone={signedIn} />
-          </Match>
+            <Match when={view() === "sign-in"}>
+              <SignIn onBack={showList} onDone={signedIn} />
+            </Match>
 
-          <Match when={view() === "sign-out"}>
-            <Confirm
-              title={notSynced(waiting())}
-              action="Sign out anyway"
-              busy="Signing out…"
-              run={signOut}
-              onCancel={showList}
-            >
-              Signing out removes notes from this device. Changes that haven't synced will be lost.
-            </Confirm>
-          </Match>
+            <Match when={view() === "sign-out"}>
+              <SignOut onCancel={showList} />
+            </Match>
 
-          <Match when={view() === "delete"}>
-            <Confirm
-              title="Delete your account and all your notes?"
-              action="Delete account"
-              busy="Deleting…"
-              run={deleteAccount}
-              onCancel={showList}
-            >
-              Your notes will be erased from Literal and this device. This can't be undone.{" "}
-              <Button variant="link" onClick={exportAll}>
-                Export your notes
-              </Button>{" "}
-              first.
-            </Confirm>
-          </Match>
+            <Match when={view() === "delete"}>
+              <Confirm
+                title="Delete your account and all your notes?"
+                action="Delete account"
+                busy="Deleting…"
+                run={deleteAccount}
+                onCancel={showList}
+              >
+                Your notes will be erased from Literal and this device. This can't be undone.{" "}
+                <Button variant="link" onClick={exportAll}>
+                  Export your notes
+                </Button>{" "}
+                first.
+              </Confirm>
+            </Match>
 
-          <Match when={view() === "shortcuts"}>
-            <KeyboardShortcuts onBack={showList} />
-          </Match>
+            <Match when={view() === "shortcuts"}>
+              <KeyboardShortcuts onBack={showList} />
+            </Match>
 
-          <Match when={view() === "about"}>
-            <About onBack={showList} />
-          </Match>
-        </Switch>
+            <Match when={view() === "about"}>
+              <About onBack={showList} />
+            </Match>
+          </Switch>
+        </Show>
       </div>
     </div>
   );
@@ -215,18 +203,4 @@ function finish() {
 function showList() {
   focusSearch = hasKeyboard();
   setView("notes");
-}
-
-function notSynced(count: number): string {
-  if (!count) return "Some notes may not have synced yet";
-  return `${plural(count, "note")} ${count === 1 ? "hasn't" : "haven't"} synced yet`;
-}
-
-/** Signs out at once if everything is synced, and otherwise asks first. */
-async function signOutOrAsk() {
-  await drain();
-  setWaiting(await unsynced());
-  if (waiting() || sync.problem) return setView("sign-out");
-  const error = await signOut();
-  if (error) toast(error);
 }

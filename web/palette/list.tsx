@@ -30,7 +30,6 @@ type Props = {
   onBlank: () => void;
   onView: (view: View) => void;
   close: (pointer: boolean) => void;
-  onSignOut: () => void;
 };
 
 export function List(props: Props) {
@@ -57,7 +56,7 @@ export function List(props: Props) {
       },
     },
     sync: { label: "Sync across devices", run: () => props.onView("sign-in") },
-    signOut: { label: "Sign out", run: () => props.onSignOut() },
+    signOut: { label: "Sign out", run: () => props.onView("sign-out") },
     deleteAccount: { label: "Delete account", danger: true, run: () => props.onView("delete") },
     shortcuts: { label: "Keyboard shortcuts", run: () => props.onView("shortcuts") },
     about: { label: "About Literal", run: () => props.onView("about") },

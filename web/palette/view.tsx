@@ -8,7 +8,7 @@ type Props = {
   onBack?: () => void;
   class?: string;
   onKeyDown?: (event: KeyboardEvent) => void;
-  children: JSX.Element;
+  children?: JSX.Element;
 };
 
 /**
