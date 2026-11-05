@@ -3,14 +3,15 @@ import type * as Y from "yjs";
 import { isNoteId } from "#protocol.ts";
 import { Editor, type EditorApi } from "#web/editor/editor.tsx";
 import * as notes from "#web/notes/notes.ts";
-import { prepare, quoted, shorten, title } from "#web/notes/search.ts";
+import { prepare, shorten, title } from "#web/notes/search.ts";
 import { closePalette, Palette, palette, togglePalette } from "#web/palette/palette.tsx";
 import { account, farewell, onSignInElsewhere, session, signedIn } from "#web/sync/account.ts";
 import { startSync } from "#web/sync/sync.ts";
-import { dismiss, runAction, toast, Toasts } from "#web/ui/toast.tsx";
+import { toast, Toasts } from "#web/ui/toast.tsx";
 import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
-import { hasKeyboard, touch } from "./device.ts";
+import { deleteNote } from "./delete.ts";
+import { hasKeyboard } from "./device.ts";
 import { Drop } from "./drop.tsx";
 import { isOnSheet, leaveSheet, navigate, onBack, type Step } from "./history.ts";
 import { pressed, Shortcuts } from "./shortcuts.ts";
@@ -28,10 +29,6 @@ export function App() {
   const [opening, setOpening] = createSignal(false);
   /** A later call to `go` wins, so a note that loads after it is dropped. */
   let lastGo = 0;
-  /** A note was just deleted and nothing typed since, so ⌘Z undoes the delete, wherever the cursor is. */
-  let undoable = false;
-  /** Notes deleted while the current toast shows. One Undo brings them all back. */
-  let deleted: { id: string; wasOpen: boolean }[] = [];
 
   const current = () => note()?.id ?? null;
 
@@ -133,56 +130,19 @@ export function App() {
   }
 
   function onDelete(id: string) {
-    // Named, since Delete acts on whichever row is highlighted, which may not be the note you're in.
-    const name = quoted(notes.find(id)?.text ?? "");
-    void notes.remove(id);
     const wasOpen = id === current();
     if (wasOpen) {
       setNote(null);
       // On the sheet, the address changes later, once Back has left the sheet's step.
       if (!isOnSheet()) navigate("/", "replace");
     }
-    // Deletes in a row share one toast, so the earlier ones keep their Undo.
-    if (deleted.length) dismiss();
-    deleted.push({ id, wasOpen });
-    const batch = deleted;
-    toast(batch.length > 1 ? `Deleted ${batch.length} notes` : name ? `Deleted ${name}` : "Deleted", {
-      action: {
-        label: "Undo",
-        keys: touch.matches ? undefined : Shortcuts.undo,
-        run: () => {
-          deleted = [];
-          undoable = false;
-          void Promise.all(batch.map((note) => notes.restore(note.id))).then(() => {
-            // Undo puts you back where you were: in the note, if you were in it.
-            const open = batch.find((note) => note.wasOpen);
-            if (open && current() === null) void go(open.id, "replace");
-          });
-        },
-      },
-      onExpire: () => {
-        deleted = [];
-        undoable = false;
-        for (const note of batch) notes.settle(note.id);
-      },
+    // Undo puts you back where you were: in the note, if you were in it.
+    deleteNote(id, () => {
+      if (wasOpen && current() === null) void go(id, "replace");
     });
-    // Set after the toast, because showing it expires the last one, which clears this.
-    undoable = true;
   }
 
   // The app lives as long as the page, and so do these listeners.
-
-  // Captured, so right after a delete ⌘Z reaches the note before the editor's own undo does.
-  addEventListener(
-    "keydown",
-    (event) => {
-      if (!undoable || !pressed(event, Shortcuts.undo)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      runAction();
-    },
-    true,
-  );
 
   addEventListener("keydown", (event) => {
     if (pressed(event, Shortcuts.notes)) {
@@ -205,8 +165,6 @@ export function App() {
       editor.focus();
     }
   });
-
-  addEventListener("input", () => (undoable = false));
 
   onBack((fromSheet) => {
     closePalette(true);
