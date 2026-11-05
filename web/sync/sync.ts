@@ -52,10 +52,10 @@ let pingSent = 0;
 /** Messages are handled one at a time, in order: each may wait on disk. */
 let chain = Promise.resolve();
 /** Each refusal is explained once, not once for every change the server turns away. */
-const told = new Set<string>();
+const explained = new Set<string>();
 
 /** Called again after a sign-in, it starts over on a new connection, since the old one may belong to another session. */
-export function start() {
+export function startSync() {
   signedOut = false;
   if (running) {
     drop();
@@ -190,8 +190,8 @@ async function handle(ws: WebSocket, message: Message) {
       if (sent) fallBehind(sent.id, message.seq);
       // The note's own limit is said for each note; the account's, once.
       const about = message.reason === "too-large" ? (sent?.id ?? message.reason) : message.reason;
-      if (told.has(about)) break;
-      told.add(about);
+      if (explained.has(about)) break;
+      explained.add(about);
       const name = sent ? quoted(notes.find(sent.id)?.text ?? "") : "";
       if (message.reason === "too-many") toast(`Sync stops at ${number(MaxNotes)} notes, so delete some to make room`);
       else if (message.reason === "too-full")
@@ -200,7 +200,7 @@ async function handle(ws: WebSocket, message: Message) {
       break;
     }
     case "purge":
-      for (const id of message.ids) await notes.forgotten(id);
+      for (const id of message.ids) await notes.purged(id);
       break;
     case "hello":
       throw new Error("sync: the server said hello");

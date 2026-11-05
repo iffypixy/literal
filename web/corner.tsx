@@ -1,6 +1,6 @@
 import { createEffect, createMemo, on, Show } from "solid-js";
 import { MaxLength } from "#protocol.ts";
-import { length, library, list } from "#web/notes/notes.ts";
+import * as notes from "#web/notes/notes.ts";
 import { openPalette, palette, togglePalette } from "#web/palette/palette.tsx";
 import { account } from "#web/sync/account.ts";
 import { sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
@@ -39,16 +39,18 @@ type Props = {
 };
 
 export function Corner(props: Props) {
-  const tooLongHere = createMemo(() => Boolean(account.email && props.current && length(props.current) > MaxLength));
+  const tooLongHere = createMemo(() =>
+    Boolean(account.email && props.current && notes.length(props.current) > MaxLength),
+  );
   const problem = (): Problem | null =>
-    library.failed ? "cant-save" : (sync.problem ?? (tooLongHere() ? "too-long" : null));
+    notes.library.failed ? "cant-save" : (sync.problem ?? (tooLongHere() ? "too-long" : null));
   const problemLabel = () => {
     const shown = problem();
     return shown ? Problems[shown].label : "";
   };
-  const calm = createMemo(() => {
+  const summary = createMemo(() => {
     if (props.current) return "Saved";
-    const live = library.ready ? list().length : 0;
+    const live = notes.library.ready ? notes.list().length : 0;
     return live ? plural(live, "note") : "";
   });
 
@@ -74,7 +76,7 @@ export function Corner(props: Props) {
   return (
     <>
       <div class="corner" classList={{ away: props.away }} inert={palette.open}>
-        <Show when={problemLabel() || calm()}>
+        <Show when={problemLabel() || summary()}>
           {(label) => (
             <button class="status quiet" classList={{ problem: Boolean(problem()) }} onClick={explain}>
               {label()}

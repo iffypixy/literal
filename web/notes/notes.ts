@@ -262,7 +262,7 @@ export async function receive(id: string, update: Uint8Array) {
  * The server has erased the note, deleted long ago. Words written here that never reached it live on, as a note
  * of their own: made by one tab only, so they live on once.
  */
-export async function forgotten(id: string) {
+export async function purged(id: string) {
   await navigator.locks.request(`forget ${id}`, async () => {
     const doc = await load(id);
     const row = await get(await db, "notes", id);

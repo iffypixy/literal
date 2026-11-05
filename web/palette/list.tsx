@@ -1,7 +1,8 @@
 import { batch, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Apple, Fragile, reducedMotion, touch } from "#web/device.ts";
 import { ago } from "#web/format.ts";
-import { library, list, type Note } from "#web/notes/notes.ts";
+import * as notes from "#web/notes/notes.ts";
+import type { Note } from "#web/notes/notes.ts";
 import { describe, markStarts, parse, search, startsWords, type Segment } from "#web/notes/search.ts";
 import { pressed, Shortcuts } from "#web/shortcuts.ts";
 import { account } from "#web/sync/account.ts";
@@ -83,7 +84,7 @@ export function List(props: Props) {
   const commandsFound = createMemo(() =>
     words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
-  const results = createMemo(() => search(list(), words()));
+  const results = createMemo(() => search(notes.list(), words()));
   const shown = createMemo(() => results().slice(0, limit()));
   const entries = createMemo<(Action | Note)[]>(() => [...commandsFound(), ...shown()]);
   /**
@@ -304,7 +305,9 @@ export function List(props: Props) {
       </div>
 
       {/* Signed in on a device still waiting for its notes, "No notes yet" would look like they were lost. */}
-      <Show when={library.ready && !entries().length && (words().length || !account.email || library.synced)}>
+      <Show
+        when={notes.library.ready && !entries().length && (words().length || !account.email || notes.library.synced)}
+      >
         <p class="empty">{words().length ? "No matches" : "No notes yet"}</p>
       </Show>
 

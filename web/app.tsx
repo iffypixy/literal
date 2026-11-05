@@ -2,24 +2,11 @@ import { createEffect, createSignal, onMount } from "solid-js";
 import type * as Y from "yjs";
 import { isNoteId } from "#protocol.ts";
 import { Editor, type EditorApi } from "#web/editor/editor.tsx";
-import {
-  create,
-  discardIfEmpty,
-  exists,
-  find,
-  flush,
-  list,
-  open,
-  remove,
-  rescue,
-  restore,
-  settle,
-  start,
-} from "#web/notes/notes.ts";
+import * as notes from "#web/notes/notes.ts";
 import { prepare, quoted, shorten, title } from "#web/notes/search.ts";
 import { closePalette, Palette, palette, togglePalette } from "#web/palette/palette.tsx";
 import { account, farewell, onSignInElsewhere, session, signedIn } from "#web/sync/account.ts";
-import { start as startSync } from "#web/sync/sync.ts";
+import { startSync } from "#web/sync/sync.ts";
 import { dismiss, runAction, toast, Toasts } from "#web/ui/toast.tsx";
 import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
@@ -42,8 +29,8 @@ export function App() {
   const [opening, setOpening] = createSignal(false);
   /** Typing with a mouse at hand: the corner's buttons step aside. */
   const [typing, setTyping] = createSignal(false);
-  /** Counts calls to `go`: a note that opens after a later call has nothing more to do. */
-  let goes = 0;
+  /** A later call to `go` wins: a note that opens after it has nothing more to do. */
+  let lastGo = 0;
   /** A note was just deleted, and nothing typed since: ⌘Z means the note, wherever the cursor is. */
   let undoable = false;
   /** Notes deleted under the toast now showing: one Undo brings them all back. */
@@ -53,20 +40,20 @@ export function App() {
 
   createEffect(() => {
     const id = current();
-    const name = id ? shorten(title(find(id)?.text ?? ""), TitleShown) : "";
+    const name = id ? shorten(title(notes.find(id)?.text ?? ""), TitleShown) : "";
     document.title = name ? `${name} — Literal` : "Literal";
   });
 
   // A note erased while open, by the server or another tab, leaves a blank page behind.
   createEffect(() => {
     const id = current();
-    if (id && !exists(id)) void go(null, "replace");
+    if (id && !notes.exists(id)) void go(null, "replace");
   });
 
   onMount(() => {
     const said = farewell();
     if (said) toast(said);
-    void start().then(() => prepare(list()));
+    void notes.start().then(() => prepare(notes.list()));
     // "replace": an address that isn't a note becomes the blank page's own.
     void go(idFrom(location.pathname), "replace");
     if (account.email) startSync();
@@ -94,7 +81,7 @@ export function App() {
    * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
    */
   async function go(id: string | null, how: Step, focus = !touch.matches) {
-    const turn = ++goes;
+    const thisGo = ++lastGo;
     setOpening(false);
     if (id !== null && id === current()) {
       if (focus) editor.focus();
@@ -111,11 +98,11 @@ export function App() {
       return;
     }
     setOpening(true);
-    const text = await open(id).catch((error: unknown) => {
+    const text = await notes.open(id).catch((error: unknown) => {
       console.error(error);
       return undefined;
     });
-    if (turn !== goes) return;
+    if (thisGo !== lastGo) return;
     setOpening(false);
     if (text === undefined) {
       toast("Couldn't open this note, please try again");
@@ -135,11 +122,11 @@ export function App() {
     const id = current();
     if (!id) return;
     remember(id, editor.position());
-    discardIfEmpty(id);
+    notes.discardIfEmpty(id);
   }
 
   function onCreate() {
-    const created = create();
+    const created = notes.create();
     setNote(created);
     navigate(`/${created.id}`, "replace");
   }
@@ -151,8 +138,8 @@ export function App() {
 
   function onDelete(id: string) {
     // Named, so it's clear which one went: Delete acts on whichever row is highlighted.
-    const name = quoted(find(id)?.text ?? "");
-    void remove(id);
+    const name = quoted(notes.find(id)?.text ?? "");
+    void notes.remove(id);
     const wasOpen = id === current();
     if (wasOpen) {
       setNote(null);
@@ -170,7 +157,7 @@ export function App() {
         run: () => {
           deleted = [];
           undoable = false;
-          void Promise.all(batch.map((note) => restore(note.id))).then(() => {
+          void Promise.all(batch.map((note) => notes.restore(note.id))).then(() => {
             // Undo puts you back where you were: in the note, if you were in it.
             const open = batch.find((note) => note.wasOpen);
             if (open && current() === null) void go(open.id, "replace");
@@ -180,7 +167,7 @@ export function App() {
       onExpire: () => {
         deleted = [];
         undoable = false;
-        for (const note of batch) settle(note.id);
+        for (const note of batch) notes.settle(note.id);
       },
     });
     // After the toast: showing it ends the last one, whose expiry clears this.
@@ -238,15 +225,15 @@ export function App() {
     const id = current();
     if (event.persisted && id) remember(id, editor.position());
     else leave();
-    rescue();
-    void flush();
+    notes.rescue();
+    void notes.flush();
   });
 
   // A phone may close a hidden page without warning: save, and keep a copy that's written at once.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) return;
-    rescue();
-    void flush();
+    notes.rescue();
+    void notes.flush();
   });
 
   return (

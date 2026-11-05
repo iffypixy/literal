@@ -1,6 +1,6 @@
 import { MaxLength } from "#protocol.ts";
 import { number, plural } from "#web/format.ts";
-import { add, list } from "#web/notes/notes.ts";
+import * as notes from "#web/notes/notes.ts";
 import { title } from "#web/notes/search.ts";
 import { attempt } from "#web/safe.ts";
 import { toast } from "#web/ui/toast.tsx";
@@ -11,12 +11,13 @@ const MaxFiles = 500;
 const MaxSize = 3 + 3 * MaxLength;
 
 export function exportAll() {
-  if (!list().length) {
+  const all = notes.list();
+  if (!all.length) {
     toast("No notes to export");
     return;
   }
   const taken = new Set<string>();
-  const entries: Entry[] = list().map((note) => {
+  const entries: Entry[] = all.map((note) => {
     const base = fileName(title(note.text));
     let name = `${base}.txt`;
     for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} (${n}).txt`;
@@ -44,7 +45,7 @@ export async function importFiles(files: File[]) {
     const text = attempt(() => decoder.decode(bytes), null)?.replace(/\r\n?/g, "\n");
     // Not UTF-8, blank, or too long to sync, it counts as skipped.
     if (!text?.trim() || text.length > MaxLength) continue;
-    add(text, file.lastModified || Date.now());
+    notes.add(text, file.lastModified || Date.now());
     imported++;
   }
   const skipped = files.length - imported;
