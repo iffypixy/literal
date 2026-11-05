@@ -14,7 +14,7 @@ import { deleteNote } from "./delete.ts";
 import { hasKeyboard } from "./device.ts";
 import { Drop } from "./drop.tsx";
 import { isOnSheet, leaveSheet, navigate, onBack, type Step } from "./history.ts";
-import { pressed, Shortcuts } from "./shortcuts.ts";
+import { pressed, Shortcuts, typesText } from "./shortcuts.ts";
 import { stayUpToDate } from "./update.ts";
 
 const TitleShown = 60;
@@ -114,6 +114,7 @@ export function App() {
   }
 
   function goBlank() {
+    // The blank page takes the sheet's step in history.
     closePalette(false, true);
     void go(null, "push");
   }
@@ -141,15 +142,7 @@ export function App() {
       // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
       goBlank();
-    } else if (
-      !palette.open &&
-      !opening() &&
-      document.activeElement === document.body &&
-      event.key.length === 1 &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      !event.altKey
-    ) {
+    } else if (!palette.open && !opening() && document.activeElement === document.body && typesText(event)) {
       // With nothing focused (after Esc, or a click on a toast that's gone), typing still goes into the note.
       editor.focus();
     }

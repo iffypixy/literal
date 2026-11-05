@@ -20,6 +20,7 @@ export function caps(keys: string): string[] {
   return keys.split("+").map((key) => Labels[key] ?? key);
 }
 
+/** As aria-keyshortcuts spells them, like "Meta+K". */
 export function aria(keys: string): string {
   return keys.replace("Mod", Apple ? "Meta" : "Control");
 }
@@ -45,4 +46,9 @@ export function pressed(event: KeyboardEvent, keys: string): boolean {
   if (key.length > 1) return event.key === key;
   if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === key.toLowerCase();
   return event.code === `Key${key}`;
+}
+
+/** A key that types a character, not a shortcut, and not a key like Enter or Tab. */
+export function typesText(event: KeyboardEvent): boolean {
+  return event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
 }
