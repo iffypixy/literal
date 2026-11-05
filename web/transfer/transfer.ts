@@ -57,8 +57,8 @@ export async function importFiles(files: File[]) {
 }
 
 /** Safe as a file name on every system. */
-function fileName(title: string): string {
-  const safe = title
+function fileName(name: string): string {
+  const safe = name
     .replace(/[/\\:*?"<>|\u0000-\u001f]/g, "")
     .replace(/\s+/g, " ")
     .trim();

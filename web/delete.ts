@@ -27,14 +27,14 @@ export function deleteNote(id: string, reopen: () => void) {
       label: "Undo",
       keys: Shortcuts.undo,
       run: () => {
-        settled();
+        endBatch();
         void Promise.all(batch.map((note) => notes.restore(note.id))).then(() => {
           for (const note of batch) note.reopen();
         });
       },
     },
     onExpire: () => {
-      settled();
+      endBatch();
       for (const note of batch) notes.settle(note.id);
     },
   });
@@ -42,7 +42,7 @@ export function deleteNote(id: string, reopen: () => void) {
   undoable = true;
 }
 
-function settled() {
+function endBatch() {
   deleted = [];
   undoable = false;
 }

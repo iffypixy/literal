@@ -1,6 +1,6 @@
 import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import { plural } from "#web/format.ts";
-import { unsynced } from "#web/notes/notes.ts";
+import * as notes from "#web/notes/notes.ts";
 import { signOut } from "#web/sync/account.ts";
 import { drain, sync } from "#web/sync/sync.ts";
 import { toast } from "#web/ui/toast.tsx";
@@ -18,7 +18,7 @@ export function SignOut(props: { onCancel: () => void }) {
 
   async function start() {
     await drain();
-    const count = await unsynced();
+    const count = await notes.unsynced();
     // Gone back meanwhile, which means not to.
     if (left) return;
     if (count || sync.problem) return setUnsent(count);

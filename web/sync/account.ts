@@ -4,7 +4,7 @@
  */
 
 import { createMutable } from "solid-js/store";
-import { wipe } from "#web/notes/notes.ts";
+import * as notes from "#web/notes/notes.ts";
 import { isRecord } from "#web/safe.ts";
 import * as storage from "#web/storage.ts";
 
@@ -106,7 +106,7 @@ export async function deleteAccount(): Promise<string | null> {
 
 /** Erases every trace of the account on this device and starts over. */
 async function forget(farewell: string) {
-  await wipe();
+  await notes.wipe();
   storage.clear();
   // Without storage it goes unsaid; the empty page still shows what happened.
   storage.write(FarewellKey, farewell);
