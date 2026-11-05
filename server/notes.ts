@@ -3,8 +3,7 @@ import * as Y from "yjs";
 import {
   decode,
   encode,
-  isDeleted,
-  lastEdited,
+  isDocDeleted,
   MaxBytes,
   MaxNotes,
   SignedOut,
@@ -298,9 +297,8 @@ type Read = { state: Uint8Array; deleted: boolean };
 function read(state: Uint8Array): Read {
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
-  const meta = doc.getMap<number>("meta");
   // The note's own times say whether it's deleted. The server's clock says only for how long.
-  const deleted = isDeleted(meta.get("deletedAt"), lastEdited(doc));
+  const deleted = isDocDeleted(doc);
   const compacted = Y.encodeStateAsUpdate(doc);
   doc.destroy();
   return { state: compacted, deleted };

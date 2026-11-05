@@ -1,5 +1,6 @@
 /**
- * The sync protocol: binary messages over one WebSocket between a device and the user's Durable Object.
+ * What a device and the server share, above all the sync protocol: binary messages over one WebSocket between a
+ * device and the user's Durable Object.
  *
  * 1. The device says `hello`: when it last caught up (`since`, in server time), and for every note it has, its
  *    Yjs state vector and whether it has changes the server hasn't acked (`dirty`).
@@ -9,6 +10,7 @@
  * 3. From then on, both sides send `update`s: the server as they arrive, the device once typing pauses. The server
  *    stores each one, then `ack`s it.
  */
+
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import type * as Y from "yjs";
@@ -162,14 +164,28 @@ function readBoolean(input: decoding.Decoder): boolean {
   return byte === 1;
 }
 
-/** 10 characters of lowercase Crockford base32, so nothing else ever becomes a key in storage. */
+/** Lowercase Crockford base32: no letter passes for a digit, and 32 divides 256, so a random byte picks one fairly. */
+const IdAlphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+const IdPattern = new RegExp(`^[${IdAlphabet}]{10}$`);
+
+/** 10 random characters, 50 bits. */
+export function newId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (byte) => IdAlphabet[byte & 31]).join("");
+}
+
+/** Only ever what `newId` makes, so nothing else becomes a key in storage. */
 export function isNoteId(id: string): boolean {
-  return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id);
+  return IdPattern.test(id);
 }
 
 /** Decided by a note's own times, the same on every device and the server. An edit after a delete brings it back. */
 export function isDeleted(deletedAt: number | null | undefined, editedAt: number): boolean {
   return typeof deletedAt === "number" && deletedAt >= editedAt;
+}
+
+/** From the doc's own times alone, since reading its text would copy all of it. */
+export function isDocDeleted(doc: Y.Doc): boolean {
+  return isDeleted(doc.getMap<number>("meta").get("deletedAt"), lastEdited(doc));
 }
 
 /**
