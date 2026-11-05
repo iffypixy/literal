@@ -8,8 +8,10 @@
   gap: 2px;
   z-index: 10;
 
+  /* Under a finger, the buttons are wide enough to hold the ink 16px in on their own. */
   @media (pointer: coarse) {
     --icon-size: 20px;
+    right: env(safe-area-inset-right, 0px);
   }
 
   /*

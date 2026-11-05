@@ -8,10 +8,10 @@
   pointer-events: none;
   z-index: 30;
 
-  /* Above the phone sheet's footer, which is a control plus 4px above and below. */
+  /* Above the phone sheet's footer, which is a control plus the gutter above and below. */
   @media (max-width: 640px) {
     body:has(.palette:not([hidden])) & {
-      bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 8px + var(--edge));
+      bottom: calc(env(safe-area-inset-bottom, 0px) + var(--control) + 2 * var(--gutter) + var(--edge));
     }
   }
 

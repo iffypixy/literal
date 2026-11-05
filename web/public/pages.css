@@ -6,17 +6,9 @@ body {
   padding: var(--edge) var(--edge) 4lh;
 }
 
-h1,
-h2,
 p,
 ul {
   margin: 0 0 1lh;
-  font: inherit;
-}
-
-h1,
-h2 {
-  margin-bottom: 0;
 }
 
 p,
@@ -27,15 +19,4 @@ li {
 ul {
   padding-left: 2ch;
   list-style: "- ";
-}
-
-strong {
-  color: var(--text);
-  font-weight: 400;
-}
-
-.back {
-  display: block;
-  width: fit-content;
-  margin-bottom: 1lh;
 }

@@ -9,7 +9,7 @@
   display: flex;
   flex-direction: column;
   min-width: 180px;
-  padding: calc(var(--edge) - var(--inset));
+  padding: var(--gutter);
   transform-origin: bottom right;
   animation: pop var(--fade) var(--ease-out);
 

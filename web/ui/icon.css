@@ -16,7 +16,7 @@
 
   /* Close to the weight of the text beside it, whatever size it's drawn at. */
   & path {
-    stroke-width: var(--stroke);
+    stroke-width: 1.35px;
     vector-effect: non-scaling-stroke;
   }
 

@@ -7,8 +7,6 @@
   }
 
   & .lead strong {
-    font-weight: 400;
-    color: var(--text);
     overflow-wrap: anywhere;
   }
 
@@ -25,15 +23,6 @@
     border: 1px solid var(--field);
     border-radius: var(--radius-small);
     background: var(--bg);
-    outline: none;
-    transition:
-      border-color var(--press) ease,
-      box-shadow var(--press) ease;
-  }
-
-  & input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 1px var(--accent);
   }
 
   /* Letter-spacing adds space after every digit, the last one too, so the same on the left keeps them centered. */
@@ -41,15 +30,10 @@
     text-align: center;
     letter-spacing: 0.4em;
     padding: 0 var(--inset) 0 calc(var(--inset) + 0.4em);
-    font-variant-numeric: tabular-nums;
   }
 
   & .code.wrong {
     border-color: var(--danger);
-  }
-
-  & .note {
-    margin: var(--group) 0 0;
   }
 
   & .fine {
@@ -60,6 +44,5 @@
     display: flex;
     flex-wrap: wrap;
     gap: 1ch;
-    margin: var(--group) 0 0;
   }
 }

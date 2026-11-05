@@ -1,7 +1,7 @@
 .list {
   display: contents;
 
-  /* The search above and the footer below are the same height, a control's plus 4px above and below. */
+  /* The search above and the footer below are the same height, a control's plus the gutter above and below. */
   & .search {
     display: flex;
     align-items: center;
@@ -12,7 +12,7 @@
   & .search input {
     flex: 1;
     min-width: 0;
-    padding: calc(var(--control-padding) + 4px) 0;
+    padding: calc(var(--control-padding) + var(--gutter)) 0;
     border: 0;
     outline: 0;
     background: transparent;
@@ -22,7 +22,7 @@
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: calc(var(--edge) - var(--inset));
+    padding: var(--gutter);
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
@@ -41,7 +41,7 @@
     inset: 0;
     align-items: center;
     justify-content: flex-end;
-    padding: 0 var(--edge);
+    padding: 0 var(--inset);
     background: var(--danger);
     color: var(--surface);
   }
@@ -50,7 +50,7 @@
     display: flex;
   }
 
-  /* A row is a control's height, with its text on the palette's 16px edge (the list's 4px gutter, then 12px). */
+  /* A row is a control's height, with its text on the palette's edge (the list's gutter, then its inset). */
   & .row {
     position: relative;
     padding: var(--control-padding) var(--inset);
@@ -62,7 +62,7 @@
   }
 
   & .rows[data-highlighted] [aria-selected="true"] .row {
-    background: color-mix(in srgb, var(--text) 6%, var(--surface));
+    background: linear-gradient(var(--hover), var(--hover)) var(--surface);
   }
 
   /* The wash alone (1.13:1) is too faint to find, so the accent's edge marks the row. */
@@ -90,7 +90,6 @@
   & .time {
     flex: none;
     color: var(--muted);
-    font-variant-numeric: tabular-nums;
   }
 
   & .snippet {
@@ -140,7 +139,7 @@
   /* Where the first row's text would be. */
   & .empty {
     margin: 0;
-    padding: calc(var(--edge) - var(--inset) + var(--control-padding)) var(--edge);
+    padding: calc(var(--gutter) + var(--control-padding)) var(--edge);
     color: var(--muted);
   }
 
@@ -150,7 +149,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 2ch;
-    padding: 4px 6px 4px var(--edge);
+    padding: var(--gutter) 6px var(--gutter) var(--edge);
     border-top: 1px solid var(--line);
     color: var(--muted);
   }

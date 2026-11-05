@@ -23,12 +23,12 @@
   --hover: color-mix(in srgb, var(--text) 6%, transparent);
   --scrim: color-mix(in srgb, var(--bg) 80%, transparent);
   --shadow: 0 0 0 1px rgb(0 0 0 / 0.07), 0 4px 16px rgb(0 0 0 / 0.06);
-  --stroke: 1.35px;
 
   /*
    * One scale for the whole app. Text starts 16px from the edge of whatever holds it. 2px ties a line to the line
    * explaining it; 6px separates things in a group; 16px separates groups. Every control is 32px tall, 44px under a
-   * finger, with its text 12px from its sides. On a line, 1ch sits between a label and its keys, 2ch between things.
+   * finger, with its text 12px from its sides. A list's rows sit 4px in, so their text is on the edge. On a line, 1ch
+   * sits between a label and its keys, 2ch between things.
    */
   --edge: 16px;
   --pair: 2px;
@@ -36,6 +36,7 @@
   --group: 16px;
   --control: 32px;
   --inset: 12px;
+  --gutter: calc(var(--edge) - var(--inset));
   /* The padding that makes one line of text a control's height. */
   --control-padding: calc((var(--control) - 1lh) / 2);
   /* 3px on things that hold others, 2px on the rest. */
@@ -79,6 +80,14 @@
     --shadow: 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 16px rgb(0 0 0 / 0.4);
     --selection: color-mix(in srgb, var(--accent) 32%, transparent);
     color-scheme: dark;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --faint: var(--muted);
+    --line: var(--field);
+    --highlight: color-mix(in srgb, var(--text) 28%, transparent);
   }
 }
 
@@ -133,9 +142,15 @@ textarea {
   opacity: 1;
 }
 
+h1,
 h2 {
   margin: 0;
   font: inherit;
+}
+
+strong {
+  color: var(--text);
+  font-weight: 400;
 }
 
 a,
@@ -159,8 +174,6 @@ a,
   outline: 0;
   resize: none;
   background: transparent;
-  color: var(--text);
-  font: inherit;
   tab-size: 4;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -171,35 +184,26 @@ a,
 }
 
 /*
- * On a phone the buttons are always there, so the text starts under them. The room below follows the visible height,
- * so with the keyboard up the line being typed stays above it. iOS zooms into any field under 16px. And a finger
- * needs more than a line of text to aim at, so inline actions reach 44px tall without moving anything.
+ * On a phone text is at least 16px, since iOS zooms into any field smaller. The buttons are always there, so the text
+ * starts a control's height lower, under them. The room below follows the visible height, so with the keyboard up the
+ * line being typed stays above it. And a finger needs more than a line of text to aim at, so inline actions reach a
+ * control's height without moving anything.
  */
 @media (pointer: coarse) {
-  .editor {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height));
-    font-size: 16px;
+  html {
+    font-size: max(1rem, 16px);
   }
 
-  input,
-  textarea {
-    font-size: max(1rem, 16px);
+  .editor {
+    padding-top: calc(env(safe-area-inset-top, 0px) + var(--edge) + var(--control));
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height));
   }
 
   a,
   .link {
     display: inline-block;
-    padding: 12px 0;
-    margin: -12px 0;
-  }
-}
-
-@media (prefers-contrast: more) {
-  :root {
-    --faint: var(--muted);
-    --line: var(--field);
-    --highlight: color-mix(in srgb, var(--text) 28%, transparent);
+    padding: var(--control-padding) 0;
+    margin: calc(-1 * var(--control-padding)) 0;
   }
 }
 
@@ -216,7 +220,7 @@ a,
   }
 }
 
-/* A control drawn as just its text or icon. Muted, washed on hover, and pressed in on a click or tap. */
+/* A control drawn as just its text or icon. Muted, and washed on hover. */
 .quiet {
   border-radius: var(--radius-small);
   color: var(--muted);
@@ -226,16 +230,17 @@ a,
     background-color var(--press) ease,
     transform var(--press) var(--ease-out);
 
-  &:active:not(:disabled) {
-    transform: scale(0.97);
-  }
-
   @media (hover: hover) and (pointer: fine) {
     &:hover {
       color: var(--text);
       background: var(--hover);
     }
   }
+}
+
+/* A button, bordered or quiet, presses in on a click or tap. */
+:is(.button, .quiet):active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 /* One line, cut with "…". */
