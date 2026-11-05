@@ -52,10 +52,11 @@ export function swipe(row: HTMLElement, onSwiped: () => void) {
 
   row.addEventListener("pointerdown", (event) => {
     // One finger at a time: a second one can't take over the swipe.
-    if (event.pointerType !== "touch" || start) return;
+    if (start) return;
+    dx = 0;
+    if (event.pointerType !== "touch") return;
     start = { x: event.clientX, y: event.clientY, id: event.pointerId };
     dragging = false;
-    dx = 0;
     recent.reset(event.clientX, event.timeStamp);
   });
 
@@ -98,7 +99,7 @@ export function swipe(row: HTMLElement, onSwiped: () => void) {
   row.addEventListener("pointerup", up);
   row.addEventListener("pointercancel", up);
   // A swipe ends with a click on the row; it shouldn't open the note.
-  row.addEventListener("click", (event) => row.style.transform && event.stopPropagation(), true);
+  row.addEventListener("click", (event) => Math.abs(dx) > 8 && event.stopPropagation(), true);
 }
 
 /** How fast a finger moved over its last tenth of a second: a flick at the end counts, a slow start doesn't. */
