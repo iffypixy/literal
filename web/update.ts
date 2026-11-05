@@ -27,7 +27,7 @@ export function stayUpToDate(busy: () => boolean) {
     ready = true;
     takeOver();
   });
-  // Safe whichever listener runs first, since reloading fires pagehide, where App saves everything.
+  // Safe whichever listener runs first, since reloading fires pagehide, where the notes save themselves.
   document.addEventListener("visibilitychange", takeOver);
 
   function takeOver() {

@@ -87,6 +87,10 @@ const db = openDb((event) => {
 });
 const channel = new BroadcastChannel("literal");
 
+// A phone may close a hidden page without warning, so the notes save now and keep a copy that's written at once.
+addEventListener("pagehide", saveNow);
+document.addEventListener("visibilitychange", () => document.hidden && saveNow());
+
 channel.onmessage = ({ data }: MessageEvent<unknown>) => {
   const message = parseMessage(data);
   if (message.type === "note") {
@@ -202,13 +206,18 @@ export async function flush() {
 }
 
 /** As the page goes away, keeps every unsaved change somewhere that's written at once, until the next start. */
-export function rescue() {
+function rescue() {
   if (wiped) return;
   for (const [id, entry] of entries) {
     if (!entry.doc || !isWriting(entry)) continue;
     // Without storage, the IndexedDB save started alongside is all there is.
     if (!rescued.keep(id, Y.encodeStateAsUpdate(entry.doc))) console.error(`rescue ${id}: no storage`);
   }
+}
+
+function saveNow() {
+  rescue();
+  void flush();
 }
 
 /** Erases every note on this device. Deleting the database sends every other tab back to the start. */

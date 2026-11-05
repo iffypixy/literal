@@ -17,6 +17,7 @@ import { number } from "#web/format.ts";
 import * as notes from "#web/notes/notes.ts";
 import { quoted } from "#web/notes/search.ts";
 import { toast } from "#web/ui/toast.tsx";
+import { account, onSignInElsewhere, session, signedIn } from "./account.ts";
 
 /** What keeps notes from syncing, or null if nothing does. `unreachable` is online, with the server out of reach. */
 export type Problem = "offline" | "unreachable" | "signed-out";
@@ -81,6 +82,13 @@ const Refused: Record<Refusal, (name: string) => string> = {
   "too-large": (name) => `${name || "This note"} is too large to sync, so copy its text into a new note`,
 };
 
+/** Syncs whenever signed in: from the start, after a sign-in in another tab, and once a forgotten session turns up. */
+export function keepInSync() {
+  if (account.email) startSync();
+  onSignInElsewhere(startSync);
+  void recover();
+}
+
 /** Called again after a sign-in, it starts over on a new connection, as the old one may belong to another session. */
 export function startSync() {
   if (!listening) listen();
@@ -89,6 +97,15 @@ export function startSync() {
   downSince = Date.now();
   reconnect();
   report();
+}
+
+/** Picks up a session this device forgot, because its storage was cleared or refused. */
+async function recover() {
+  // Offline, what this device remembers stands.
+  const email = await session().catch(() => null);
+  if (!email || email === account.email) return;
+  signedIn(email);
+  startSync();
 }
 
 function listen() {

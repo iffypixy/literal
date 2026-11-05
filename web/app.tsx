@@ -5,8 +5,8 @@ import { Editor, type EditorApi } from "#web/editor/editor.tsx";
 import * as notes from "#web/notes/notes.ts";
 import { prepare, shorten, title } from "#web/notes/search.ts";
 import { closePalette, Palette, palette, togglePalette } from "#web/palette/palette.tsx";
-import { account, farewell, onSignInElsewhere, session, signedIn } from "#web/sync/account.ts";
-import { startSync } from "#web/sync/sync.ts";
+import { farewell } from "#web/sync/account.ts";
+import { keepInSync, startSync } from "#web/sync/sync.ts";
 import { toast, Toasts } from "#web/ui/toast.tsx";
 import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
@@ -50,20 +50,9 @@ export function App() {
     void notes.start().then(() => prepare(notes.list()));
     // Replaced, so an address that isn't a note turns into the blank page's.
     void go(idFrom(location.pathname), "replace");
-    if (account.email) startSync();
-    void checkSession();
-    onSignInElsewhere(startSync);
+    keepInSync();
     stayUpToDate(() => palette.open);
   });
-
-  /** Picks up a session this device forgot, because its storage was cleared or refused. */
-  async function checkSession() {
-    // Offline, what this device remembers stands.
-    const email = await session().catch(() => null);
-    if (!email || email === account.email) return;
-    signedIn(email);
-    startSync();
-  }
 
   function onSignedIn(email: string) {
     startSync();
@@ -178,15 +167,6 @@ export function App() {
     const id = current();
     if (event.persisted && id) remember(id, editor.position());
     else leave();
-    notes.rescue();
-    void notes.flush();
-  });
-
-  // A phone may close a hidden page without warning, so save now and keep a copy that's written at once.
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) return;
-    notes.rescue();
-    void notes.flush();
   });
 
   return (
