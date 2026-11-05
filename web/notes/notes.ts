@@ -2,10 +2,10 @@ import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
 import { isDocDeleted, isDeleted, lastEdited, markEdited, newId, type Of } from "#protocol.ts";
-import { attempt, isRecord } from "#web/safe.ts";
-import * as storage from "#web/storage.ts";
+import { isRecord } from "#web/safe.ts";
 import { account } from "#web/sync/account.ts";
 import { openDb } from "./db.ts";
+import * as rescued from "./rescue.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc of its `text`, `meta` and `edits` times. */
 export type Note = {
@@ -53,9 +53,6 @@ type TabMessage = { type: "note"; note: Note; stamp: string } | { type: "purge";
 /** Origins of changes that arrive from outside this tab: another tab's, read from disk, and the server's. */
 const Disk = "disk";
 const Remote = "remote";
-
-/** Where unsaved changes go as the page closes, since localStorage writes at once and IndexedDB may not finish. */
-const Rescued = "unsaved:";
 
 /** A pause in typing this long saves; so does typing this long without one. */
 const SaveDelay = 250;
@@ -209,8 +206,7 @@ export function rescue() {
   for (const [id, entry] of entries) {
     if (!entry.doc || !isWriting(entry)) continue;
     // Without storage, the IndexedDB save started alongside is all there is.
-    if (!storage.write(Rescued + id, toBase64(Y.encodeStateAsUpdate(entry.doc))))
-      console.error(`rescue ${id}: no storage`);
+    if (!rescued.keep(id, Y.encodeStateAsUpdate(entry.doc))) console.error(`rescue ${id}: no storage`);
   }
 }
 
@@ -218,7 +214,7 @@ export function rescue() {
 export async function wipe() {
   wiped = true;
   await db.erase();
-  for (const id of storage.keys(Rescued)) storage.remove(Rescued + id);
+  for (const id of rescued.ids()) rescued.drop(id);
 }
 
 // For sync.ts.
@@ -339,16 +335,16 @@ export async function unsynced(): Promise<number> {
 
 async function readEverything() {
   try {
-    const rescues = new Set(storage.keys(Rescued));
+    const kept = new Set(rescued.ids());
     for await (const rows of db.notes(parseRow)) {
       for (const row of rows) {
         // Words a closing page left unsaved may bring a deleted or empty note back, so it waits for them.
-        if (!isSignedIn() && !rescues.has(row.id) && !isLive(row)) void purge(row.id);
+        if (!isSignedIn() && !kept.has(row.id) && !isLive(row)) void purge(row.id);
         // A save that landed while this read was under way knows better.
         else if (!entries.get(row.id)?.note) keep(row);
       }
     }
-    for (const id of rescues) await load(id);
+    for (const id of kept) await load(id);
     library.synced = (await readSince()) !== undefined;
   } catch (error) {
     failed(error);
@@ -395,7 +391,7 @@ async function read(id: string): Promise<Y.Doc | null> {
   const entry = entries.get(id);
   // Another call may have made the note meanwhile.
   if (entry?.doc) return entry.doc;
-  const unsaved = rescued(id);
+  const unsaved = rescued.read(id);
   if (!stored && !unsaved) {
     // Not on disk, so the next look reads again.
     if (entry?.note) entry.loading = undefined;
@@ -412,7 +408,7 @@ async function read(id: string): Promise<Y.Doc | null> {
     // With no origin, the copy counts as a change made here, so it gets saved and sent.
     Y.applyUpdate(doc, unsaved);
     // If nothing changed, the save had finished after all. Only a save clears the copy, and saves run on changes.
-    if (!entries.get(id)?.pending) storage.remove(Rescued + id);
+    if (!entries.get(id)?.pending) rescued.drop(id);
   }
   return doc;
 }
@@ -495,14 +491,14 @@ async function save(id: string) {
   if (!saved && local) entry.unsaved = true;
   if (!stamp || !saved || entries.get(id) !== entry) return;
   // A rescued copy may be newer than what this save wrote, so only the note's last save clears it.
-  if (!isWriting(entry)) storage.remove(Rescued + id);
+  if (!isWriting(entry)) rescued.drop(id);
   // The note may have changed while the write was on its way (a sync, an undo), so describe it as it is now.
   post({ type: "note", note: refresh(id, doc), stamp });
 }
 
 async function purge(id: string) {
   forget(id);
-  storage.remove(Rescued + id);
+  rescued.drop(id);
   post({ type: "purge", id });
   await store((tx) => {
     tx.objectStore("docs").delete(id);
@@ -543,25 +539,6 @@ async function readSince(): Promise<number | undefined> {
   const since = await db.get("meta", "since");
   if (since === undefined || typeof since === "number") return since;
   throw new Error("read since: not a number");
-}
-
-function rescued(id: string): Uint8Array | null {
-  const text = storage.read(Rescued + id);
-  if (!text) return null;
-  const bytes = attempt(() => fromBase64(text), null);
-  if (!bytes) storage.remove(Rescued + id);
-  return bytes;
-}
-
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  // In slices, since spreading a large array into one call overflows the stack.
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(binary);
-}
-
-function fromBase64(text: string): Uint8Array {
-  return Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 }
 
 /** Holds changes that aren't on disk for good: a save waits, is on its way, or failed. */
