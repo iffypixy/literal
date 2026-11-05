@@ -95,6 +95,28 @@ test.describe("on a phone", () => {
   });
 });
 
+test("⌘K and Enter go back to the note before, however far down the list it is", async ({ page }) => {
+  await page.goto("/");
+  await page.keyboard.type("Oldest");
+  await expect(page).toHaveTitle("Oldest — Literal");
+  // More than a page of newer notes.
+  await page.keyboard.press("Control+k");
+  const files = Array.from({ length: 60 }, (_, i) => ({
+    name: `${i}.txt`,
+    mimeType: "text/plain",
+    buffer: Buffer.from(`Imported ${i}`),
+  }));
+  await page.locator("input[type=file]").setInputFiles(files);
+  await expect(page.getByText("Imported 60 notes")).toBeVisible();
+  await page.keyboard.type("imported 59");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveTitle("Imported 59 — Literal");
+
+  await page.keyboard.press("Control+k");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveTitle("Oldest — Literal");
+});
+
 test("a note erased in another tab leaves a blank page here", async ({ page, context }) => {
   await page.goto("/");
   await page.keyboard.type("Short-lived");

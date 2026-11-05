@@ -83,8 +83,6 @@ export function List(props: Props) {
     words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
   const results = createMemo(() => search(notes.list(), words()));
-  const shown = createMemo(() => results().slice(0, limit()));
-  const entries = createMemo<(Action | notes.Note)[]>(() => [...commandsFound(), ...shown()]);
   const total = () => commandsFound().length + results().length;
   /**
    * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
@@ -94,19 +92,25 @@ export function List(props: Props) {
   const first = createMemo(() => {
     if (words().length) return results().length ? commandsFound().length : 0;
     const back = results().findIndex((note) => note.id === props.previous);
-    return back >= 0
-      ? back
-      : Math.max(
-          0,
-          results().findIndex((note) => note.id !== props.current),
-        );
+    if (back >= 0) return back;
+    return Math.max(
+      0,
+      results().findIndex((note) => note.id !== props.current),
+    );
   });
+  /** A page at a time, and always as far as the row the arrows start on, however old its note. */
+  const shown = createMemo(() => results().slice(0, Math.max(limit(), first() + 1)));
+  const entries = createMemo<(Action | notes.Note)[]>(() => [...commandsFound(), ...shown()]);
   const at = () => (active() >= 0 ? active() : first());
   const selected = () => entries()[at()];
   /** Opened by a tap, no row is highlighted until a key moves the highlight, since nothing there could act on it. */
   const highlighted = () => props.focus || active() >= 0;
 
-  onMount(() => props.focus && input.focus());
+  onMount(() => {
+    if (!props.focus) return;
+    input.focus();
+    reveal();
+  });
 
   function pick(entry: Action | notes.Note | undefined, pointer: boolean) {
     if (!entry) return;
@@ -135,7 +139,15 @@ export function List(props: Props) {
     if (!total()) return;
     const next = Math.min(total() - 1, Math.max(0, at() + by));
     setActive(next);
-    if (next - commandsFound().length >= limit()) setLimit(limit() + PageSize);
+    if (next - commandsFound().length >= shown().length) more();
+    reveal();
+  }
+
+  function more() {
+    setLimit(shown().length + PageSize);
+  }
+
+  function reveal() {
     rows.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
   }
 
@@ -165,8 +177,8 @@ export function List(props: Props) {
     }
   }
 
-  function more(sentinel: HTMLElement) {
-    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && setLimit(limit() + PageSize), {
+  function growWhenNear(sentinel: HTMLElement) {
+    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && more(), {
       root: rows,
       rootMargin: "200px",
     });
@@ -289,7 +301,7 @@ export function List(props: Props) {
             }}
           </For>
           <Show when={shown().length < results().length}>
-            <div ref={more} class="sentinel" aria-hidden="true" />
+            <div ref={growWhenNear} class="sentinel" aria-hidden="true" />
           </Show>
         </div>
       </div>
