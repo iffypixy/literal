@@ -206,15 +206,20 @@ a,
   }
 }
 
-/* Floating things (the palette, the menu, the toast, the tooltip) sit on their own surface, not behind a hard line. */
+/*
+ * Floating things (the palette, the menu, the toast, the tooltip) sit on their own surface, not behind a hard line.
+ * Unlike the CSS beside the app's code, this file reaches the browser as written, so it nests nothing.
+ */
 .surface {
   background: var(--surface);
   color: var(--text);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
 
-  /* Windows High Contrast drops shadows, so floating things keep an edge. */
-  @media (forced-colors: active) {
+/* Windows High Contrast drops shadows, so floating things keep an edge. */
+@media (forced-colors: active) {
+  .surface {
     outline: 1px solid CanvasText;
   }
 }
@@ -228,12 +233,12 @@ a,
     color var(--press) ease,
     background-color var(--press) ease,
     transform var(--press) var(--ease-out);
+}
 
-  @media (hover: hover) and (pointer: fine) {
-    &:hover {
-      color: var(--text);
-      background: var(--hover);
-    }
+@media (hover: hover) and (pointer: fine) {
+  .quiet:hover {
+    color: var(--text);
+    background: var(--hover);
   }
 }
 
