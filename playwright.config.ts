@@ -4,7 +4,8 @@ export default defineConfig({
   testDir: "e2e",
   forbidOnly: Boolean(process.env.CI),
   workers: 1,
-  use: { baseURL: "http://localhost:5390", ...devices["Desktop Chrome"] },
+  // A failure keeps a trace of every step, which CI uploads with the server's log.
+  use: { baseURL: "http://localhost:5390", trace: "retain-on-failure", ...devices["Desktop Chrome"] },
   // The production build with the real Worker, served locally. It sends no email, and writes codes to its log instead.
   webServer: {
     command:
