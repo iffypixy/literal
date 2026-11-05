@@ -41,13 +41,6 @@ export function keys(start = ""): string[] {
   return all.filter((key) => key.startsWith(Prefix + start)).map((key) => key.slice(Prefix.length + start.length));
 }
 
-/** Another tab wrote or removed `key`: the browser tells every tab but the one that did. */
-export function onChange(key: string, listener: (value: string | null) => void) {
-  addEventListener("storage", (event) => {
-    if (event.key === Prefix + key) listener(event.newValue);
-  });
-}
-
 /** Everything Literal keeps here. */
 export function clear() {
   for (const key of keys()) remove(key);

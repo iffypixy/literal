@@ -18,6 +18,9 @@ export const WrongCode = "That code didn't work";
 
 export const account = createMutable<{ email: string | null }>({ email: storage.read(AccountKey) });
 
+/** Tells the other tabs about each sign-in, even to the same account, so a tab the server signed out syncs again. */
+const signIns = new BroadcastChannel("literal:sign-in");
+
 /** Null when nobody is signed in; throws when the server can't be reached. */
 export async function session(): Promise<string | null> {
   const response = await fetch("/api/auth/get-session", {
@@ -42,15 +45,16 @@ export async function session(): Promise<string | null> {
 export function signedIn(email: string) {
   account.email = email;
   storage.write(AccountKey, email);
+  signIns.postMessage(email);
 }
 
 /** Calls `listener` when another tab signs in, after taking on its account. */
 export function onSignInElsewhere(listener: () => void) {
-  storage.onChange(AccountKey, (email) => {
-    if (!email || email === account.email) return;
-    signedIn(email);
+  signIns.onmessage = ({ data }: MessageEvent<unknown>) => {
+    if (typeof data !== "string") return;
+    account.email = data;
     listener();
-  });
+  };
 }
 
 /** Said once, after the reload that signing out or deleting the account ends with. */

@@ -54,10 +54,11 @@ let chain = Promise.resolve();
 /** Each refusal is explained once, not once for every change the server turns away. */
 const told = new Set<string>();
 
-/** Called again after signing in anew, it tries again at once. */
+/** Called again after a sign-in, it starts over on a new connection, since the old one may belong to another session. */
 export function start() {
   signedOut = false;
   if (running) {
+    drop();
     reconnect();
     report();
     return;
