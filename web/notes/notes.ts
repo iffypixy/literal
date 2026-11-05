@@ -117,9 +117,9 @@ export function start(): Promise<void> {
 /** Live notes, last edited first. It's the same array until a note changes, so don't modify it. */
 export function list(): Note[] {
   changes();
-  // Notes still waiting to be saved are newer in memory than in the list.
+  // Until a note is on disk for good, it's newer in memory than in the list, or not there yet at all.
   for (const [id, entry] of entries) {
-    if (!entry.pending || !entry.doc) continue;
+    if (!entry.doc || !isWriting(entry)) continue;
     const note = summarize(id, entry.doc);
     const known = entry.note;
     if (known?.text === note.text && known.editedAt === note.editedAt && known.deletedAt === note.deletedAt) continue;
