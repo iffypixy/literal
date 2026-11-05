@@ -6,7 +6,7 @@ import { isTooLong, sync, tooLong, type Problem as SyncProblem } from "#web/sync
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { toast } from "#web/ui/toast.tsx";
-import { hasKeyboard, touch } from "./device.ts";
+import { byPointer, hasKeyboard, touch } from "./device.ts";
 import { plural } from "./format.ts";
 import { Shortcuts } from "./shortcuts.ts";
 import "./corner.css";
@@ -56,10 +56,11 @@ export function Corner(props: Props) {
   });
   createEffect(() => palette.open && setAway(false));
 
-  function explain() {
+  function explain(event: MouseEvent) {
+    const pointer = byPointer(event);
     const shown = problem();
-    if (shown === "signed-out") return openPalette(true, "sign-in");
-    if (!shown && !props.current) return openPalette(true);
+    if (shown === "signed-out") return openPalette(pointer, "sign-in");
+    if (!shown && !props.current) return openPalette(pointer);
     if (shown) toast(Problems[shown].explanation ?? "");
     else if (account.email) toast("Notes save and sync as you type");
     else
@@ -67,7 +68,7 @@ export function Corner(props: Props) {
         action: { label: "Sync", run: () => openPalette(true, "sign-in") },
       });
     // Explain, then go back to writing. The click shouldn't take the cursor away.
-    if (hasKeyboard()) props.focusEditor();
+    if (hasKeyboard(pointer)) props.focusEditor();
   }
 
   return (
@@ -81,7 +82,12 @@ export function Corner(props: Props) {
           )}
         </Show>
         <IconButton label="New note" icon="plus" keys={Shortcuts.new} onClick={props.onBlank} />
-        <IconButton label="Notes" icon="list" keys={Shortcuts.notes} onClick={() => openPalette(true)} />
+        <IconButton
+          label="Notes"
+          icon="list"
+          keys={Shortcuts.notes}
+          onClick={(event) => openPalette(byPointer(event))}
+        />
       </div>
 
       {/* Only on a blank page, where it covers nothing. It fades with the first word. */}

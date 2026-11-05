@@ -19,3 +19,8 @@ export const Fragile = /^((?!chrome|android|crios|fxios).)*safari/i.test(navigat
 export function hasKeyboard(pointer = true): boolean {
   return !pointer || !touch.matches;
 }
+
+/** Whether a mouse or finger clicked, rather than a key pressing a focused button, which counts no clicks. */
+export function byPointer(event: MouseEvent): boolean {
+  return event.detail > 0;
+}

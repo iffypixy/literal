@@ -1,4 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
+import { byPointer } from "#web/device.ts";
 import { pressed } from "#web/shortcuts.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import "./menu.css";
@@ -43,7 +44,7 @@ export function Menu(props: Props) {
     setOpen(true);
     setBelow((box?.getBoundingClientRect().top ?? 0) < 0);
     // Opened by a key (a click no pointer made), so the keys go on into the menu.
-    if (event.detail === 0) box?.querySelector("button")?.focus();
+    if (!byPointer(event)) box?.querySelector("button")?.focus();
   }
 
   function onKeyDown(event: KeyboardEvent) {
@@ -80,7 +81,7 @@ export function Menu(props: Props) {
                       classList={{ danger: action.danger }}
                       onClick={(event) => {
                         setOpen(false);
-                        action.run(event.detail > 0);
+                        action.run(byPointer(event));
                       }}
                     >
                       {action.label}
