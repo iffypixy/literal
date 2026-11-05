@@ -5,7 +5,7 @@
 .palette {
   position: fixed;
   inset: 0 0 auto;
-  height: var(--viewport-height, 100dvh);
+  height: var(--viewport-height);
   overflow: clip;
   z-index: 20;
 

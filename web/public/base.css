@@ -46,6 +46,8 @@
   --fade: 160ms;
   --sheet-in: 320ms;
   --sheet-out: 220ms;
+  /* What's visible of the page, which main.tsx keeps up to date as a phone's keyboard comes and goes. */
+  --viewport-height: 100dvh;
 
   --font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Cascadia Mono", "Liberation Mono", monospace;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -148,10 +150,10 @@ a,
   inset: 0 0 auto;
   box-sizing: border-box;
   width: 100%;
-  height: var(--viewport-height, 100dvh);
+  height: var(--viewport-height);
   margin: 0;
   /* Like a .txt file, from the top-left corner and as wide as the window, with room to scroll the end up. */
-  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) calc(0.4 * var(--viewport-height, 100dvh))
+  padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) calc(0.4 * var(--viewport-height))
     max(var(--edge), env(safe-area-inset-left, 0px));
   border: 0;
   outline: 0;
@@ -176,7 +178,7 @@ a,
 @media (pointer: coarse) {
   .editor {
     padding-top: calc(env(safe-area-inset-top, 0px) + 60px);
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height, 100dvh));
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4 * var(--viewport-height));
     font-size: 16px;
   }
 
