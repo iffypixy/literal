@@ -1,6 +1,7 @@
 /** Where the cursor was in each note, and how far it was scrolled: kept on this device only. */
 
 import type { Position } from "#web/editor/editor.tsx";
+import { attempt } from "./safe.ts";
 import * as storage from "./storage.ts";
 
 const Key = "cursors";
@@ -24,12 +25,7 @@ export function remember(id: string, position: Position) {
 }
 
 function saved(): [string, Position][] {
-  let value: unknown;
-  try {
-    value = JSON.parse(storage.read(Key) ?? "[]");
-  } catch {
-    return []; // garbled: forget the cursors, keep the app
-  }
+  const value: unknown = attempt(() => JSON.parse(storage.read(Key) ?? "[]"), []);
   return Array.isArray(value) ? value.filter(isCursor) : [];
 }
 

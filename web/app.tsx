@@ -79,12 +79,8 @@ export function App() {
 
   /** Signed in, though this device doesn't remember it: its storage was cleared, or refused. */
   async function checkSession() {
-    let email: string | null;
-    try {
-      email = await session();
-    } catch {
-      return; // offline: what this device remembers stands
-    }
+    // Offline, what this device remembers stands.
+    const email = await session().catch(() => null);
     if (!email || email === account.email) return;
     signedIn(email);
     startSync();
@@ -117,18 +113,16 @@ export function App() {
       return;
     }
     setOpening(true);
-    let text: Y.Text | null;
-    try {
-      text = await open(id);
-    } catch (error) {
+    const text = await open(id).catch((error: unknown) => {
       console.error(error);
-      if (turn !== goes) return;
-      setOpening(false);
+      return undefined;
+    });
+    if (turn !== goes) return;
+    setOpening(false);
+    if (text === undefined) {
       toast("Couldn't open this note, please try again");
       return;
     }
-    if (turn !== goes) return;
-    setOpening(false);
     if (!text) {
       toast("Note not found");
       void go(null, "replace");

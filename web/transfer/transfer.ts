@@ -2,6 +2,7 @@ import { MaxLength } from "#protocol.ts";
 import { number, plural } from "#web/format.ts";
 import { add, list } from "#web/notes/notes.ts";
 import { title } from "#web/notes/search.ts";
+import { attempt } from "#web/safe.ts";
 import { toast } from "#web/ui/toast.tsx";
 import { zip, type Entry } from "./zip.ts";
 
@@ -39,14 +40,10 @@ export async function importFiles(files: File[]) {
   let imported = 0;
   for (const file of texts.slice(0, MaxFiles)) {
     if (file.size > MaxSize) continue;
-    let text: string;
-    try {
-      text = decoder.decode(await file.arrayBuffer());
-    } catch {
-      continue; // not UTF-8: counted as skipped
-    }
-    text = text.replace(/\r\n?/g, "\n");
-    if (!text.trim() || text.length > MaxLength) continue;
+    const bytes = await file.arrayBuffer();
+    const text = attempt(() => decoder.decode(bytes), null)?.replace(/\r\n?/g, "\n");
+    // Not UTF-8, blank, or too long to sync, it counts as skipped.
+    if (!text?.trim() || text.length > MaxLength) continue;
     add(text, file.lastModified || Date.now());
     imported++;
   }

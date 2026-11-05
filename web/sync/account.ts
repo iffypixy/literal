@@ -5,6 +5,7 @@
 
 import { createMutable } from "solid-js/store";
 import { wipe } from "#web/notes/notes.ts";
+import { isRecord } from "#web/safe.ts";
 import * as storage from "#web/storage.ts";
 
 /** Remembered, so the app knows it's signed in before the server answers, or when it can't. */
@@ -30,15 +31,7 @@ export async function session(): Promise<string | null> {
   if (!response.ok) throw new Error(`get session: ${response.status}`);
   const body: unknown = await response.json();
   if (body === null) return null;
-  if (
-    typeof body === "object" &&
-    "user" in body &&
-    typeof body.user === "object" &&
-    body.user !== null &&
-    "email" in body.user &&
-    typeof body.user.email === "string"
-  )
-    return body.user.email;
+  if (isRecord(body) && isRecord(body.user) && typeof body.user.email === "string") return body.user.email;
   throw new Error("get session: unexpected answer");
 }
 
@@ -119,18 +112,14 @@ async function forget(farewell: string) {
 }
 
 /** Null when the request didn't reach the server, or never came back. */
-async function request(method: string, path: string, body?: unknown): Promise<Response | null> {
-  try {
-    return await fetch(path, {
-      method,
-      credentials: "same-origin",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(RequestTimeout),
-    });
-  } catch {
-    return null;
-  }
+function request(method: string, path: string, body?: unknown): Promise<Response | null> {
+  return fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(RequestTimeout),
+  }).catch(() => null);
 }
 
 function unreachable(): string {

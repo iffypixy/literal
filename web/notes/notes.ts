@@ -2,6 +2,7 @@ import { createSignal } from "solid-js";
 import { createMutable } from "solid-js/store";
 import * as Y from "yjs";
 import { isDeleted, lastEdited, markEdited } from "#protocol.ts";
+import { attempt, isRecord } from "#web/safe.ts";
 import * as storage from "#web/storage.ts";
 import { account } from "#web/sync/account.ts";
 import { deleteDb, get, openDb, readNotes, write } from "./db.ts";
@@ -551,13 +552,9 @@ async function readSince(): Promise<number | undefined> {
 function rescued(id: string): Uint8Array | null {
   const text = storage.read(Rescued + id);
   if (!text) return null;
-  try {
-    return fromBase64(text);
-  } catch (error) {
-    console.error(error);
-    storage.remove(Rescued + id);
-    return null;
-  }
+  const bytes = attempt(() => fromBase64(text), null);
+  if (!bytes) storage.remove(Rescued + id);
+  return bytes;
 }
 
 function toBase64(bytes: Uint8Array): string {
@@ -627,10 +624,6 @@ function parseMessage(data: unknown): Message {
     if (type === "purge" && typeof id === "string") return { type, id };
   }
   throw new Error("tab message: unexpected shape");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 /**
