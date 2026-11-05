@@ -6,7 +6,7 @@ const Version = 1;
 const Batch = 500;
 
 /** The database, held open. Each call waits for it to have opened. */
-export type Db = {
+type Db = {
   get: (store: Store, key: string) => Promise<unknown>;
   /** Every row of `notes`, a batch at a time, leaving the page free in between. */
   notes: <T extends { id: string }>(parse: (value: unknown) => T) => AsyncGenerator<T[]>;
