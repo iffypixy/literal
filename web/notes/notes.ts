@@ -198,8 +198,10 @@ export function discardIfEmpty(id: string) {
   else void purge(id);
 }
 
+/** Saves every change still waiting, then waits out the saves already under way: a write runs after those before it. */
 export async function flush() {
   await Promise.all([...entries].filter(([, entry]) => entry.pending).map(([id]) => save(id)));
+  await store(() => {});
 }
 
 /** As the page goes away: keeps every unsaved change somewhere written at once, until the next start. */
