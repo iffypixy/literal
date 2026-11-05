@@ -122,6 +122,7 @@ export class UserNotes extends DurableObject<Env> {
       this.stored -= note.bytes;
     }
     if (purged.length) this.broadcast(encode({ type: "purge", ids: purged.map((note) => note.id) }));
+
     // An idle account sleeps. Notes are written only through a socket, and opening one sets the alarm again.
     const deleted = this.sql.exec("SELECT 1 FROM notes WHERE deleted_at IS NOT NULL LIMIT 1").toArray().length > 0;
     if (deleted || this.openSockets().length) await this.ctx.storage.setAlarm(now + Day);
@@ -192,12 +193,15 @@ export class UserNotes extends DurableObject<Env> {
       socket.send(encode({ type: "ack", seq }));
       return;
     }
+
     const row = this.sql
       .exec<{ state: ArrayBuffer; deleted_at: number | null }>("SELECT state, deleted_at FROM notes WHERE id = ?", id)
       .toArray()[0];
     const before = row?.state.byteLength ?? 0;
     const merged = row ? Y.mergeUpdates([new Uint8Array(row.state), update]) : update;
-    // Only a new note, or one deleted when it was last read, can add to how many the account holds.
+
+    // Only a new note, or one deleted when it was last read, can add to how many the account holds, so only then are
+    // they counted.
     const notes =
       !row || row.deleted_at !== null
         ? this.sql.exec<{ notes: number }>("SELECT COUNT(*) AS notes FROM notes").one().notes
@@ -212,6 +216,7 @@ export class UserNotes extends DurableObject<Env> {
       socket.send(encode({ type: "refused", seq, reason: refusal }));
       return;
     }
+
     const state = note?.state ?? merged;
     this.last = Math.max(Date.now(), this.last + 1);
     this.sql.exec(
@@ -229,12 +234,14 @@ export class UserNotes extends DurableObject<Env> {
       );
     }
     this.stored += state.byteLength - before;
+
     socket.send(encode({ type: "ack", seq }));
     this.broadcast(encode({ type: "update", seq: 0, id, update }), socket);
   }
 
   /**
-   * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes. Null if it can.
+   * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes (0 if the note can't
+   * add one). Null if it can.
    * A deleted note, kept 30 days so other devices hear of it, counts only toward the ceilings. So a delete goes
    * through and makes room, and so does any change that doesn't grow a note, unless the account is at its ceiling.
    */

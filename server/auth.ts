@@ -123,7 +123,8 @@ async function countCode(env: Env, email: string) {
     return count;
   };
   const full = APIError.fromStatus("SERVICE_UNAVAILABLE", { message: "no more codes today" });
-  if ((await add(await keyed(env.BETTER_AUTH_SECRET, email))) > CodesAnAddress) throw full;
+  const address = await keyed(env.BETTER_AUTH_SECRET, email);
+  if ((await add(address)) > CodesAnAddress) throw full;
   if ((await add("all")) > CodesADay) throw full;
 }
 
