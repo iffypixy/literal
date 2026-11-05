@@ -107,7 +107,8 @@ function connect() {
     if (socket !== ws) return;
     if (event.code === SignedOut) {
       signedOut = true;
-      void notes.unsync();
+      // After the messages before it, so a catch-up still queued can't mark this device caught up again.
+      run(ws, () => notes.unsync());
     }
     drop();
   };
