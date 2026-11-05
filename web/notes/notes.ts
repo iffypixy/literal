@@ -5,7 +5,7 @@ import { isDocDeleted, isDeleted, lastEdited, markEdited, newId, type Of } from 
 import { attempt, isRecord } from "#web/safe.ts";
 import * as storage from "#web/storage.ts";
 import { account } from "#web/sync/account.ts";
-import { deleteDb, get, openDb, readNotes, write } from "./db.ts";
+import { openDb } from "./db.ts";
 
 /** What the list and search know about a note. The note itself is a Yjs doc of its `text`, `meta` and `edits` times. */
 export type Note = {
@@ -217,8 +217,7 @@ export function rescue() {
 /** Erases every note on this device. Deleting the database sends every other tab back to the start. */
 export async function wipe() {
   wiped = true;
-  (await db).close();
-  await deleteDb();
+  await db.erase();
   for (const id of storage.keys(Rescued)) storage.remove(Rescued + id);
 }
 
@@ -234,7 +233,7 @@ export async function hello(): Promise<Omit<Of<"hello">, "type">> {
   await flush();
   const since = (await readSince()) ?? 0;
   const notes: Of<"hello">["notes"] = [];
-  for await (const rows of readNotes(await db, parseRow)) {
+  for await (const rows of db.notes(parseRow)) {
     for (const { id, vector, dirty } of rows) notes.push({ id, vector, dirty });
   }
   return { since, notes };
@@ -263,7 +262,7 @@ export async function receive(id: string, update: Uint8Array) {
 export async function purged(id: string) {
   await navigator.locks.request(`purge ${id}`, async () => {
     const doc = await load(id);
-    const row = await get(await db, "notes", id);
+    const row = await db.get("notes", id);
     const unsent = entries.get(id)?.unsaved || (row !== undefined && parseRow(row).dirty);
     if (doc && unsent && !isDocDeleted(doc)) add(doc.getText("text").toString(), lastEdited(doc));
     await purge(id);
@@ -332,7 +331,7 @@ export async function unsynced(): Promise<number> {
   await flush();
   // Changes whose save failed live only in memory.
   const ids = new Set([...entries].filter(([, entry]) => entry.unsaved).map(([id]) => id));
-  for await (const rows of readNotes(await db, parseRow)) {
+  for await (const rows of db.notes(parseRow)) {
     for (const row of rows) if (row.dirty) ids.add(row.id);
   }
   return ids.size;
@@ -341,7 +340,7 @@ export async function unsynced(): Promise<number> {
 async function readEverything() {
   try {
     const rescues = new Set(storage.keys(Rescued));
-    for await (const rows of readNotes(await db, parseRow)) {
+    for await (const rows of db.notes(parseRow)) {
       for (const row of rows) {
         // Words a closing page left unsaved may bring a deleted or empty note back, so it waits for them.
         if (!isSignedIn() && !rescues.has(row.id) && !isLive(row)) void purge(row.id);
@@ -391,7 +390,7 @@ function load(id: string): Promise<Y.Doc | null> {
 
 /** Loads the note from disk, with any changes a closing page left unsaved. */
 async function read(id: string): Promise<Y.Doc | null> {
-  const [value, known] = await Promise.all([get(await db, "docs", id), get(await db, "notes", id)]);
+  const [value, known] = await Promise.all([db.get("docs", id), db.get("notes", id)]);
   const stored = value === undefined ? undefined : parseStored(value);
   const entry = entries.get(id);
   // Another call may have made the note meanwhile.
@@ -457,7 +456,7 @@ function touch(entry: Entry, doc: Y.Doc) {
 
 /** Merges in what another tab saved since this one last looked. */
 async function catchUp(id: string, doc: Y.Doc) {
-  const value = await get(await db, "docs", id);
+  const value = await db.get("docs", id);
   if (value === undefined || entries.get(id)?.doc !== doc) return;
   const stored = parseStored(value);
   Y.applyUpdate(doc, stored.state, Disk);
@@ -526,7 +525,7 @@ function forget(id: string) {
 async function store(work: (tx: IDBTransaction) => void): Promise<boolean> {
   if (wiped) return false;
   try {
-    await write(await db, work);
+    await db.write(work);
     return true;
   } catch (error) {
     failed(error);
@@ -541,7 +540,7 @@ function failed(error: unknown): null {
 }
 
 async function readSince(): Promise<number | undefined> {
-  const since = await get(await db, "meta", "since");
+  const since = await db.get("meta", "since");
   if (since === undefined || typeof since === "number") return since;
   throw new Error("read since: not a number");
 }
