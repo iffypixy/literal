@@ -62,7 +62,7 @@ export function SignIn(props: Props) {
     const problem = await verify(email().trim(), code());
     setBusy(false);
     if (!problem) return props.onDone(email().trim());
-    // Gone back to the email meanwhile: the answer is about a code no longer asked for.
+    // Gone back to the email meanwhile, so the answer is about a code no longer asked for.
     if (step() !== "code") return;
     setError(problem);
     setCode("");
@@ -100,7 +100,7 @@ export function SignIn(props: Props) {
     field?.focus();
   }
 
-  // Esc on the code step goes back to the email; on the email step it's the palette's.
+  // Esc on the code step goes back to the email. On the email step it's the palette's.
   function onKeyDown(event: KeyboardEvent) {
     if (step() !== "code" || !pressed(event, "Escape")) return;
     event.preventDefault();

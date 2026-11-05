@@ -15,7 +15,7 @@ const Labels: Record<string, string> = {
   ...(Apple ? { Mod: "⌘", Alt: "⌥", Shift: "⇧", Backspace: "⌫", Enter: "↵" } : { Mod: "Ctrl", Delete: "Del" }),
 };
 
-/** As this computer's keyboard labels them: "Mod+K" is ⌘ K on a Mac, and Ctrl K elsewhere. */
+/** As this computer's keyboard labels them, so "Mod+K" is ⌘ K on a Mac and Ctrl K elsewhere. */
 export function caps(keys: string): string[] {
   return keys.split("+").map((key) => Labels[key] ?? key);
 }

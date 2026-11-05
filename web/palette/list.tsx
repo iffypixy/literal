@@ -16,7 +16,7 @@ import "./list.css";
 
 /** Rows rendered at a time; more appear as the list scrolls. */
 const PageSize = 50;
-/** Letters typed before commands show: with one, they'd come and go with every key, shoving the notes about. */
+/** Letters typed before commands show. With one, they'd come and go with every key, shoving the notes about. */
 const CommandsFrom = 2;
 
 type Props = {
@@ -35,7 +35,6 @@ type Props = {
 };
 
 export function List(props: Props) {
-  // Set as the list renders, before anything below runs.
   let input!: HTMLInputElement;
   let rows!: HTMLDivElement;
   let picker!: HTMLInputElement;
@@ -44,13 +43,13 @@ export function List(props: Props) {
   /** The row the arrows are on; -1 until they move. */
   const [active, setActive] = createSignal(-1);
   const [limit, setLimit] = createSignal(PageSize);
-  /** Notes on their way out: their rows are closing, and can't be picked or deleted again meanwhile. */
+  /** Notes on their way out. Their rows are closing, and can't be picked or deleted again meanwhile. */
   const removing = new Set<string>();
   const now = Date.now();
 
   const actions = {
     new: { label: "New note", keys: Shortcuts.new, run: () => props.onBlank() },
-    import: { label: "Import .txt files", run: () => picker.click() },
+    import: { label: "Import text files", run: () => picker.click() },
     export: {
       label: "Export all notes",
       run: (pointer) => {
@@ -89,7 +88,7 @@ export function List(props: Props) {
   const entries = createMemo<(Action | Note)[]>(() => [...commandsFound(), ...shown()]);
   /**
    * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
-   * one), so Enter goes back. Typing, on the first note, or the first command if no note matches: so Enter after
+   * one), so Enter goes back. Typing, on the first note, or the first command if no note matches, so Enter after
    * "new" still opens a note about New York, and Enter after "export" exports.
    */
   const first = createMemo(() => {
@@ -108,7 +107,7 @@ export function List(props: Props) {
     const entry = selected();
     return entry && rowId(entry);
   };
-  /** Opened by a tap, no row is highlighted until a key moves the highlight: nothing there could act on it. */
+  /** Opened by a tap, no row is highlighted until a key moves the highlight, since nothing there could act on it. */
   const highlighted = () => props.focus || active() >= 0;
 
   onMount(() => props.focus && input.focus());
@@ -123,14 +122,14 @@ export function List(props: Props) {
   }
 
   /**
-   * A click or swipe closes the note's row first: a row has no way out once its note is gone from the list. A key
-   * just takes it away, like any key.
+   * A click or swipe closes the note's row first, since a row has no way out once its note is gone from the list. A
+   * key just takes it away, like any key.
    */
   async function remove(note: Note | undefined, row?: HTMLElement) {
     if (!note || removing.has(note.id)) return;
     removing.add(note.id);
     if (row && !reducedMotion.matches) await collapse(row);
-    // The highlight stays put: on the next note, or the one before when the last one went.
+    // The highlight stays put, on the next note, or the one before if the last one went.
     setActive(Math.min(entries().indexOf(note), commandsFound().length + results().length - 2));
     props.onDelete(note.id);
     removing.delete(note.id);
@@ -341,7 +340,7 @@ export function List(props: Props) {
   );
 }
 
-/** A row the arrows can land on. `onSwipe`: a note's row, which a swipe to the left deletes. */
+/** A row the arrows can land on. With `onSwipe`, it's a note's row, which a swipe to the left deletes. */
 function Option(props: {
   ref?: HTMLDivElement | ((option: HTMLDivElement) => void);
   id: string;

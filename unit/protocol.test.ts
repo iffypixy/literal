@@ -34,7 +34,7 @@ test("an edit made after a delete brings the note back, whichever device Yjs fav
     const b = new Y.Doc();
     a.clientID = flipped ? 2 : 1;
     b.clientID = flipped ? 1 : 2;
-    // Both offline: A edits, then deletes; B edits later.
+    // Both offline. A edits, then deletes, and B edits later.
     markEdited(a, 1);
     a.getMap<number>("meta").set("deletedAt", 2);
     markEdited(b, 3);

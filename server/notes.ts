@@ -18,15 +18,15 @@ import type { Env } from "./index.ts";
 export const SessionHeader = "Literal-Session";
 
 /**
- * Under a SQLite row's 2 MB. A note of MaxLength characters stays below it unless its history is pathological:
- * typed a letter at a time, each in a new spot, in Chinese, it reaches 2.0 MB. Such a note stays on its device.
+ * Under a SQLite row's 2 MB. A note of MaxLength characters stays below it unless its history is pathological.
+ * Typed a letter at a time, each in a new spot, in Chinese, it reaches 2.0 MB. Such a note stays on its device.
  */
 const MaxState = 1_900_000;
-/** A delete adds a few bytes to a note: room for that, still under the row's 2 MB, so a delete always goes through. */
+/** Room for the few bytes a delete adds, still under the row's 2 MB, so a note's size never stops its delete. */
 const DeleteRoom = 50_000;
 /**
  * Deleted notes don't count toward the limits, yet keep their text for 30 days. So nobody can fill an account with
- * them, everything stored has a ceiling too: twice the limits, which using the app never reaches.
+ * them, everything stored has a ceiling too, at twice the limits, which using the app never reaches.
  */
 const CeilingNotes = 2 * MaxNotes;
 const CeilingBytes = 2 * MaxBytes;
@@ -35,21 +35,21 @@ const Day = 24 * 60 * 60 * 1000;
 const KeepDeleted = 30 * Day;
 /** Bytes of updates per catch-up message. */
 const BatchSize = 2 * 1024 * 1024;
-/** Spelled out: a new Y.Doc would need a random id, which Workers don't allow at load. */
+/** Spelled out, since a new Y.Doc would need a random id, which Workers don't allow at load. */
 const EmptyVector = new Uint8Array([0]);
 
-/** One per user: holds their notes, and relays changes live between their devices. */
+/** One per user. It holds their notes, and relays changes live between their devices. */
 export class UserNotes extends DurableObject<Env> {
   private sql: SqlStorage;
-  /** The last `updated_at` given out: each write gets a later one, so `since` never misses a write. */
+  /** The last `updated_at` given out. Each write gets a later one, so `since` never misses a write. */
   private last = 0;
-  /** Bytes of every note's state, deleted ones too: while within MaxBytes, no write needs a closer look. */
+  /** Bytes of every note's state, deleted ones too. While within MaxBytes, no write needs a closer look. */
   private stored = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.sql = ctx.storage.sql;
-    // Answered without waking the object: devices ping to learn their connection is still alive.
+    // Answered without waking the object. Devices ping to learn their connection is still alive.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     this.setUp();
   }
@@ -63,7 +63,7 @@ export class UserNotes extends DurableObject<Env> {
       this.sql.exec(
         "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, state BLOB NOT NULL, vector BLOB NOT NULL, updated_at INTEGER NOT NULL, checked_at INTEGER NOT NULL DEFAULT 0, deleted_at INTEGER)",
       );
-      // To reach a column after `state`, SQLite steps through all of it: these spare every scan that.
+      // To reach a column after `state`, SQLite steps through all of it, and these spare every scan that.
       this.sql.exec("CREATE INDEX IF NOT EXISTS notes_updated_at ON notes (updated_at)");
       this.sql.exec("CREATE INDEX IF NOT EXISTS notes_deleted_at ON notes (deleted_at)");
       this.sql.exec("CREATE INDEX IF NOT EXISTS notes_unchecked ON notes (id) WHERE checked_at < updated_at");
@@ -112,11 +112,11 @@ export class UserNotes extends DurableObject<Env> {
     try {
       socket.close(code === 1005 || code === 1006 ? 1000 : code);
     } catch {
-      // Already closed: newer runtimes answer the close themselves.
+      // Already closed, since newer runtimes answer the close themselves.
     }
   }
 
-  /** Daily: reads the notes written since, and erases deleted ones whose 30 days are up, here and on every device. */
+  /** Daily, reads the notes written since, and erases deleted ones whose 30 days are up, here and on every device. */
   override async alarm() {
     const now = Date.now();
     this.check();
@@ -131,7 +131,7 @@ export class UserNotes extends DurableObject<Env> {
       this.stored -= note.bytes;
     }
     if (purged.length) this.broadcast(encode({ type: "purge", ids: purged.map((note) => note.id) }));
-    // An idle account sleeps: notes are written only through a socket, and opening one sets the alarm again.
+    // An idle account sleeps. Notes are written only through a socket, and opening one sets the alarm again.
     const deleted = this.sql.exec("SELECT 1 FROM notes WHERE deleted_at IS NOT NULL LIMIT 1").toArray().length > 0;
     if (deleted || this.openSockets().length) await this.ctx.storage.setAlarm(now + Day);
   }
@@ -140,11 +140,11 @@ export class UserNotes extends DurableObject<Env> {
     for (const socket of this.openSockets()) socket.close(SignedOut, "account deleted");
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
-    // The object lives on: if deleting the account fails after this, it can still be signed in to.
+    // The object lives on, and if deleting the account fails after this, it can still be signed in to.
     this.setUp();
   }
 
-  /** Sockets check their session only as they open: they'd otherwise go on syncing. */
+  /** Sockets check their session only as they open, so they'd otherwise go on syncing. */
   signOut(session: string) {
     for (const socket of this.openSockets(session)) socket.close(SignedOut, "signed out");
   }
@@ -161,7 +161,7 @@ export class UserNotes extends DurableObject<Env> {
     const purged = new Set(gone);
     if (gone.length) socket.send(encode({ type: "purge", ids: gone }));
 
-    // Everything written up to now goes out below; anything later reaches the device live.
+    // Everything written up to now goes out below. Anything later reaches the device live.
     const now = this.last;
     let batch: Of<"catch-up">["notes"] = [];
     let size = 0;
@@ -183,7 +183,7 @@ export class UserNotes extends DurableObject<Env> {
       batch.push({ id: row.id, update, vector: their?.dirty ? new Uint8Array(row.vector) : null });
       size += update.byteLength;
     }
-    // The other dirty notes get the server's state vector, to send what it lacks: for a note it has never seen, an
+    // The other dirty notes get the server's state vector, to send what it lacks. For a note it has never seen, an
     // empty one asks for all of it.
     for (const note of theirs.values()) {
       if (!note.dirty || purged.has(note.id)) continue;
@@ -208,8 +208,8 @@ export class UserNotes extends DurableObject<Env> {
       !row || row.deleted_at !== null
         ? this.sql.exec<{ notes: number }>("SELECT COUNT(*) AS notes FROM notes").one().notes
         : 0;
-    // Near a limit, the note is read: measured by what it holds, not by the deleted text that merging keeps around,
-    // and counted only if it isn't deleted.
+    // Near a limit, the note is read, to measure it by what it holds rather than the deleted text merging keeps
+    // around, and to count it only if it isn't deleted.
     const near =
       merged.byteLength > MaxState || this.stored - before + merged.byteLength > MaxBytes || notes >= MaxNotes;
     const note = near ? read(merged) : null;
@@ -240,7 +240,7 @@ export class UserNotes extends DurableObject<Env> {
   }
 
   /**
-   * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes; null if it can.
+   * Why the account can't take `note`, grown from `before` bytes, when it holds `notes` notes. Null if it can.
    * A deleted note, kept 30 days so other devices hear of it, counts only toward the ceilings. So a delete goes
    * through and makes room, and so does any change that doesn't grow a note, unless the account is at its ceiling.
    */
@@ -292,7 +292,7 @@ export class UserNotes extends DurableObject<Env> {
     for (const socket of this.openSockets()) if (socket !== except) socket.send(message);
   }
 
-  /** The sockets still open: a closing one stays listed until it's gone, and sending to it throws. */
+  /** The sockets still open. A closing one stays listed until it's gone, and sending to it throws. */
   private openSockets(tag?: string): WebSocket[] {
     return this.ctx.getWebSockets(tag).filter((socket) => socket.readyState === WebSocket.OPEN);
   }
@@ -305,7 +305,7 @@ function read(state: Uint8Array): Read {
   const doc = new Y.Doc();
   Y.applyUpdate(doc, state);
   const meta = doc.getMap<number>("meta");
-  // The note's own times say whether it's deleted; the server's clock says only for how long.
+  // The note's own times say whether it's deleted. The server's clock says only for how long.
   const deleted = isDeleted(meta.get("deletedAt"), lastEdited(doc));
   const compacted = Y.encodeStateAsUpdate(doc);
   doc.destroy();

@@ -7,7 +7,7 @@ export type Delta = Y.YTextEvent["delta"];
 /**
  * Everything between the two texts' common start and end. Never splits a surrogate pair, which would put half an
  * emoji into the doc. The change almost always sits just before `caret`, so the common start and end are first
- * checked there in one comparison each: typing in a long note doesn't walk the whole text.
+ * checked there in one comparison each, and typing in a long note doesn't walk the whole text.
  */
 export function diff(
   before: string,

@@ -45,7 +45,7 @@ test("a note deleted on one device comes back with words written offline on anot
   await a.keyboard.type("written on a");
   await a.keyboard.press("End");
   await a.keyboard.press("Delete");
-  // Gone, not just collapsing: a row on its way out still matches for a moment.
+  // Gone, not just collapsing, since a row on its way out still matches for a moment.
   await expect(a.getByRole("option").filter({ hasText: "Written on A" })).toHaveCount(0);
   await a.keyboard.press("Escape");
 
@@ -69,7 +69,7 @@ test("a note too long to sync stays on its device, and syncs whole once it's sho
   await expect(a.getByRole("button", { name: "Too long to sync" })).toBeVisible();
   await a.keyboard.press("Control+Home");
   await a.keyboard.type("A: ");
-  // Long enough for the words to reach B, were they sent: they mustn't be.
+  // Long enough for the words to reach B if they were sent, which they mustn't be.
   await a.waitForTimeout(2500);
   await expect(note(b)).toHaveValue("Written on A\nbefore signing in");
 

@@ -70,7 +70,7 @@ function header(
   return out;
 }
 
-/** The two 16-bit MS-DOS fields a zip stores times in: local time, to the even second. */
+/** The two 16-bit MS-DOS fields a zip stores times in, as local time to the even second. */
 function dosTime(date: Date): [number, number] {
   const year = Math.max(1980, date.getFullYear());
   return [

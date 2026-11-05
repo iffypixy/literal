@@ -8,14 +8,14 @@ export interface Env {
   DB: D1Database;
   NOTES: DurableObjectNamespace<UserNotes>;
   EMAIL: SendEmail;
-  /** Where the app is served, e.g. https://literal.ink: sign-in and origin checks use it. */
+  /** Where the app is served, like https://literal.ink. Sign-in and origin checks use it. */
   APP_URL: string;
   /** The only address EMAIL may send from, e.g. code@literal.ink. */
   EMAIL_FROM: string;
   BETTER_AUTH_SECRET: string;
 }
 
-/** The auth routes the app calls, besides signing out: the library's others stay out of reach. */
+/** The auth routes the app calls, besides signing out. The library's others stay out of reach. */
 const AuthRoutes = new Set([
   "/api/auth/get-session",
   "/api/auth/email-otp/send-verification-otp",
@@ -48,7 +48,7 @@ async function connect(request: Request, env: Env): Promise<Response> {
 
 /**
  * A browser can't read why a WebSocket upgrade failed, so a signed-out device gets a socket that closes
- * at once with a code saying so: it then stops retrying and asks to sign in.
+ * at once with a code saying so, and then it stops retrying and asks to sign in.
  */
 function signedOut(): Response {
   const { 0: client, 1: server } = new WebSocketPair();
@@ -57,7 +57,7 @@ function signedOut(): Response {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-/** Also closes the session's sockets: they check their session only as they open. */
+/** Also closes the session's sockets, which check their session only as they open. */
 async function signOut(request: Request, env: Env): Promise<Response> {
   const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });

@@ -15,7 +15,7 @@ export type EditorApi = {
 
 type Props = {
   text: Y.Text | null;
-  /** While another note is on its way: keys mustn't land in this one meanwhile. */
+  /** While another note loads, so typing doesn't land in this one. */
   readonly: boolean;
   /** A blank page got its first non-space character. */
   onCreate: () => void;
@@ -28,7 +28,7 @@ export function Editor(props: Props) {
       const text = props.text;
       if (!text) return;
       const unbind = bind(area, text);
-      // The next note starts on an empty page: only a blank page's words become the note bound to it.
+      // The next note starts on an empty page, since only a blank page's words become the note bound to it.
       onCleanup(() => {
         unbind();
         area.value = "";

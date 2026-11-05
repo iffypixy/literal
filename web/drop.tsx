@@ -4,7 +4,7 @@ import "./drop.css";
 
 export function Drop() {
   const [dropping, setDropping] = createSignal(false);
-  // Every element a drag passes over enters and leaves: only the count says it left the page.
+  // A drag enters and leaves every element it passes over, so only a count tells when it has left the page.
   let depth = 0;
 
   addEventListener("dragenter", (event) => {

@@ -1,6 +1,6 @@
 /**
- * The account, as far as this device knows: the email it's signed in with. Signing in and out, and deleting the
- * account, resolve to a message for the person when they didn't work, and to null when they did.
+ * The account, as far as this device knows, which is the email it's signed in with. Signing in and out, and deleting
+ * the account, resolve to a message for the person when they didn't work, and to null when they did.
  */
 
 import { createMutable } from "solid-js/store";
@@ -63,8 +63,8 @@ export async function sendCode(email: string): Promise<string | null> {
   if (response.ok) return null;
   if (response.status === 429) return "Wait a few minutes, then try again";
   if (response.status === 400) return "That doesn't look like an email address";
-  if (response.status === 503) return "Can't send more codes today, please try again tomorrow";
-  return "Couldn't send the code, please try again";
+  if (response.status === 503) return "Can't send more codes today. Try again tomorrow.";
+  return "Couldn't send the code. Try again.";
 }
 
 export async function verify(email: string, code: string): Promise<string | null> {
@@ -75,20 +75,20 @@ export async function verify(email: string, code: string): Promise<string | null
     return null;
   }
   if (response.status === 429) return "Wait a few minutes, then try again";
-  // After 5 wrong tries the code is locked: even the right one won't work now.
+  // After 5 wrong tries the code is locked, and even the right one won't work.
   if (response.status === 403) return "Send a new code to try again";
   if (response.status === 400 || response.status === 401) return WrongCode;
-  return "Couldn't sign in, please try again";
+  return "Couldn't sign in. Try again.";
 }
 
 /**
- * Erases every note on this device (they stay in the account), but only once the server has signed it out: erased
+ * Erases every note on this device (they stay in the account), but only once the server has signed it out. Erased
  * while the server still knew the device, it would sign right back in.
  */
 export async function signOut(): Promise<string | null> {
   const response = await request("POST", "/api/auth/sign-out", {});
   if (!response) return unreachable();
-  if (!response.ok) return "Couldn't sign out, please try again";
+  if (!response.ok) return "Couldn't sign out. Try again.";
   await forget("Signed out. Your notes are still in your account.");
   return null;
 }
@@ -97,7 +97,7 @@ export async function deleteAccount(): Promise<string | null> {
   const response = await request("DELETE", "/api/account");
   if (!response) return unreachable();
   if (response.status === 401) return "Sign in again to delete your account";
-  if (!response.ok) return "Couldn't delete your account, please try again";
+  if (!response.ok) return "Couldn't delete your account. Try again.";
   await forget("Account deleted");
   return null;
 }
@@ -123,5 +123,5 @@ function request(method: string, path: string, body?: unknown): Promise<Response
 }
 
 function unreachable(): string {
-  return navigator.onLine ? "Couldn't connect, please try again" : "Connect to the internet and try again";
+  return navigator.onLine ? "Couldn't connect. Try again." : "Connect to the internet and try again";
 }

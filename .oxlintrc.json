@@ -10,7 +10,7 @@
     "no-unassigned-vars": "off",
     // Yjs' types leave out Y.Text's own toString().
     "typescript/no-base-to-string": "off",
-    // Control characters are matched on purpose: plain ASCII, and what a file name can't hold.
+    // Control characters are matched on purpose, for plain ASCII and what a file name can't hold.
     "no-control-regex": "off"
   },
   "overrides": [

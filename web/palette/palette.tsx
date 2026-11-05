@@ -35,13 +35,13 @@ type Props = {
 
 export const palette = createMutable({ open: false });
 
-// There's one palette: these are set as it renders, before anything uses them.
+// There's one palette, and these are set as it renders, before anything uses them.
 let overlay!: HTMLDivElement;
 let card!: HTMLDivElement;
 let host!: Props;
 
 const [view, setView] = createSignal<View>("notes");
-/** Open, or still sliding away: the list stays until it's gone. */
+/** Open, or still sliding away. The list stays until it's gone. */
 const [visible, setVisible] = createSignal(false);
 const [waiting, setWaiting] = createSignal(0);
 let focusSearch = true;
@@ -60,7 +60,7 @@ export function openPalette(pointer: boolean, start: View = "notes") {
   card.style.transform = "";
   card.style.transition = "";
   overlay.hidden = false;
-  // Tapped open on a phone, the keyboard would cover the list; the search field is a tap away. Opened by a key,
+  // Tapped open on a phone, the keyboard would cover the list, and the search field is a tap away. Opened by a key,
   // there's a keyboard to type with, even on a tablet.
   focusSearch = !(pointer && touch.matches);
   batch(() => {
@@ -86,7 +86,7 @@ export function closePalette(pointer: boolean, replaced = false) {
 export function Palette(props: Props) {
   host = props;
 
-  // Esc goes back a step: out of a view, then out of the palette.
+  // Esc goes back a step, out of a view, then out of the palette.
   addEventListener("keydown", (event) => {
     if (!palette.open || event.defaultPrevented || !pressed(event, "Escape")) return;
     event.preventDefault();
@@ -100,14 +100,14 @@ export function Palette(props: Props) {
     document.getElementById("view-title")?.focus();
   });
 
-  /** In the list, a click leaves the cursor where it was, in the search field: the keys go on working. */
+  /** In the list, a click leaves the cursor in the search field, so the keys go on working. */
   function keepFocus(event: MouseEvent) {
     if (view() === "notes" && event.target instanceof Element && !event.target.closest("input, a"))
       event.preventDefault();
   }
 
   function pick(id: string, pointer: boolean) {
-    // Closed first: the page behind takes the cursor only once the palette is off it.
+    // Closed first, since the page behind takes the cursor only once the palette is off it.
     closePalette(pointer, id !== props.current);
     props.onPick(id, pointer);
   }
@@ -199,7 +199,7 @@ export function Palette(props: Props) {
   );
 }
 
-/** Dragged away: it slides off from where the finger let go. */
+/** Dragged away, it slides off from where the finger let go. */
 function dismiss() {
   palette.open = false;
   closedByPointer = true;
@@ -208,7 +208,7 @@ function dismiss() {
 }
 
 function finish() {
-  // Reopened while closing: the close is off.
+  // Reopened while closing, so the close is off.
   if (palette.open) return;
   card.style.transform = "";
   card.style.transition = "";
@@ -228,7 +228,7 @@ function notSynced(count: number): string {
   return `${plural(count, "note")} ${count === 1 ? "hasn't" : "haven't"} synced yet`;
 }
 
-/** Signs out at once if everything is synced; otherwise asks first. */
+/** Signs out at once if everything is synced, and otherwise asks first. */
 async function signOutOrAsk() {
   await drain();
   setWaiting(await unsynced());

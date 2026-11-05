@@ -1,6 +1,6 @@
 /*
- * The privacy and terms pages, laid out like a .txt file: from the top-left, as wide as the window; a heading's text
- * on the next line, a blank line between the rest, and lists in dashes.
+ * The privacy and terms pages, laid out like a .txt file. From the top-left and as wide as the window, with a heading's
+ * text on the next line, a blank line between the rest, and lists in dashes.
  */
 body {
   padding: var(--edge) var(--edge) 4lh;

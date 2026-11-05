@@ -5,7 +5,7 @@
 export function stayUpToDate(busy: () => boolean) {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
   const workers = navigator.serviceWorker;
-  // The first version to run this page installs itself; only one after it is an update.
+  // The first worker to control this page is the install. Only a later one is an update.
   let controlled = Boolean(workers.controller);
   let ready = false;
 
@@ -27,7 +27,7 @@ export function stayUpToDate(busy: () => boolean) {
     ready = true;
     takeOver();
   });
-  // Safe whichever listener runs first: reloading fires pagehide, where App saves everything.
+  // Safe whichever listener runs first, since reloading fires pagehide, where App saves everything.
   document.addEventListener("visibilitychange", takeOver);
 
   function takeOver() {

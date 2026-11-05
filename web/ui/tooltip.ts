@@ -4,7 +4,7 @@ import { Keys } from "./keys.ts";
 import "./tooltip.css";
 
 /**
- * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it; moving on
+ * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it. Moving on
  * to the next while one is up shows it at once. Set up from the button's ref, so it goes when the button does.
  */
 export function tooltip(node: HTMLElement, label: string, keys: string) {
@@ -50,7 +50,7 @@ function show(node: HTMLElement, label: string, keys: string, instant: boolean) 
   tip.append(Keys({ keys }));
   tip.toggleAttribute("data-instant", instant);
 
-  // Under the button, right edges aligned (every button with one sits on the right); above if there's no room.
+  // Under the button with right edges aligned (every button with one sits on the right), or above if there's no room.
   const button = node.getBoundingClientRect();
   const { offsetWidth: width, offsetHeight: height } = tip;
   const below = button.bottom + Gap + height < innerHeight;

@@ -1,6 +1,6 @@
 /*
- * As tall as what's visible: with a phone's keyboard up, the sheet ends above it. It never scrolls: focusing the
- * sheet while it's still below the screen would scroll it into view, and undo its slide up.
+ * As tall as what's visible, so with a phone's keyboard up the sheet ends above it. It never scrolls, because focusing
+ * the sheet while it's still below the screen would scroll it into view and undo its slide up.
  */
 .palette {
   position: fixed;
@@ -60,7 +60,7 @@
     margin-top: var(--group);
   }
 
-  /* Opened by a click or tap: a short rise, and a quicker sink as it closes. Opened by a key: no animation at all. */
+  /* Opened by a click or tap, it rises a little and sinks quicker as it closes. Opened by a key, it doesn't move. */
   &[data-motion] .card {
     animation: rise var(--fade) var(--ease-out);
   }

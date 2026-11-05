@@ -1,4 +1,4 @@
-/** Numbers and times in English, like every other word here; only the clock (12 or 24 hours) is this computer's. */
+/** Numbers and dates in English, like the rest of the app. Only the clock (12 or 24 hours) follows this computer. */
 
 const Minute = 60_000;
 const Numbers = new Intl.NumberFormat("en");

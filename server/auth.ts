@@ -14,11 +14,11 @@ const AttemptWindow = 10 * Minute;
  * nothing itself, so this keeps a flood of sign-ins to a few dollars a month.
  */
 const CodesADay = 500;
-/** Codes emailed a day to one address: plenty to sign in, too few to flood an inbox and hurt the domain's name. */
+/** Codes emailed a day to one address. Plenty to sign in, too few to flood an inbox and hurt the domain's name. */
 const CodesAnAddress = 5;
 
 /**
- * Answers the auth library's requests. A code that isn't emailed fails its request: the library would only log
+ * Answers the auth library's requests. A code that isn't emailed fails its request, since the library would only log
  * it, and the person would wait for an email that never comes.
  */
 export async function handleAuth(request: Request, env: Env): Promise<Response> {
@@ -87,7 +87,7 @@ export function createAuth(env: Env, onUnsent?: (error: unknown) => void) {
   });
 }
 
-/** The local dev server sends no email: it prints the code instead. */
+/** The local dev server sends no email, and prints the code instead. */
 async function sendCode(env: Env, email: string, code: string, type: string) {
   if (type !== "sign-in") throw new Refused(400, "sign-in codes only");
   if (isLocal(env)) {
@@ -103,7 +103,7 @@ async function sendCode(env: Env, email: string, code: string, type: string) {
   });
 }
 
-/** A code not sent on purpose: the request fails with `status`, and the message as its body. */
+/** A code not sent on purpose. The request fails with `status`, and the message as its body. */
 class Refused extends Error {
   status: number;
 
@@ -129,7 +129,7 @@ async function countCode(db: D1Database, email: string) {
   if ((await add("all")) > CodesADay) throw new Refused(503, "no more codes today");
 }
 
-/** Hex SHA-256: addresses are counted without being kept. */
+/** Hex SHA-256, so addresses are counted without being kept. */
 async function sha256(text: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");

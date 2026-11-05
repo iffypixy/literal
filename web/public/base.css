@@ -7,11 +7,11 @@
   --surface: #ffffff;
   --text: #17181c;
   --muted: #696c75;
-  /* Only for hints that are said elsewhere too: 2.9:1, the same in light and dark. */
+  /* Only for hints said elsewhere too. 2.9:1, the same in light and dark. */
   --faint: #9497a0;
-  /* Dividers, and key caps: drawn, not read. */
+  /* For dividers and key caps, which are drawn, not read. */
   --line: #e4e5ea;
-  /* A field's border, which has to be seen to be found: 3.3:1. */
+  /* A field's border, which has to be seen to be found (3.3:1). */
   --field: #8a8d96;
   --danger: #c4342b;
   --highlight: color-mix(in srgb, var(--text) 16%, transparent);
@@ -69,11 +69,11 @@
     --line: #2a2c31;
     --field: #686b74;
     --danger: #ff7b72;
-    /* Klein blue, lit for the dark on Klein's own hue: 6.1:1 on the background, with dark text on it. */
+    /* Klein blue on its own hue, lightened for the dark. 6.1:1 on the background, with dark text on it. */
     --accent: #6a8cff;
     --on-accent: #111215;
     --accent-hover: color-mix(in srgb, var(--accent) 88%, white);
-    /* The hairline a touch stronger than in light: in the dark the shadow alone barely shows. */
+    /* The hairline is a touch stronger than in light, since in the dark the shadow alone barely shows. */
     --shadow: 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 16px rgb(0 0 0 / 0.4);
     --selection: color-mix(in srgb, var(--accent) 32%, transparent);
     color-scheme: dark;
@@ -142,7 +142,7 @@ a,
   text-decoration: underline;
 }
 
-/* Here, not beside editor.tsx: index.html's stand-in page must look the same before the app's code arrives. */
+/* Here, not beside editor.tsx, because index.html's textarea must look the same before the app's code arrives. */
 .editor {
   position: fixed;
   inset: 0 0 auto;
@@ -150,7 +150,7 @@ a,
   width: 100%;
   height: var(--viewport-height, 100dvh);
   margin: 0;
-  /* Like a .txt file: from the top-left corner, as wide as the window, with room to scroll the end up. */
+  /* Like a .txt file, from the top-left corner and as wide as the window, with room to scroll the end up. */
   padding: var(--edge) max(var(--edge), env(safe-area-inset-right, 0px)) calc(0.4 * var(--viewport-height, 100dvh))
     max(var(--edge), env(safe-area-inset-left, 0px));
   border: 0;
@@ -169,9 +169,9 @@ a,
 }
 
 /*
- * On a phone the buttons are always there, so the text starts under them; the room below follows the visible
- * height, so with the keyboard up the line being typed stays above it; iOS zooms into any field under 16px; and a
- * finger needs more than a line of text to aim at, so inline actions reach 44px tall without moving anything.
+ * On a phone the buttons are always there, so the text starts under them. The room below follows the visible height,
+ * so with the keyboard up the line being typed stays above it. iOS zooms into any field under 16px. And a finger
+ * needs more than a line of text to aim at, so inline actions reach 44px tall without moving anything.
  */
 @media (pointer: coarse) {
   .editor {
@@ -208,13 +208,13 @@ a,
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 
-  /* Windows High Contrast drops shadows: floating things keep an edge. */
+  /* Windows High Contrast drops shadows, so floating things keep an edge. */
   @media (forced-colors: active) {
     outline: 1px solid CanvasText;
   }
 }
 
-/* A control drawn as its text or icon alone: muted, washed on hover, pressed in on a click or tap. */
+/* A control drawn as just its text or icon. Muted, washed on hover, and pressed in on a click or tap. */
 .quiet {
   border-radius: var(--radius-small);
   color: var(--muted);

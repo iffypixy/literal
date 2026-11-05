@@ -1,7 +1,7 @@
 .list {
   display: contents;
 
-  /* The search above and the footer below are the same height: a control's, plus 4px above and below. */
+  /* The search above and the footer below are the same height, a control's plus 4px above and below. */
   & .search {
     display: flex;
     align-items: center;
@@ -50,7 +50,7 @@
     display: flex;
   }
 
-  /* A row is a control: its height, and its text on the palette's 16px edge (the list's 4px gutter, then 12px). */
+  /* A row is a control's height, with its text on the palette's 16px edge (the list's 4px gutter, then 12px). */
   & .row {
     position: relative;
     padding: var(--control-padding) var(--inset);
@@ -65,7 +65,7 @@
     background: color-mix(in srgb, var(--text) 6%, var(--surface));
   }
 
-  /* The wash alone (1.13:1) isn't enough to find: the accent's edge marks the row. */
+  /* The wash alone (1.13:1) is too faint to find, so the accent's edge marks the row. */
   @media (prefers-contrast: more) {
     & .rows[data-highlighted] [aria-selected="true"] .row {
       box-shadow: inset 2px 0 var(--accent);
@@ -112,7 +112,7 @@
     height: 24px;
     margin: -4px -6px -4px 0;
 
-    /* A finger swipes instead; a screen reader, which takes swipes for itself, still finds the button. */
+    /* A finger swipes instead. A screen reader, which takes swipes for itself, still finds the button. */
     @media (pointer: coarse) {
       display: grid;
       position: absolute;
@@ -127,7 +127,7 @@
     height: 1px;
   }
 
-  /* Only when commands show: which rows do something, which rows are notes. */
+  /* Only when commands show, to tell the rows that do something from the notes. */
   & .group {
     padding: var(--group) var(--inset) var(--pair);
     color: var(--muted);
@@ -174,7 +174,7 @@
     }
   }
 
-  /* Windows High Contrast drops washes: the highlighted row and hits are drawn in system colors. */
+  /* Windows High Contrast drops washes, so the highlighted row and hits use system colors. */
   @media (forced-colors: active) {
     & .rows[data-highlighted] [aria-selected="true"] .row {
       outline: 2px solid Highlight;

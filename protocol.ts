@@ -22,11 +22,11 @@ export type Message =
       now: number;
       notes: { id: string; update: Uint8Array | null; vector: Uint8Array | null }[];
     }
-  /** `seq` numbers a device's updates so the server can ack them; the server's own updates carry 0. */
+  /** `seq` numbers a device's updates so the server can ack them. The server's own updates carry 0. */
   | { type: "update"; seq: number; id: string; update: Uint8Array }
   | { type: "ack"; seq: number }
   | { type: "refused"; seq: number; reason: Refusal }
-  /** Notes deleted over 30 days ago, erased for good: devices erase them too. */
+  /** Notes deleted over 30 days ago and erased for good. Devices erase them too. */
   | { type: "purge"; ids: string[] };
 
 export type Of<T extends Message["type"]> = Extract<Message, { type: T }>;
@@ -43,7 +43,7 @@ export const SignedOut = 4001;
 /** Digits in an emailed sign-in code. */
 export const CodeLength = 6;
 
-/** The order of Types and Refusals is the wire format: only ever append. */
+/** The order of Types and Refusals is the wire format, so only ever append. */
 const Types = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
 const Refusals = ["too-large", "too-many", "too-full"] as const;
 
@@ -90,7 +90,7 @@ export function encode(message: Message): Uint8Array<ArrayBuffer> {
       break;
   }
   const bytes = encoding.toUint8Array(out);
-  // lib0 builds it in a fresh, plain ArrayBuffer; its types just don't say so, and WebSocket.send wants to know.
+  // lib0 builds it in a fresh, plain ArrayBuffer. Its types just don't say so, and WebSocket.send wants to know.
   if (!isPlain(bytes)) throw new Error("encode: not a plain ArrayBuffer");
   return bytes;
 }
@@ -149,7 +149,7 @@ function readMessage(input: decoding.Decoder): Message {
   }
 }
 
-/** Every item takes a byte at least: a count past the bytes left would make the reader allocate for nothing. */
+/** Every item takes at least a byte, so a count past the bytes left would make the reader allocate for nothing. */
 function readList<T>(input: decoding.Decoder, item: () => T): T[] {
   const count = decoding.readVarUint(input);
   if (count > input.arr.length - input.pos) throw new Error("decode: count past the end");
@@ -169,18 +169,18 @@ function readBoolean(input: decoding.Decoder): boolean {
   return byte === 1;
 }
 
-/** 10 characters of lowercase Crockford base32: nothing else ever becomes a key in storage. */
+/** 10 characters of lowercase Crockford base32, so nothing else ever becomes a key in storage. */
 export function isNoteId(id: string): boolean {
   return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id);
 }
 
-/** Decided by a note's own times, alike on every device and the server: an edit made after a delete brings it back. */
+/** Decided by a note's own times, the same on every device and the server. An edit after a delete brings it back. */
 export function isDeleted(deletedAt: number | null | undefined, editedAt: number): boolean {
   return typeof deletedAt === "number" && deletedAt >= editedAt;
 }
 
 /**
- * When the note was last edited: the latest of each device's own time. With one time for all, two devices editing at
+ * When the note was last edited, by the latest of each device's own time. With one time for all, two devices editing at
  * once would leave whichever time Yjs picks, not the later one. Older notes have only `meta.editedAt`.
  */
 export function lastEdited(doc: Y.Doc): number {

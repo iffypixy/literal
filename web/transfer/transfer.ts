@@ -7,7 +7,7 @@ import { toast } from "#web/ui/toast.tsx";
 import { zip, type Entry } from "./zip.ts";
 
 const MaxFiles = 500;
-/** A larger file can't hold a note that syncs: UTF-8 takes at most 3 bytes a character, after a 3-byte mark. */
+/** A larger file can't hold a note that syncs, since UTF-8 takes at most 3 bytes a character, after a 3-byte mark. */
 const MaxSize = 3 + 3 * MaxLength;
 
 export function exportAll() {
@@ -26,6 +26,7 @@ export function exportAll() {
   });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(zip(entries));
+  // Swedish writes the date as 2026-11-05, in local time.
   link.download = `literal-notes-${new Date().toLocaleDateString("sv")}.zip`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(link.href), 10_000);

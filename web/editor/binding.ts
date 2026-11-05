@@ -12,7 +12,7 @@ const UndoStep = 600;
  * Keeps a textarea and a Yjs text the same, both ways. Typing goes into the text as the smallest change;
  * changes from elsewhere go into the textarea without moving the cursor. Undo only undoes what was typed here.
  *
- * If the text is empty and the textarea isn't, the textarea's content counts as typed: that's how a new note starts.
+ * If the text is empty and the textarea isn't, the textarea's content counts as typed. That's how a new note starts.
  */
 export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   if (!text.doc) throw new Error("bind: the text is in no document");
@@ -71,7 +71,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
       area.setSelectionRange(start, finish, direction);
       area.scrollTop = scroll;
     } else {
-      // Moving the caret also scrolls it into view: an undo shows what it undid.
+      // Moving the caret also scrolls it into view, so an undo shows what it undid.
       area.setSelectionRange(caret, caret);
     }
   }
@@ -92,8 +92,8 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 
   // Undo from the menu, the context menu, or shaking the phone.
   function onBeforeInput(event: InputEvent) {
-    // A browser keeps one undo history for the whole page: ⌘Z in another field, once that field has nothing
-    // left to undo, arrives here. Only an undo meant for the note may touch it.
+    // A browser keeps one undo history for the whole page, so ⌘Z in another field arrives here once that field has
+    // nothing left to undo. Only an undo meant for the note may touch it.
     if (event.inputType.startsWith("history") && document.activeElement !== area) {
       event.preventDefault();
       return;
@@ -112,7 +112,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function onCompositionEnd() {
-    // Some browsers send the composition's last input right after this event: changes keep waiting until it lands.
+    // Some browsers send the composition's last input right after this event, so changes wait until it lands.
     setTimeout(() => {
       composing = false;
       release();

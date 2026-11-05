@@ -3,7 +3,7 @@ import { pressed } from "#web/shortcuts.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import "./menu.css";
 
-/** Something to do besides opening a note: from the menu, or found as a command. */
+/** Something to do besides opening a note, from the menu or found as a command. */
 export type Action = { label: string; keys?: string; danger?: boolean; run: (pointer: boolean) => void };
 
 type Props = {
@@ -41,7 +41,7 @@ export function Menu(props: Props) {
     setBelow(false);
     setOpen(true);
     setBelow((box?.getBoundingClientRect().top ?? 0) < 0);
-    // Opened by a key (a click no pointer made): the keys go on into the menu.
+    // Opened by a key (a click no pointer made), so the keys go on into the menu.
     if (event.detail === 0) box?.querySelector("button")?.focus();
   }
 

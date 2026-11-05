@@ -13,8 +13,8 @@
   }
 
   /*
-   * A patch of paper under the buttons, so a long first line passes under them instead of through. It ends where
-   * the first line does (6.5px above the buttons' bottom): a second line goes on showing whole beneath it.
+   * A patch of background under the buttons, so a long first line passes under them instead of through. It ends
+   * where the first line does (6.5px above the buttons' bottom), so a second line still shows in full beneath it.
    */
   &::before {
     content: "";
@@ -25,21 +25,21 @@
     transition: opacity var(--fade) ease;
   }
 
-  /* The buttons step aside while you type, with their paper; a problem, when there is one, stays. */
+  /* The buttons and their background fade while you type. A problem, when there is one, stays. */
   &.away::before,
   &.away button:not(.problem) {
     opacity: 0;
     transition-duration: calc(2 * var(--fade));
   }
 
-  /* Reached by Tab (Esc, then Tab, leaves the page), they're back at once: focus is never on something unseen. */
+  /* Reached by Tab (Esc, then Tab, leaves the page), they come back at once, so focus is never on something unseen. */
   &.away:focus-within::before,
   &.away:focus-within button {
     opacity: 1;
     transition-duration: 0ms;
   }
 
-  /* Its paper, like the patch, stops where the first line does. */
+  /* Its background, like the patch, stops where the first line does. */
   & .status {
     height: var(--control);
     margin-right: 4px;
@@ -52,7 +52,7 @@
     color: var(--text);
   }
 
-  /* The wash replaces its paper, which would otherwise hide it. */
+  /* The hover wash replaces its background, which would otherwise hide it. */
   @media (hover: hover) and (pointer: fine) {
     & .status:hover {
       background: var(--hover);
@@ -70,7 +70,7 @@
   color: var(--faint);
   pointer-events: none;
 
-  /* Gone with a fade; back at once. */
+  /* It fades out, and comes back at once. */
   &.gone {
     opacity: 0;
     transition: opacity var(--fade);

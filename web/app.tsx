@@ -19,21 +19,20 @@ import { stayUpToDate } from "./update.ts";
 const TitleShown = 60;
 
 export function App() {
-  // Set by Editor as it renders, before anything here runs.
   let editor!: EditorApi;
 
   const [note, setNote] = createSignal<{ id: string; text: Y.Text } | null>(null);
   /** The palette starts on it, so ⌘K and Enter go back and forth between two notes. */
   const [previous, setPrevious] = createSignal<string | null>(null);
-  /** A note is on its way from disk: until it's shown, keys would land in the page being left. */
+  /** A note is loading from disk. Until it shows, typing would go into the page being left. */
   const [opening, setOpening] = createSignal(false);
-  /** Typing with a mouse at hand: the corner's buttons step aside. */
+  /** Typing on a computer, which fades the corner's buttons out of the way. */
   const [typing, setTyping] = createSignal(false);
-  /** A later call to `go` wins: a note that opens after it has nothing more to do. */
+  /** A later call to `go` wins, so a note that loads after it is dropped. */
   let lastGo = 0;
-  /** A note was just deleted, and nothing typed since: ⌘Z means the note, wherever the cursor is. */
+  /** A note was just deleted and nothing typed since, so ⌘Z undoes the delete, wherever the cursor is. */
   let undoable = false;
-  /** Notes deleted under the toast now showing: one Undo brings them all back. */
+  /** Notes deleted while the current toast shows. One Undo brings them all back. */
   let deleted: { id: string; wasOpen: boolean }[] = [];
 
   const current = () => note()?.id ?? null;
@@ -54,7 +53,7 @@ export function App() {
     const said = farewell();
     if (said) toast(said);
     void notes.start().then(() => prepare(notes.list()));
-    // "replace": an address that isn't a note becomes the blank page's own.
+    // Replaced, so an address that isn't a note turns into the blank page's.
     void go(idFrom(location.pathname), "replace");
     if (account.email) startSync();
     void checkSession();
@@ -62,7 +61,7 @@ export function App() {
     stayUpToDate(() => palette.open);
   });
 
-  /** Signed in, though this device doesn't remember it: its storage was cleared, or refused. */
+  /** Picks up a session this device forgot, because its storage was cleared or refused. */
   async function checkSession() {
     // Offline, what this device remembers stands.
     const email = await session().catch(() => null);
@@ -77,8 +76,8 @@ export function App() {
   }
 
   /**
-   * Shows the note `id`, or a blank page. `focus` puts the cursor in it: always with a mouse and keyboard; on a
-   * phone only when a key asked for it (an iPad's keyboard), so opening a note doesn't throw the keyboard over it.
+   * Shows the note `id`, or a blank page. `focus` puts the cursor in it. On a phone that's only when a key asked
+   * (an iPad's keyboard), so opening a note doesn't pop the keyboard up over it.
    */
   async function go(id: string | null, how: Step, focus = !touch.matches) {
     const thisGo = ++lastGo;
@@ -90,7 +89,7 @@ export function App() {
     if (current() !== null) setPrevious(current());
     leave();
     if (id === null) {
-      // From a blank page to a blank page: a few spaces typed there don't come along.
+      // Going from a blank page to a new one leaves behind any spaces typed on the first.
       if (current() === null) editor.clear();
       setNote(null);
       navigate("/", how);
@@ -105,7 +104,7 @@ export function App() {
     if (thisGo !== lastGo) return;
     setOpening(false);
     if (text === undefined) {
-      toast("Couldn't open this note, please try again");
+      toast("Couldn't open this note. Try again.");
       return;
     }
     if (!text) {
@@ -137,13 +136,13 @@ export function App() {
   }
 
   function onDelete(id: string) {
-    // Named, so it's clear which one went: Delete acts on whichever row is highlighted.
+    // Named, since Delete acts on whichever row is highlighted, which may not be the note you're in.
     const name = quoted(notes.find(id)?.text ?? "");
     void notes.remove(id);
     const wasOpen = id === current();
     if (wasOpen) {
       setNote(null);
-      // Under the sheet, the address is set once the sheet has stepped back to the page beneath it.
+      // On the sheet, the address changes later, once Back has left the sheet's step.
       if (!isOnSheet()) navigate("/", "replace");
     }
     // Deletes in a row share one toast, so the earlier ones keep their Undo.
@@ -170,7 +169,7 @@ export function App() {
         for (const note of batch) notes.settle(note.id);
       },
     });
-    // After the toast: showing it ends the last one, whose expiry clears this.
+    // Set after the toast, because showing it expires the last one, which clears this.
     undoable = true;
   }
 
@@ -206,7 +205,7 @@ export function App() {
       !event.metaKey &&
       !event.altKey
     ) {
-      // Nothing has focus (after Esc, or a click on a toast that's gone): typing still lands on the page.
+      // With nothing focused (after Esc, or a click on a toast that's gone), typing still goes into the note.
       editor.focus();
     }
   });
@@ -221,7 +220,7 @@ export function App() {
   });
 
   addEventListener("pagehide", (event) => {
-    // Kept for the Back button, the page may come back as it was, its note still on it: nothing is discarded then.
+    // The browser may keep this page for Back and bring it back as it was, so its note isn't discarded.
     const id = current();
     if (event.persisted && id) remember(id, editor.position());
     else leave();
@@ -229,7 +228,7 @@ export function App() {
     void notes.flush();
   });
 
-  // A phone may close a hidden page without warning: save, and keep a copy that's written at once.
+  // A phone may close a hidden page without warning, so save now and keep a copy that's written at once.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) return;
     notes.rescue();

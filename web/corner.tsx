@@ -31,7 +31,7 @@ const Problems: Record<Problem, { label: string; explanation?: string }> = {
 
 type Props = {
   current: string | null;
-  /** With a mouse, the buttons step aside while you type, and come back when the mouse moves. */
+  /** On a computer, the buttons fade while you type, and come back when the mouse moves. */
   away: boolean;
   onReturn: () => void;
   onBlank: () => void;
@@ -69,7 +69,7 @@ export function Corner(props: Props) {
       toast("Notes save on this device as you type", {
         action: { label: "Sync", run: () => openPalette(true, "sign-in") },
       });
-    // A word of explanation, then back to writing: the click shouldn't take the cursor away.
+    // Explain, then go back to writing. The click shouldn't take the cursor away.
     if (!touch.matches) props.focusEditor();
   }
 
@@ -87,7 +87,7 @@ export function Corner(props: Props) {
         <IconButton label="Notes" icon="list" keys={Shortcuts.notes} onClick={() => togglePalette(true)} />
       </div>
 
-      {/* Only on a blank page, where it covers nothing: gone with the first word. */}
+      {/* Only on a blank page, where it covers nothing. It fades with the first word. */}
       {!touch.matches && (
         <p class="hint" classList={{ gone: props.current !== null }} aria-hidden="true">
           <span>

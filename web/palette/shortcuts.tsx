@@ -12,7 +12,7 @@ const KeyList: [string, string][] = [
   [Shortcuts.delete, "Delete note"],
   [Shortcuts.undo, "Undo delete"],
   ["Escape", "Close"],
-  // Tab types a tab in a note: Esc first lets Tab move on, out of it.
+  // Tab types a tab in a note, so Esc first lets Tab move on, out of it.
   ["Escape+Tab", "Leave the note"],
 ];
 

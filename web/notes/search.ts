@@ -17,7 +17,7 @@ export function parse(query: string): string[] {
   return fold(query).split(/\s+/).filter(Boolean);
 }
 
-/** Notes holding every one of `words`, ignoring case and accents: title matches first, otherwise in order. */
+/** Notes holding every one of `words`, ignoring case and accents. Title matches come first, the rest stay in order. */
 export function search(notes: Note[], words: string[]): Note[] {
   if (!words.length) return notes;
   const inTitle: Note[] = [];
@@ -49,7 +49,7 @@ export function startsWords(label: string, words: string[]): boolean {
   return words.every((word) => starts.some((start) => start.startsWith(word)));
 }
 
-/** The title, marked; and around a match the title doesn't show, a snippet, so every row says why it's there. */
+/** The title with matches marked, and a snippet around a match it doesn't show, so every row says why it's there. */
 export function describe(note: Note, words: string[]): { title: Segment[]; snippet: Segment[] } {
   const { first, restAt } = split(note.text);
   const { text, title } = folded(note);
@@ -110,11 +110,11 @@ function around(text: string, at: number, from: number): string {
   return `${start > from ? "…" : ""}${line}${end < text.length ? "…" : ""}`;
 }
 
-/** "Café" and "cafe" fold the same. Positions hold: a letter stays one letter. */
+/** "Café" and "cafe" fold the same. Positions hold, since a letter stays one letter. */
 function fold(text: string): string {
   // Most notes are plain ASCII, with nothing to fold but case.
   if (/^[\x00-\x7f]*$/.test(text)) return text.toLowerCase();
-  // Composed again after the accents go: Korean syllables come apart into letters that aren't accents.
+  // Composed again after the accents go, because Korean syllables come apart into letters that aren't accents.
   return text.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC").toLowerCase();
 }
 

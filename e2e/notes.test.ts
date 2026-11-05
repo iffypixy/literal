@@ -63,7 +63,7 @@ test("an empty note opened right after another stays empty", async ({ page, cont
   await page.goBack();
   await expect(note).toHaveValue("First note");
 
-  // Another tab empties the second note and stays on it: a note that exists, with nothing in it.
+  // Another tab empties the second note and stays on it, so the note exists with nothing in it.
   const other = await context.newPage();
   await other.goto(second);
   await expect(other.getByRole("textbox", { name: "Note" })).toHaveValue("Second");

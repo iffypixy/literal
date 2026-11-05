@@ -8,7 +8,7 @@ import * as notes from "#web/notes/notes.ts";
 import { quoted } from "#web/notes/search.ts";
 import { toast } from "#web/ui/toast.tsx";
 
-/** What keeps notes from syncing: null while nothing does. `unreachable`: online, but the server can't be reached. */
+/** What keeps notes from syncing, or null if nothing does. `unreachable` is online, with the server out of reach. */
 export type Problem = "offline" | "unreachable" | "signed-out";
 
 export const sync = createMutable<{ problem: Problem | null }>({ problem: null });
@@ -34,11 +34,11 @@ let signedOut = false;
 let seq = 0;
 /** Updates sent and not yet acked: which note, its generation then, and whether the update was the whole note. */
 const unacked = new Map<number, { id: string; upTo: number; at: number; whole: boolean }>();
-/** Changes made here and not sent yet, by note: a burst of typing goes to the server as one update. */
+/** Changes made here and not sent yet, by note, so a burst of typing goes to the server as one update. */
 const outbox = new Map<string, { updates: Uint8Array[]; since: number; timer?: ReturnType<typeof setTimeout> }>();
 /**
- * Notes the server may be missing changes for: one was refused, lost with a connection or never sent, or made in
- * another tab. Each keeps the last `seq` sent before then. Until a whole copy sent after it is acked, the note goes
+ * Notes the server may be missing changes for, because one was refused, lost with a connection, never sent, or made
+ * in another tab. Each keeps the last `seq` sent before then. Until a whole copy sent after it is acked, the note goes
  * whole, and no other ack marks it synced.
  */
 const behind = new Map<string, number>();
@@ -49,12 +49,12 @@ let downSince: number | null = Date.now();
 let tried = 0;
 let lastHeard = 0;
 let pingSent = 0;
-/** Messages are handled one at a time, in order: each may wait on disk. */
+/** Messages are handled one at a time, in order, since each may wait on disk. */
 let chain = Promise.resolve();
 /** Each refusal is explained once, not once for every change the server turns away. */
 const explained = new Set<string>();
 
-/** Called again after a sign-in, it starts over on a new connection, since the old one may belong to another session. */
+/** Called again after a sign-in, it starts over on a new connection, as the old one may belong to another session. */
 export function startSync() {
   signedOut = false;
   if (running) {
@@ -65,7 +65,7 @@ export function startSync() {
   }
   running = true;
   notes.onChange((id, update) => (update ? hold(id, update) : fallBehind(id, seq)));
-  // A connection from before the network dropped is usually dead even if it looks open: start over.
+  // A connection from before the network dropped is usually dead even if it looks open, so start over.
   addEventListener("online", () => {
     drop();
     reconnect();
@@ -114,7 +114,7 @@ function connect() {
   };
 }
 
-/** After everything before it; anything failing takes the connection down. */
+/** Runs after everything before it. Anything that fails takes the connection down. */
 function run(ws: WebSocket, work: () => Promise<void>) {
   chain = chain.then(work).catch((error: unknown) => {
     console.error(error);
@@ -139,7 +139,7 @@ function drop() {
   report();
 }
 
-/** Updates on a lost connection may never have arrived: their notes are behind until they go whole. */
+/** Updates on a lost connection may never have arrived, so their notes are behind until they go whole. */
 function abandon() {
   for (const sent of unacked.values()) fallBehind(sent.id, seq);
   unacked.clear();
@@ -166,7 +166,7 @@ async function handle(ws: WebSocket, message: Message) {
       }
       if (!message.done) break;
       await notes.caughtUp(message.now);
-      // The connection has proved itself: if it drops now, trying again soon is right.
+      // The connection has proved itself, so if it drops now, trying again soon is right.
       retry = RetryMin;
       break;
     case "update":
@@ -188,7 +188,7 @@ async function handle(ws: WebSocket, message: Message) {
       const sent = unacked.get(message.seq);
       unacked.delete(message.seq);
       if (sent) fallBehind(sent.id, message.seq);
-      // The note's own limit is said for each note; the account's, once.
+      // A note's own limit is explained for each note, the account's just once.
       const about = message.reason === "too-large" ? (sent?.id ?? message.reason) : message.reason;
       if (explained.has(about)) break;
       explained.add(about);
@@ -207,7 +207,7 @@ async function handle(ws: WebSocket, message: Message) {
   }
 }
 
-/** Before signing out: sends every change still waiting, then gives the server a moment to take them all. */
+/** Before signing out, sends every change still waiting, then gives the server a moment to take them all. */
 export async function drain() {
   await notes.flush();
   await Promise.all([...outbox.keys()].map((id) => release(id)));
@@ -261,7 +261,7 @@ function send(id: string, update: Uint8Array, whole: boolean, ws = socket) {
   ws.send(encode({ type: "update", seq, id, update }));
 }
 
-/** Why a note doesn't sync: the one named, or the one open. */
+/** Why a note doesn't sync, naming it, or meaning the open one. */
 export function tooLong(name = ""): string {
   return `Notes sync up to ${number(MaxLength)} characters, so split ${name ? `"${name}"` : "this one"} into shorter notes`;
 }
@@ -279,7 +279,7 @@ function tick() {
   const now = Date.now();
   if (socket?.readyState === WebSocket.CONNECTING && now - tried > DeadAfter) drop();
   else if (socket?.readyState === WebSocket.OPEN) {
-    // Hearing anything counts: acks queue behind the messages before them. And an upload still under way isn't late.
+    // Hearing anything counts, because acks queue behind the messages before them. An upload under way isn't late.
     const late =
       socket.bufferedAmount === 0 &&
       [...unacked.values()].some((sent) => now - Math.max(sent.at, lastHeard) > DeadAfter);

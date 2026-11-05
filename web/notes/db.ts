@@ -3,7 +3,7 @@ type Store = "notes" | "docs" | "meta";
 const Name = "literal";
 const Version = 1;
 
-/** `onVersionChange`: another tab is deleting or upgrading the database, which this connection has already let go. */
+/** `onVersionChange` runs when another tab deletes or upgrades the database, once this connection has let it go. */
 export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(Name, Version);
@@ -56,7 +56,7 @@ export function get(db: IDBDatabase, store: Store, key: string): Promise<unknown
   return done(db.transaction(store).objectStore(store).get(key));
 }
 
-/** Over every store. Strict: a note that counts as saved survives losing power right after. */
+/** Over every store, and strict, so a note that counts as saved survives a power cut right after. */
 export function write(db: IDBDatabase, work: (tx: IDBTransaction) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(["notes", "docs", "meta"], "readwrite", { durability: "strict" });

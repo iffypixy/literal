@@ -18,7 +18,7 @@ export type Note = {
 };
 
 /**
- * A note's Yjs state, stamped `writer:rev` by the tab that last wrote it: a tab that finds its own stamp knows nobody
+ * A note's Yjs state, stamped `writer:rev` by the tab that last wrote it. A tab that finds its own stamp knows nobody
  * has written since.
  */
 type Stored = { state: Uint8Array; writer: string; rev: number };
@@ -35,15 +35,15 @@ type Entry = {
   loading?: Promise<Y.Doc | null>;
   /** The stored state (`writer:rev`) the doc already holds. */
   seen?: string;
-  /** Waiting to be saved: the timer that saves it, and when its first change came. */
+  /** Set while a save is waiting: its timer, and when the first change came. */
   pending?: { timer: ReturnType<typeof setTimeout>; since: number };
-  /** Saves on their way to disk: until they land, a closing page must rescue the note too. */
+  /** Saves still on their way to disk. Until they land, a closing page has to rescue the note too. */
   saving: number;
   /** When typing last moved `editedAt`. */
   touched: number;
   /** Changed here since its last save. */
   unsaved: boolean;
-  /** How many changes it had here: an ack only cleans the note if none came after what it covers. */
+  /** Counts changes made here. An ack marks the note clean only if no change came after the ones it covers. */
   generation: number;
 };
 
@@ -57,14 +57,14 @@ const Disk = "disk";
 const Tab = "tab";
 const Remote = "remote";
 
-/** Where unsaved changes wait out a page closing: localStorage writes at once, IndexedDB may not finish. */
+/** Where unsaved changes go as the page closes, since localStorage writes at once and IndexedDB may not finish. */
 const Rescued = "unsaved:";
 
 /** A pause in typing this long saves; so does typing this long without one. */
 const SaveDelay = 250;
 const SaveAtMost = 1000;
 const ReadBatch = 500;
-/** How often typing moves a note's `editedAt`: often enough to sort by, rarely enough to stay out of the doc. */
+/** How often typing moves a note's `editedAt`. Often enough to sort by, rarely enough not to bloat the doc. */
 const TouchEvery = 1000;
 const TabId = crypto.randomUUID();
 
@@ -81,13 +81,13 @@ const entries = new Map<string, Entry>();
 let sorted: Note[] | null = null;
 let listener: (id: string, update: Uint8Array | null) => void = () => {};
 
-/** Everything here is being erased: nothing may be saved or rescued from now on. */
+/** Everything here is being erased, so nothing may be saved or rescued from now on. */
 let wiped = false;
 let started: Promise<void> | undefined;
 
 const db = openDb((event) => {
-  // Another tab is erasing everything (signing out, deleting the account) or needs a newer database: this one
-  // starts over too. Only an erase forbids rescuing what's unsaved; after an upgrade, the new version saves it.
+  // Another tab is erasing everything (signing out, deleting the account) or needs a newer database, so this one
+  // starts over too. After an erase nothing unsaved may be rescued. After an upgrade, the new version saves it.
   wiped ||= event.newVersion === null;
   location.replace("/");
 });
@@ -117,7 +117,7 @@ export function start(): Promise<void> {
   return (started ??= readEverything());
 }
 
-/** Live notes, last edited first. The same array until a note changes: don't modify it. */
+/** Live notes, last edited first. It's the same array until a note changes, so don't modify it. */
 export function list(): Note[] {
   changes();
   // Notes still waiting to be saved are newer in memory than in the list.
@@ -186,7 +186,7 @@ export async function restore(id: string) {
   refresh(id, doc);
 }
 
-/** Once a delete's Undo has passed: signed out, the note is erased; signed in, its tombstone stays to sync. */
+/** Once a delete's Undo has passed. Signed out, the note is erased. Signed in, its tombstone stays, to sync. */
 export function settle(id: string) {
   const note = entries.get(id)?.note;
   if (!isSignedIn() && note && isDeleted(note.deletedAt, note.editedAt)) void purge(id);
@@ -199,13 +199,13 @@ export function discardIfEmpty(id: string) {
   else void purge(id);
 }
 
-/** Saves every change still waiting, then waits out the saves already under way: a write runs after those before it. */
+/** Saves every change still waiting, then waits for saves under way: writes run in order, so an empty one does. */
 export async function flush() {
   await Promise.all([...entries].filter(([, entry]) => entry.pending).map(([id]) => save(id)));
   await store(() => {});
 }
 
-/** As the page goes away: keeps every unsaved change somewhere written at once, until the next start. */
+/** As the page goes away, keeps every unsaved change somewhere that's written at once, until the next start. */
 export function rescue() {
   if (wiped) return;
   for (const [id, entry] of entries) {
@@ -244,7 +244,7 @@ export async function hello(): Promise<Omit<Of<"hello">, "type">> {
 
 /**
  * Applies a change from the server, creating the note if it's new here. Words arriving for a note deleted
- * here were written by someone who hadn't seen the delete: the note comes back, with them.
+ * here were written by someone who hadn't seen the delete, so the note comes back with them.
  */
 export async function receive(id: string, update: Uint8Array) {
   const doc = (await load(id)) ?? entries.get(id)?.doc ?? adopt(id, new Y.Doc());
@@ -259,8 +259,8 @@ export async function receive(id: string, update: Uint8Array) {
 }
 
 /**
- * The server has erased the note, deleted long ago. Words written here that never reached it live on, as a note
- * of their own: made by one tab only, so they live on once.
+ * The server has erased the note, deleted long ago. Words written here that never reached it live on as a new note,
+ * made by one tab only so that it's made once.
  */
 export async function purged(id: string) {
   await navigator.locks.request(`forget ${id}`, async () => {
@@ -272,13 +272,13 @@ export async function purged(id: string) {
   });
 }
 
-/** What this device has that the server, at `vector`, doesn't, with every deletion; all of it, without one. */
+/** What this device has that the server, at `vector`, doesn't, with every deletion. Without a vector, all of it. */
 export async function missing(id: string, vector?: Uint8Array): Promise<Uint8Array | null> {
   const doc = await load(id);
   return doc ? Y.encodeStateAsUpdate(doc, vector) : null;
 }
 
-/** In characters as Yjs counts them: what decides whether it syncs. */
+/** In characters as Yjs counts them, which decides whether it syncs. */
 export function length(id: string): number {
   changes();
   const entry = entries.get(id);
@@ -288,7 +288,7 @@ export function length(id: string): number {
 /** Marks this device caught up to `now`, once everything that came with it is on disk. */
 export async function caughtUp(now: number) {
   await flush();
-  // A change that failed to save lives only in memory: claiming it caught up would keep the server from resending it.
+  // A change that failed to save lives only in memory. Claiming to have caught up would stop the server resending it.
   if (library.failed) return;
   if (await store((tx) => tx.objectStore("meta").put(now, "since"))) library.synced = true;
 }
@@ -316,7 +316,7 @@ export function generation(id: string): number {
   return entries.get(id)?.generation ?? 0;
 }
 
-/** The server stored the note's changes up to generation `upTo`: if nothing was typed since, it's clean. */
+/** The server stored the note's changes up to generation `upTo`. If nothing was typed since, it's clean. */
 export async function acked(id: string, upTo: number) {
   const entry = entries.get(id);
   if (!entry || entry.generation !== upTo || entry.unsaved) return;
@@ -329,7 +329,7 @@ export async function acked(id: string, upTo: number) {
   });
 }
 
-/** Notes with changes the server hasn't acked, read from disk: another tab may have sent or saved them. */
+/** Notes with changes the server hasn't acked. Read from disk, since another tab may have sent or saved them. */
 export async function unsynced(): Promise<number> {
   await flush();
   // Changes whose save failed live only in memory.
@@ -345,7 +345,7 @@ async function readEverything() {
     const rescues = new Set(storage.keys(Rescued));
     for await (const rows of readNotes(await db, parseRow, ReadBatch)) {
       for (const row of rows) {
-        // Words a closing page left unsaved may bring a deleted or empty note back: it waits for them.
+        // Words a closing page left unsaved may bring a deleted or empty note back, so it waits for them.
         if (!isSignedIn() && !rescues.has(row.id) && !isLive(row)) void purge(row.id);
         // A save that landed while this read was under way knows better.
         else if (!entries.get(row.id)?.note) keep(row);
@@ -360,7 +360,7 @@ async function readEverything() {
   changed();
 }
 
-/** Signed in, deleted notes stay as tombstones so other devices learn of the delete; signed out, they're erased. */
+/** Signed in, deleted notes stay as tombstones so other devices learn of the delete. Signed out, they're erased. */
 function isSignedIn(): boolean {
   return account.email !== null;
 }
@@ -373,7 +373,7 @@ function isWritten(text: string): boolean {
   return /\S/.test(text);
 }
 
-/** From its times alone: summarizing it would copy out all of its text. */
+/** From its times alone, since summarizing it would copy out all of its text. */
 function deleted(doc: Y.Doc): boolean {
   return isDeleted(doc.getMap<number>("meta").get("deletedAt"), lastEdited(doc));
 }
@@ -399,7 +399,7 @@ async function read(id: string): Promise<Y.Doc | null> {
   const unsaved = rescued(id);
   const entry = entries.get(id);
   if (!stored && !unsaved) {
-    // Not here: the next look reads again.
+    // Not on disk, so the next look reads again.
     if (entry && !entry.note && !entry.doc) entries.delete(id);
     else if (entry) entry.loading = undefined;
     return null;
@@ -413,9 +413,9 @@ async function read(id: string): Promise<Y.Doc | null> {
   // A dirty note may hold words another tab couldn't send, so the next send from this tab has to be the whole note.
   if (known !== undefined && parseRow(known).dirty) listener(id, null);
   if (unsaved) {
-    // With no origin, the copy counts as a change made here: it gets saved, and sent.
+    // With no origin, the copy counts as a change made here, so it gets saved and sent.
     Y.applyUpdate(doc, unsaved);
-    // Nothing new means the save had finished after all; only a save clears the copy, and it runs on changes.
+    // If nothing changed, the save had finished after all. Only a save clears the copy, and saves run on changes.
     if (!entries.get(id)?.pending) storage.remove(Rescued + id);
   }
   return doc;
@@ -479,7 +479,7 @@ async function save(id: string) {
     const rows = tx.objectStore("notes");
     const before = docs.get(id);
     const known = rows.get(id);
-    // Requests in a transaction finish in order: by now, both have.
+    // Requests in a transaction finish in order, so by now both have.
     known.onsuccess = () => {
       const stored = before.result === undefined ? undefined : parseStored(before.result);
       if (stored && entry.seen !== `${stored.writer}:${stored.rev}`) Y.applyUpdate(doc, stored.state, Disk);
@@ -494,9 +494,9 @@ async function save(id: string) {
   entry.saving--;
   if (!saved && local) entry.unsaved = true;
   if (!row || !saved || entries.get(id) !== entry) return;
-  // A rescued copy may be newer than what this save wrote: only the last save of the note clears it.
+  // A rescued copy may be newer than what this save wrote, so only the note's last save clears it.
   if (!entry.pending && !entry.saving) storage.remove(Rescued + id);
-  // The note may have changed while the write was on its way (a sync, an undo): describe it as it is now.
+  // The note may have changed while the write was on its way (a sync, an undo), so describe it as it is now.
   const fresh: Row = { ...row, ...summarize(id, doc) };
   keep(fresh);
   changed();
@@ -558,7 +558,7 @@ function rescued(id: string): Uint8Array | null {
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
-  // In slices: spreading a whole large array into one call overflows the stack.
+  // In slices, since spreading a large array into one call overflows the stack.
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
@@ -626,7 +626,7 @@ function parseMessage(data: unknown): Message {
 }
 
 /**
- * 10 random characters of Crockford's base32, in lowercase: no letter that passes for a digit, 50 bits, and no bias,
+ * 10 random characters of lowercase Crockford base32. No letter passes for a digit, it's 50 bits, and there's no bias,
  * since 32 divides 256.
  */
 function newId(): string {
