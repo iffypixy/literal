@@ -78,7 +78,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     }
   }
 
-  function onKeydown(event: KeyboardEvent) {
+  function onKeyDown(event: KeyboardEvent) {
     // Read-only while the next note loads, and these would change this one regardless.
     if (area.readOnly) return;
     if (pressed(event, "Mod+Z")) {
@@ -96,19 +96,13 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 
   // Undo from the menu, the context menu, or shaking the phone.
   function onBeforeInput(event: InputEvent) {
+    if (!event.inputType.startsWith("history")) return;
+    event.preventDefault();
     // A browser keeps one undo history for the whole page, so ⌘Z in another field arrives here once that field has
     // nothing left to undo. Only an undo meant for the note may touch it.
-    if (event.inputType.startsWith("history") && document.activeElement !== area) {
-      event.preventDefault();
-      return;
-    }
-    if (event.inputType === "historyUndo") {
-      event.preventDefault();
-      undo.undo();
-    } else if (event.inputType === "historyRedo") {
-      event.preventDefault();
-      undo.redo();
-    }
+    if (document.activeElement !== area) return;
+    if (event.inputType === "historyUndo") undo.undo();
+    else undo.redo();
   }
 
   function onCompositionStart() {
@@ -139,7 +133,7 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   const { signal } = listening;
   text.observe(receive);
   area.addEventListener("input", type, { signal });
-  area.addEventListener("keydown", onKeydown, { signal });
+  area.addEventListener("keydown", onKeyDown, { signal });
   area.addEventListener("beforeinput", onBeforeInput, { signal });
   area.addEventListener("compositionstart", onCompositionStart, { signal });
   area.addEventListener("compositionend", onCompositionEnd, { signal });
