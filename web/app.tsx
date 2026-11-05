@@ -12,7 +12,7 @@ import { Corner } from "./corner.tsx";
 import { recall, remember } from "./cursors.ts";
 import { hasKeyboard, touch } from "./device.ts";
 import { Drop } from "./drop.tsx";
-import { isOnSheet, navigate, onBack, type Step } from "./history.ts";
+import { isOnSheet, leaveSheet, navigate, onBack, type Step } from "./history.ts";
 import { pressed, Shortcuts } from "./shortcuts.ts";
 import { stayUpToDate } from "./update.ts";
 
@@ -99,6 +99,8 @@ export function App() {
     if (thisGo !== lastGo) return;
     setOpening(false);
     if (text === undefined) {
+      // The sheet's step was left for this note to take, so it goes the way Back would.
+      leaveSheet();
       toast("Couldn't open this note. Try again.");
       return;
     }
