@@ -158,8 +158,8 @@ export class UserNotes extends DurableObject<Env> {
       )
       .toArray()
       .map((row) => row.id);
-    const purged = new Set(gone);
     if (gone.length) socket.send(encode({ type: "purge", ids: gone }));
+    for (const id of gone) theirs.delete(id);
 
     // Everything written up to now goes out below. Anything later reaches the device live.
     const now = this.last;
@@ -186,7 +186,7 @@ export class UserNotes extends DurableObject<Env> {
     // The other dirty notes get the server's state vector, to send what it lacks. For a note it has never seen, an
     // empty one asks for all of it.
     for (const note of theirs.values()) {
-      if (!note.dirty || purged.has(note.id)) continue;
+      if (!note.dirty) continue;
       const row = this.sql.exec<{ vector: ArrayBuffer }>("SELECT vector FROM notes WHERE id = ?", note.id).toArray()[0];
       batch.push({ id: note.id, update: null, vector: row ? new Uint8Array(row.vector) : EmptyVector });
     }
@@ -194,7 +194,10 @@ export class UserNotes extends DurableObject<Env> {
   }
 
   private update(socket: WebSocket, { seq, id, update }: Of<"update">) {
+    // An update can arrive before its device's hello, so the device hears of the purge first, while the note is still
+    // dirty there, and keeps any new words as a new note.
     if (this.sql.exec("SELECT 1 FROM purged WHERE id = ?", id).toArray().length) {
+      socket.send(encode({ type: "purge", ids: [id] }));
       socket.send(encode({ type: "ack", seq }));
       return;
     }
