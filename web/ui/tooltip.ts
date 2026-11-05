@@ -3,6 +3,16 @@ import { touch } from "#web/device.ts";
 import { Keys } from "./keys.ts";
 import "./tooltip.css";
 
+const Delay = 500;
+/** How long after one tooltip goes the next still shows at once. */
+const Warm = 300;
+/** Between the tooltip and its button, and the tooltip and the window's edge. */
+const Gap = 6;
+
+let tip: HTMLElement | null = null;
+let owner: HTMLElement | null = null;
+let warmUntil = 0;
+
 /**
  * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it. Moving on
  * to the next while one is up shows it at once. Set up from the button's ref, so it goes when the button does.
@@ -27,16 +37,6 @@ export function tooltip(node: HTMLElement, label: string, keys: string) {
   onCleanup(leave);
 }
 
-const Delay = 500;
-/** How long after one tooltip goes the next still shows at once. */
-const Warm = 300;
-/** Between the tooltip and its button, and the tooltip and the window's edge. */
-const Gap = 6;
-
-let tip: HTMLElement | null = null;
-let owner: HTMLElement | null = null;
-let warmUntil = 0;
-
 function show(node: HTMLElement, label: string, keys: string, instant: boolean) {
   if (!tip) {
     tip = document.body.appendChild(document.createElement("div"));
@@ -46,8 +46,7 @@ function show(node: HTMLElement, label: string, keys: string, instant: boolean) 
     addEventListener("keydown", hide);
   }
   owner = node;
-  tip.replaceChildren(label);
-  tip.append(Keys({ keys }));
+  tip.replaceChildren(label, Keys({ keys }));
   tip.toggleAttribute("data-instant", instant);
 
   // Under the button with right edges aligned (every button with one sits on the right), or above if there's no room.
