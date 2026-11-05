@@ -23,7 +23,6 @@ export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void):
       resolve(db);
     };
     request.onerror = () => reject(new Error(`open database: ${request.error?.message}`));
-    request.onblocked = () => reject(new Error("open database: blocked by another tab"));
   });
 }
 

@@ -57,7 +57,7 @@ function signedOut(): Response {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-/** Also closes the session's sockets, which check their session only as they open. */
+/** Also closes the session's sockets. */
 async function signOut(request: Request, env: Env): Promise<Response> {
   const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });

@@ -3,7 +3,6 @@
   "name": "literal",
   "main": "server/index.ts",
   "compatibility_date": "2026-10-01",
-  "compatibility_flags": ["nodejs_compat"],
   // Served at literal.ink alone. Sign-in and sync only work at APP_URL, so there's no workers.dev copy.
   "routes": [{ "pattern": "literal.ink", "custom_domain": true }],
   "workers_dev": false,

@@ -85,7 +85,7 @@ export class UserNotes extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  override async webSocketMessage(socket: WebSocket, data: ArrayBuffer | string) {
+  override webSocketMessage(socket: WebSocket, data: ArrayBuffer | string) {
     if (typeof data === "string") {
       socket.close(1003, "binary messages only");
       return;
@@ -104,15 +104,6 @@ export class UserNotes extends DurableObject<Env> {
     } catch (error) {
       console.error(`sync: ${message.type}`, error);
       socket.close(1011, "server error");
-    }
-  }
-
-  override async webSocketClose(socket: WebSocket, code: number) {
-    // Completes the closing handshake. 1005 and 1006 only describe a close, and can't be sent back.
-    try {
-      socket.close(code === 1005 || code === 1006 ? 1000 : code);
-    } catch {
-      // Already closed, since newer runtimes answer the close themselves.
     }
   }
 
@@ -138,7 +129,7 @@ export class UserNotes extends DurableObject<Env> {
 
   async wipe() {
     for (const socket of this.openSockets()) socket.close(SignedOut, "account deleted");
-    await this.ctx.storage.deleteAlarm();
+    // The alarm goes too.
     await this.ctx.storage.deleteAll();
     // The object lives on, and if deleting the account fails after this, it can still be signed in to.
     this.setUp();

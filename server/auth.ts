@@ -126,7 +126,7 @@ async function countCode(db: D1Database, email: string) {
     if (count === null) throw new Error("count code: no count returned");
     return count;
   };
-  if ((await add(await sha256(email.toLowerCase()))) > CodesAnAddress) throw new Refused(503, "no more codes today");
+  if ((await add(await sha256(email))) > CodesAnAddress) throw new Refused(503, "no more codes today");
   if ((await add("all")) > CodesADay) throw new Refused(503, "no more codes today");
 }
 
