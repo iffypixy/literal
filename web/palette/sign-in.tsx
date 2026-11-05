@@ -1,12 +1,11 @@
 import { createEffect, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { CodeLength } from "#protocol.ts";
-import { Fragile, reducedMotion, touch } from "#web/device.ts";
+import { Fragile, hasKeyboard, reducedMotion } from "#web/device.ts";
 import { pressed } from "#web/shortcuts.ts";
 import { sendCode, verify, WrongCode } from "#web/sync/account.ts";
-import { Alert } from "#web/ui/alert.tsx";
 import { Button } from "#web/ui/button.tsx";
-import { Back } from "./back.tsx";
-import { Legal } from "./legal.tsx";
+import { Legal } from "./about.tsx";
+import { Alert, View } from "./view.tsx";
 import "./sign-in.css";
 
 /** Seconds before a code can be sent again. */
@@ -26,9 +25,10 @@ export function SignIn(props: Props) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal("");
   const [wait, setWait] = createSignal(0);
+  const address = () => email().trim();
 
   onMount(() => {
-    if (!touch.matches) field?.focus();
+    if (hasKeyboard()) field?.focus();
   });
 
   createEffect(() => {
@@ -43,7 +43,7 @@ export function SignIn(props: Props) {
     if (busy()) return;
     setBusy(true);
     setError("");
-    const problem = await sendCode(email().trim());
+    const problem = await sendCode(address());
     setBusy(false);
     if (problem) {
       setError(problem);
@@ -59,9 +59,9 @@ export function SignIn(props: Props) {
     if (busy() || code().length !== CodeLength) return;
     setBusy(true);
     setError("");
-    const problem = await verify(email().trim(), code());
+    const problem = await verify(address(), code());
     setBusy(false);
-    if (!problem) return props.onDone(email().trim());
+    if (!problem) return props.onDone(address());
     // Gone back to the email meanwhile, so the answer is about a code no longer asked for.
     if (step() !== "code") return;
     setError(problem);
@@ -87,6 +87,7 @@ export function SignIn(props: Props) {
 
   function onCode(input: HTMLInputElement) {
     const digits = input.value.replace(/\D/g, "").slice(0, CodeLength);
+    // A key that's dropped leaves code() as it was, so Solid wouldn't take it back out of the field.
     input.value = digits;
     setCode(digits);
     setError("");
@@ -108,12 +109,14 @@ export function SignIn(props: Props) {
   }
 
   return (
-    <div class="view sign-in" onKeyDown={onKeyDown}>
-      <Back onClick={() => (step() === "code" ? restart() : props.onBack())} />
-
+    <View
+      title={step() === "email" ? "Sync across devices" : "Check your email"}
+      onBack={() => (step() === "code" ? restart() : props.onBack())}
+      class="sign-in"
+      onKeyDown={onKeyDown}
+    >
       <Switch>
         <Match when={step() === "email"}>
-          <h2 id="view-title">Sync across devices</h2>
           <p class="lead">
             Sign in to keep your notes on all your devices.
             {Fragile && " Safari can clear notes from sites you haven't opened in 7 days. Syncing keeps them."}
@@ -136,21 +139,20 @@ export function SignIn(props: Props) {
               enterkeyhint="send"
               required
             />
-            <Button variant="primary" busy={busy() && "Sending…"} disabled={!email().trim()}>
+            <Button variant="primary" busy={busy() && "Sending…"} disabled={!address()}>
               Send code
             </Button>
           </form>
           <Alert message={error()} />
-          <p class="note">No password. We'll email you a {CodeLength}-digit code.</p>
-          <p class="note fine">
+          <p class="section">No password. We'll email you a {CodeLength}-digit code.</p>
+          <p class="fine">
             <Legal />
           </p>
         </Match>
 
         <Match when={step() === "code"}>
-          <h2 id="view-title">Check your email</h2>
           <p class="lead">
-            Enter the code we sent to <strong>{email().trim()}</strong>.
+            Enter the code we sent to <strong>{address()}</strong>.
           </p>
           <label class="visually-hidden" for="sign-in-code">
             Code
@@ -169,7 +171,7 @@ export function SignIn(props: Props) {
             readOnly={busy()}
           />
           <Alert message={error()} />
-          <p class="links">
+          <p class="links section">
             <Show
               when={wait()}
               fallback={
@@ -187,6 +189,6 @@ export function SignIn(props: Props) {
           </p>
         </Match>
       </Switch>
-    </div>
+    </View>
   );
 }

@@ -1,10 +1,10 @@
 import { For } from "solid-js";
 import { Shortcuts } from "#web/shortcuts.ts";
 import { Keys } from "#web/ui/keys.ts";
-import { Back } from "./back.tsx";
+import { View } from "./view.tsx";
 import "./shortcuts.css";
 
-const KeyList: [string, string][] = [
+const Rows: [string, string][] = [
   [Shortcuts.notes, "Notes and commands"],
   [Shortcuts.new, "New note"],
   ["ArrowUp+ArrowDown", "Choose a note"],
@@ -18,13 +18,9 @@ const KeyList: [string, string][] = [
 
 export function KeyboardShortcuts(props: { onBack: () => void }) {
   return (
-    <div class="view">
-      <Back onClick={props.onBack} />
-      <h2 id="view-title" tabindex="-1">
-        Keyboard shortcuts
-      </h2>
+    <View title="Keyboard shortcuts" onBack={props.onBack}>
       <dl class="shortcuts">
-        <For each={KeyList}>
+        <For each={Rows}>
           {([keys, what]) => (
             <>
               <dt>
@@ -35,6 +31,6 @@ export function KeyboardShortcuts(props: { onBack: () => void }) {
           )}
         </For>
       </dl>
-    </div>
+    </View>
   );
 }

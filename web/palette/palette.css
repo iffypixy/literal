@@ -20,44 +20,13 @@
     display: flex;
     flex-direction: column;
     width: min(560px, calc(100vw - 2 * var(--edge)));
-    max-height: 70vh;
-    margin: 12vh auto 0;
+    max-height: calc(0.7 * var(--viewport-height));
+    margin: calc(0.12 * var(--viewport-height)) auto 0;
     outline: none;
-  }
-
-  /* The page's size, which also keeps iOS from zooming into fields. */
-  @media (pointer: coarse) {
-    & .card {
-      font-size: 16px;
-    }
   }
 
   & .grab {
     display: none;
-  }
-
-  & .view {
-    min-height: 0;
-    padding: var(--edge);
-    overflow-y: auto;
-  }
-
-  /* Weightless, so a view's own spacing wins. */
-  & :where(.view p) {
-    margin: var(--gap) 0 0;
-    color: var(--muted);
-  }
-
-  & :where(.view h2 + p) {
-    margin-top: var(--pair);
-  }
-
-  & .view .error {
-    color: var(--danger);
-  }
-
-  & .view .section {
-    margin-top: var(--group);
   }
 
   /* Opened by a click or tap, it rises a little and sinks quicker as it closes. Opened by a key, it doesn't move. */
