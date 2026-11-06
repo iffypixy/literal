@@ -24,4 +24,8 @@
   & .keys {
     margin-left: 1ch;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    transform: none;
+  }
 }

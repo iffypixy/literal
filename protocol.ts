@@ -1,5 +1,6 @@
 /**
- * The sync protocol: binary messages over one WebSocket between a device and the user's Durable Object.
+ * What a device and the server share, above all the sync protocol: binary messages over one WebSocket between a
+ * device and the user's Durable Object.
  *
  * 1. The device says `hello`: when it last caught up (`since`, in server time), and for every note it has, its
  *    Yjs state vector and whether it has changes the server hasn't acked (`dirty`).
@@ -9,8 +10,10 @@
  * 3. From then on, both sides send `update`s: the server as they arrive, the device once typing pauses. The server
  *    stores each one, then `ack`s it.
  */
+
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
+import type * as Y from "yjs";
 
 export type Message =
   | { type: "hello"; since: number; notes: { id: string; vector: Uint8Array; dirty: boolean }[] }
@@ -21,18 +24,28 @@ export type Message =
       now: number;
       notes: { id: string; update: Uint8Array | null; vector: Uint8Array | null }[];
     }
-  /** `seq` numbers a device's updates so the server can ack them; the server's own updates carry 0. */
+  /** `seq` numbers a device's updates so the server can ack them. Those it passes on from other devices carry 0. */
   | { type: "update"; seq: number; id: string; update: Uint8Array }
   | { type: "ack"; seq: number }
+  /** The update would pass a limit, so it wasn't stored. */
   | { type: "refused"; seq: number; reason: Refusal }
-  /** Notes deleted over 30 days ago, erased for good: devices erase them too. */
+  /** Notes deleted over 30 days ago and erased for good. Devices erase them too. */
   | { type: "purge"; ids: string[] };
+
+export type Of<T extends Message["type"]> = Extract<Message, { type: T }>;
 
 /** The longest note that syncs, in UTF-16 code units, as Yjs counts. The device holds a longer one back. */
 export const MaxLength = 100_000;
-/** Deleted notes don't count toward these. */
+/** The most notes an account syncs, and bytes of their Yjs state. Deleted notes don't count. */
 export const MaxNotes = 10_000;
 export const MaxBytes = 100_000_000;
+
+/**
+ * Text, not binary, and all the text there is: an idle device sends Ping to learn its connection is still alive, and
+ * the server answers Pong without waking up.
+ */
+export const Ping = "ping";
+export const Pong = "pong";
 
 /** The close code that tells a device to stop reconnecting and ask to sign in. */
 export const SignedOut = 4001;
@@ -40,7 +53,7 @@ export const SignedOut = 4001;
 /** Digits in an emailed sign-in code. */
 export const CodeLength = 6;
 
-/** The order of Types and Refusals is the wire format: only ever append. */
+/** The order of Types and Refusals is the wire format, so only ever append. */
 const Types = ["hello", "catch-up", "update", "ack", "refused", "purge"] as const;
 const Refusals = ["too-large", "too-many", "too-full"] as const;
 
@@ -86,14 +99,7 @@ export function encode(message: Message): Uint8Array<ArrayBuffer> {
       for (const id of message.ids) encoding.writeVarString(out, id);
       break;
   }
-  const bytes = encoding.toUint8Array(out);
-  // lib0 builds it in a fresh, plain ArrayBuffer; its types just don't say so, and WebSocket.send wants to know.
-  if (!isPlain(bytes)) throw new Error("encode: not a plain ArrayBuffer");
-  return bytes;
-}
-
-function isPlain(bytes: Uint8Array): bytes is Uint8Array<ArrayBuffer> {
-  return bytes.buffer instanceof ArrayBuffer;
+  return encoding.toUint8Array(out);
 }
 
 /** Throws on anything malformed, so a bad peer gets disconnected rather than half-understood. */
@@ -146,7 +152,7 @@ function readMessage(input: decoding.Decoder): Message {
   }
 }
 
-/** Every item takes a byte at least: a count past the bytes left would make the reader allocate for nothing. */
+/** Every item takes at least a byte, so a count past the bytes left would make the reader allocate for nothing. */
 function readList<T>(input: decoding.Decoder, item: () => T): T[] {
   const count = decoding.readVarUint(input);
   if (count > input.arr.length - input.pos) throw new Error("decode: count past the end");
@@ -166,12 +172,44 @@ function readBoolean(input: decoding.Decoder): boolean {
   return byte === 1;
 }
 
-/** 10 characters of lowercase Crockford base32: nothing else ever becomes a key in storage. */
-export function isNoteId(id: string): boolean {
-  return /^[0-9a-hjkmnp-tv-z]{10}$/.test(id);
+/** Lowercase Crockford base32: no letter passes for a digit, and 32 divides 256, so a random byte picks one fairly. */
+const IdAlphabet = "0123456789abcdefghjkmnpqrstvwxyz";
+const IdPattern = new RegExp(`^[${IdAlphabet}]{10}$`);
+
+/** 10 random characters, 50 bits. */
+export function newId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(10)), (byte) => IdAlphabet[byte & 31]).join("");
 }
 
-/** Decided by a note's own times, alike on every device and the server: an edit made after a delete brings it back. */
+/** Only ever what `newId` makes, so nothing else becomes a key in storage. */
+export function isNoteId(id: string): boolean {
+  return IdPattern.test(id);
+}
+
+/** Decided by a note's own times, the same on every device and the server. An edit after a delete brings it back. */
 export function isDeleted(deletedAt: number | null | undefined, editedAt: number): boolean {
   return typeof deletedAt === "number" && deletedAt >= editedAt;
+}
+
+/** From the doc's own times alone, since reading its text would copy all of it. */
+export function isDocDeleted(doc: Y.Doc): boolean {
+  return isDeleted(doc.getMap<number>("meta").get("deletedAt"), lastEdited(doc));
+}
+
+/**
+ * When the note was last edited, by the latest of each device's own time. With one time for all, two devices editing at
+ * once would leave whichever time Yjs picks, not the later one. Older notes have only `meta.editedAt`.
+ */
+export function lastEdited(doc: Y.Doc): number {
+  const times = [...doc.getMap<number>("edits").values()];
+  return times.length ? Math.max(...times) : (doc.getMap<number>("meta").get("editedAt") ?? 0);
+}
+
+/** Sets this device's time, and drops the earlier ones it has seen from other devices. */
+export function markEdited(doc: Y.Doc, at: number) {
+  const edits = doc.getMap<number>("edits");
+  doc.transact(() => {
+    for (const [device, time] of edits) if (time <= at) edits.delete(device);
+    edits.set(String(doc.clientID), at);
+  });
 }

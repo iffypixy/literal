@@ -1,14 +1,14 @@
-import { createEffect, createMemo, on, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
 import { MaxLength } from "#protocol.ts";
-import { length, library, list } from "#web/notes/notes.ts";
-import { openPalette, palette, togglePalette } from "#web/palette/palette.tsx";
+import * as notes from "#web/notes/notes.ts";
+import { openPalette, palette } from "#web/palette/palette.tsx";
 import { account } from "#web/sync/account.ts";
-import { sync, tooLong, type Problem as SyncProblem } from "#web/sync/sync.ts";
+import { isTooLong, sync, type Problem as SyncProblem } from "#web/sync/sync.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { toast } from "#web/ui/toast.tsx";
-import { Apple, mouse } from "./device.ts";
-import { plural } from "./format.ts";
+import { byPointer, hasKeyboard, touch } from "./device.ts";
+import { number, plural } from "./format.ts";
 import { Shortcuts } from "./shortcuts.ts";
 import "./corner.css";
 
@@ -26,79 +26,76 @@ const Problems: Record<Problem, { label: string; explanation?: string }> = {
     explanation: "Notes are saved on this device and will sync when Literal connects",
   },
   "signed-out": { label: "Sign in to sync" },
-  "too-long": { label: "Too long to sync", explanation: tooLong() },
+  "too-long": {
+    label: "Too long to sync",
+    explanation: `Notes sync up to ${number(MaxLength)} characters, so split this one into shorter notes`,
+  },
 };
 
 type Props = {
   current: string | null;
-  /** With a mouse, the buttons step aside while you type, and come back when the mouse moves. */
-  away: boolean;
-  onReturn: () => void;
   onBlank: () => void;
   focusEditor: () => void;
 };
 
 export function Corner(props: Props) {
-  const tooLongHere = createMemo(() => Boolean(account.email && props.current && length(props.current) > MaxLength));
+  /** On a computer, the buttons fade while you type, and come back when the mouse moves. */
+  const [away, setAway] = createSignal(false);
+  const tooLongHere = createMemo(() => Boolean(account.email && props.current && isTooLong(props.current)));
   const problem = (): Problem | null =>
-    library.failed ? "cant-save" : (sync.problem ?? (tooLongHere() ? "too-long" : null));
+    notes.library.failed ? "cant-save" : (sync.problem ?? (tooLongHere() ? "too-long" : null));
   const problemLabel = () => {
     const shown = problem();
     return shown ? Problems[shown].label : "";
   };
-  const calm = createMemo(() => {
+  const summary = createMemo(() => {
     if (props.current) return "Saved";
-    const live = library.ready ? list().length : 0;
+    const live = notes.library.ready ? notes.list().length : 0;
     return live ? plural(live, "note") : "";
   });
 
+  addEventListener("input", () => !palette.open && !touch.matches && setAway(true));
   addEventListener("mousemove", (event) => {
-    if (props.away && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) props.onReturn();
+    if (away() && (Math.abs(event.movementX) > 1 || Math.abs(event.movementY) > 1)) setAway(false);
   });
-  createEffect(on(() => palette.open, props.onReturn, { defer: true }));
+  createEffect(() => palette.open && setAway(false));
 
-  function explain() {
+  function explain(event: MouseEvent) {
+    const pointer = byPointer(event);
     const shown = problem();
-    if (shown === "signed-out") return openPalette(true, "sign-in");
-    if (!shown && !props.current) return togglePalette(true);
+    if (shown === "signed-out") return openPalette(pointer, "sign-in");
+    if (!shown && !props.current) return openPalette(pointer);
     if (shown) toast(Problems[shown].explanation ?? "");
     else if (account.email) toast("Notes save and sync as you type");
     else
       toast("Notes save on this device as you type", {
         action: { label: "Sync", run: () => openPalette(true, "sign-in") },
       });
-    // A word of explanation, then back to writing: the click shouldn't take the cursor away.
-    if (mouse.matches) props.focusEditor();
+    // Explain, then go back to writing. The click shouldn't take the cursor away.
+    if (hasKeyboard(pointer)) props.focusEditor();
   }
 
   return (
     <>
-      <div class="corner" classList={{ away: props.away }} inert={palette.open}>
-        <Show when={problemLabel() || calm()}>
+      <div class="corner" classList={{ away: away() }} inert={palette.open}>
+        <Show when={problemLabel() || summary()}>
           {(label) => (
             <button class="status quiet" classList={{ problem: Boolean(problem()) }} onClick={explain}>
               {label()}
             </button>
           )}
         </Show>
-        <IconButton
-          label="New note"
-          icon="plus"
-          keys={Shortcuts.new}
-          aria-keyshortcuts="Alt+N"
-          onClick={props.onBlank}
-        />
+        <IconButton label="New note" icon="plus" keys={Shortcuts.new} onClick={props.onBlank} />
         <IconButton
           label="Notes"
           icon="list"
           keys={Shortcuts.notes}
-          aria-keyshortcuts={Apple ? "Meta+K" : "Control+K"}
-          onClick={() => togglePalette(true)}
+          onClick={(event) => openPalette(byPointer(event))}
         />
       </div>
 
-      {/* Only on a blank page, where it covers nothing: gone with the first word. */}
-      {mouse.matches && (
+      {/* Only on a blank page, where it covers nothing. It fades with the first word. */}
+      {!touch.matches && (
         <p class="hint" classList={{ gone: props.current !== null }} aria-hidden="true">
           <span>
             <Keys keys={Shortcuts.new} /> new note

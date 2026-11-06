@@ -1,17 +1,27 @@
 import { onCleanup } from "solid-js";
-import { mouse } from "#web/device.ts";
+import { touch } from "#web/device.ts";
 import { Keys } from "./keys.ts";
 import "./tooltip.css";
 
+const Delay = 500;
+/** How long after one tooltip goes the next still shows at once. */
+const Warm = 300;
+/** Between the tooltip and its button, and the tooltip and the window's edge. */
+const Gap = 6;
+
+let tip: HTMLElement | null = null;
+let owner: HTMLElement | null = null;
+let warmUntil = 0;
+
 /**
- * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it; moving on
+ * Names a button and its shortcut. The first one waits a moment, so passing over a button doesn't flash it. Moving on
  * to the next while one is up shows it at once. Set up from the button's ref, so it goes when the button does.
  */
-export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
+export function tooltip(node: HTMLElement, label: string, keys: string) {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   function enter() {
-    if (!mouse.matches) return;
+    if (touch.matches) return;
     const instant = performance.now() < warmUntil;
     timer = setTimeout(() => show(node, label, keys, instant), instant ? 0 : Delay);
   }
@@ -27,17 +37,7 @@ export function tooltip(node: HTMLElement, label: string, keys?: string[]) {
   onCleanup(leave);
 }
 
-const Delay = 500;
-/** How long after one tooltip goes the next still shows at once. */
-const Warm = 300;
-/** Between the tooltip and its button, and the tooltip and the window's edge. */
-const Gap = 6;
-
-let tip: HTMLElement | null = null;
-let owner: HTMLElement | null = null;
-let warmUntil = 0;
-
-function show(node: HTMLElement, label: string, keys: string[] | undefined, instant: boolean) {
+function show(node: HTMLElement, label: string, keys: string, instant: boolean) {
   if (!tip) {
     tip = document.body.appendChild(document.createElement("div"));
     tip.className = "tooltip surface";
@@ -46,11 +46,10 @@ function show(node: HTMLElement, label: string, keys: string[] | undefined, inst
     addEventListener("keydown", hide);
   }
   owner = node;
-  tip.replaceChildren(label);
-  if (keys) tip.append(Keys({ keys }));
+  tip.replaceChildren(label, Keys({ keys }));
   tip.toggleAttribute("data-instant", instant);
 
-  // Under the button, right edges aligned (every button with one sits on the right); above if there's no room.
+  // Under the button with right edges aligned (every button with one sits on the right), or above if there's no room.
   const button = node.getBoundingClientRect();
   const { offsetWidth: width, offsetHeight: height } = tip;
   const below = button.bottom + Gap + height < innerHeight;

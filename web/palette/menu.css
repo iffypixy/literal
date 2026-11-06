@@ -4,12 +4,13 @@
 
 .menu {
   position: absolute;
-  right: 6px;
+  /* Lined up with the More button above it, as the footer places it. */
+  right: var(--more-inset);
   bottom: calc(100% + 2px);
   display: flex;
   flex-direction: column;
   min-width: 180px;
-  padding: calc(var(--edge) - var(--inset));
+  padding: var(--gutter);
   transform-origin: bottom right;
   animation: pop var(--fade) var(--ease-out);
 

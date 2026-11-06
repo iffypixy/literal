@@ -3,5 +3,6 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["e2e", "unit", "vite.config.ts", "playwright.config.ts"]
+  "include": ["e2e", "web/**/*.test.ts", "protocol.test.ts", "vite.config.ts", "playwright.config.ts"],
+  "exclude": []
 }

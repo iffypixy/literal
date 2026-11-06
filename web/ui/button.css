@@ -5,12 +5,9 @@
   border-radius: var(--radius-small);
   transition:
     transform var(--press) var(--ease-out),
+    color var(--press) ease,
     background-color var(--press) ease,
-    opacity var(--press) ease;
-
-  &:active:not(:disabled) {
-    transform: scale(0.97);
-  }
+    border-color var(--press) ease;
 
   &.primary {
     border-color: var(--accent);
@@ -18,16 +15,16 @@
     color: var(--on-accent);
   }
 
-  /* Disabled, every button is a grey outline: the main one takes the accent once it can act. */
-  &.primary:disabled {
-    border-color: var(--line);
-    background: transparent;
-    color: var(--muted);
-  }
-
   &.danger {
     border-color: var(--danger);
     color: var(--danger);
+  }
+
+  /* Disabled, every button is a grey outline. The main one takes the accent once it can act. */
+  &:disabled {
+    border-color: var(--line);
+    background: transparent;
+    color: var(--muted);
   }
 
   @media (hover: hover) and (pointer: fine) {

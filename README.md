@@ -26,6 +26,8 @@ pnpm dev
 
 Sign-in codes show up in the terminal. `pnpm check` checks types, lint and formatting (`pnpm format` fixes it), and `pnpm test` runs the tests. CI runs both on every push.
 
+`pnpm release` checks, tests, migrates the database and deploys. Migrations run while the last Worker is still serving, so each must work with it too.
+
 ## License
 
 [MIT](LICENSE)

@@ -1,25 +1,20 @@
 /** ⌘K: notes and commands, and the views they lead to. On a phone, a sheet from the bottom. */
 
-import { batch, createEffect, createSignal, Match, Switch } from "solid-js";
+import { batch, createSignal, Match, Show, Switch } from "solid-js";
 import { createMutable } from "solid-js/store";
-import { sheet, touch } from "#web/device.ts";
-import { plural } from "#web/format.ts";
-import { unsynced } from "#web/notes/notes.ts";
-import { composing } from "#web/shortcuts.ts";
-import { deleteAccount, signOut } from "#web/sync/account.ts";
-import { drain, sync } from "#web/sync/sync.ts";
-import { exportAll } from "#web/transfer/transfer.ts";
-import { Button } from "#web/ui/button.tsx";
-import { toast } from "#web/ui/toast.tsx";
+import { hasKeyboard, reducedMotion, sheet } from "#web/device.ts";
+import { leaveSheet, pushSheet } from "#web/history.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { About } from "./about.tsx";
-import { Confirm } from "./confirm.tsx";
+import { DeleteAccount } from "./delete-account.tsx";
 import { grab } from "./drag.ts";
 import { List } from "./list.tsx";
 import { KeyboardShortcuts } from "./shortcuts.tsx";
 import { SignIn } from "./sign-in.tsx";
+import { SignOut } from "./sign-out.tsx";
 import "./palette.css";
 
-export type View = "notes" | "sign-in" | "sign-out" | "delete" | "keys" | "about";
+export type ViewName = "notes" | "sign-in" | "sign-out" | "delete" | "shortcuts" | "about";
 
 type Props = {
   current: string | null;
@@ -34,19 +29,15 @@ type Props = {
 
 export const palette = createMutable({ open: false });
 
-// There's one palette: these are set as it renders, before anything uses them.
+// There's one palette, and these are set as it renders, before anything uses them.
 let overlay!: HTMLDivElement;
 let card!: HTMLDivElement;
 let host!: Props;
 
-const [view, setView] = createSignal<View>("notes");
-/** Open, or still sliding away: the list stays until it's gone. */
+const [view, setView] = createSignal<ViewName>("notes");
+/** Open, or still sliding away. What it shows stays until it's gone, and each opening starts afresh. */
 const [visible, setVisible] = createSignal(false);
-const [waiting, setWaiting] = createSignal(0);
 let focusSearch = true;
-let closedByPointer = false;
-/** As a sheet, the palette is a step in history, so Back closes it: whether that step is still there. */
-let step = false;
 
 export function togglePalette(pointer: boolean) {
   if (palette.open) closePalette(pointer);
@@ -54,82 +45,58 @@ export function togglePalette(pointer: boolean) {
 }
 
 /** Keys open it instantly; a click or tap gets a short animation. */
-export function openPalette(pointer: boolean, start: View = "notes") {
+export function openPalette(pointer: boolean, start: ViewName = "notes") {
   if (palette.open) return setView(start);
-  delete overlay.dataset.closing;
+  // A close still under way is called off.
+  rest();
   overlay.toggleAttribute("data-motion", pointer);
-  card.style.transform = "";
-  card.style.transition = "";
   overlay.hidden = false;
-  // Tapped open on a phone, the keyboard would cover the list; the search field is a tap away. Opened by a key,
-  // there's a keyboard to type with, even on a tablet.
-  focusSearch = !(pointer && touch.matches);
+  // Tapped open on a phone, the keyboard would cover the list, and the search field is a tap away.
+  focusSearch = hasKeyboard(pointer);
   batch(() => {
     palette.open = true;
     setView(start);
     setVisible(true);
   });
-  if (sheet.matches && !step) {
-    history.pushState(null, "");
-    step = true;
-  }
-  if ((start !== "notes" || !focusSearch) && !card.contains(document.activeElement)) card.focus();
+  if (sheet.matches) pushSheet();
+  // Whatever in it didn't take the keyboard, the card does, so keys reach the palette and not the page behind.
+  if (!card.contains(document.activeElement)) card.focus();
 }
 
 /** `replaced`: a note is about to take the sheet's step in history, so it stays. */
 export function closePalette(pointer: boolean, replaced = false) {
   if (!palette.open) return;
   palette.open = false;
-  closedByPointer = pointer;
-  if (!replaced) leaveStep();
-  if (!pointer) return finish();
+  if (!replaced) leaveSheet();
+  if (!pointer) return finish(false);
   overlay.dataset.closing = "";
-  card.addEventListener("animationend", finish, { once: true });
-}
-
-/** Whether the sheet's step is the current one in history. */
-export function hasStep(): boolean {
-  return step;
-}
-
-/** For a note the sheet opens, or for Back: whether there was a step to take. */
-export function takeStep(): boolean {
-  const had = step;
-  step = false;
-  return had;
+  afterCard("animationend", () => finish(true));
 }
 
 export function Palette(props: Props) {
   host = props;
 
-  // Esc goes back a step: out of a view, then out of the palette.
+  // Esc goes back a step, out of a view, then out of the palette.
   addEventListener("keydown", (event) => {
-    if (!palette.open || event.key !== "Escape" || event.defaultPrevented || composing(event)) return;
+    if (!palette.open || event.defaultPrevented || !pressed(event, "Escape")) return;
     event.preventDefault();
     if (view() !== "notes") showList();
     else closePalette(false);
   });
 
-  // A view other than the list puts the keyboard on its heading, so it's read out and Tab goes on from there.
-  createEffect(() => {
-    if (!palette.open || view() === "notes" || view() === "sign-in") return;
-    document.getElementById("view-title")?.focus();
-  });
-
-  /** In the list, a click leaves the cursor where it was, in the search field: the keys go on working. */
+  /** In the list, a click leaves the cursor in the search field, so the keys go on working. */
   function keepFocus(event: MouseEvent) {
     if (view() === "notes" && event.target instanceof Element && !event.target.closest("input, a"))
       event.preventDefault();
   }
 
   function pick(id: string, pointer: boolean) {
-    // Closed first: the page behind takes the cursor only once the palette is off it.
+    // Closed first, since the page behind takes the cursor only once the palette is off it.
     closePalette(pointer, id !== props.current);
     props.onPick(id, pointer);
   }
 
   function signedIn(email: string) {
-    setView("notes");
     closePalette(true);
     props.onSignedIn(email);
   }
@@ -137,7 +104,7 @@ export function Palette(props: Props) {
   return (
     <div
       ref={overlay}
-      class="palette"
+      class="palette viewport"
       role="dialog"
       aria-label={view() === "notes" ? "Notes" : undefined}
       aria-labelledby={view() === "notes" ? undefined : "view-title"}
@@ -155,105 +122,83 @@ export function Palette(props: Props) {
           <span />
         </button>
 
-        <Switch>
-          <Match when={view() === "notes" && visible()}>
-            <List
-              current={props.current}
-              previous={props.previous}
-              focus={focusSearch}
-              onPick={pick}
-              onDelete={props.onDelete}
-              onBlank={props.onBlank}
-              onView={setView}
-              onClose={closePalette}
-              onSignOut={() => void signOutOrAsk()}
-            />
-          </Match>
+        <Show when={visible()}>
+          <Switch>
+            <Match when={view() === "notes"}>
+              <List
+                current={props.current}
+                previous={props.previous}
+                focus={focusSearch}
+                onPick={pick}
+                onDelete={props.onDelete}
+                onBlank={props.onBlank}
+                onView={setView}
+                close={closePalette}
+              />
+            </Match>
 
-          <Match when={view() === "sign-in"}>
-            <SignIn onBack={showList} onDone={signedIn} />
-          </Match>
+            <Match when={view() === "sign-in"}>
+              <SignIn onBack={showList} onDone={signedIn} />
+            </Match>
 
-          <Match when={view() === "sign-out"}>
-            <Confirm
-              title={notSynced(waiting())}
-              action="Sign out anyway"
-              busy="Signing out…"
-              run={signOut}
-              onCancel={showList}
-            >
-              Signing out removes notes from this device. Changes that haven't synced will be lost.
-            </Confirm>
-          </Match>
+            <Match when={view() === "sign-out"}>
+              <SignOut onCancel={showList} />
+            </Match>
 
-          <Match when={view() === "delete"}>
-            <Confirm
-              title="Delete your account and all your notes?"
-              action="Delete account"
-              busy="Deleting…"
-              run={deleteAccount}
-              onCancel={showList}
-            >
-              Your notes will be erased from Literal and this device. This can't be undone.{" "}
-              <Button variant="link" onClick={exportAll}>
-                Export your notes
-              </Button>{" "}
-              first.
-            </Confirm>
-          </Match>
+            <Match when={view() === "delete"}>
+              <DeleteAccount onCancel={showList} />
+            </Match>
 
-          <Match when={view() === "keys"}>
-            <KeyboardShortcuts onBack={showList} />
-          </Match>
+            <Match when={view() === "shortcuts"}>
+              <KeyboardShortcuts onBack={showList} />
+            </Match>
 
-          <Match when={view() === "about"}>
-            <About onBack={showList} />
-          </Match>
-        </Switch>
+            <Match when={view() === "about"}>
+              <About onBack={showList} />
+            </Match>
+          </Switch>
+        </Show>
       </div>
     </div>
   );
 }
 
-/** Dragged away: it slides off from where the finger let go. */
+/** Dragged away, it slides off from where the finger let go. */
 function dismiss() {
   palette.open = false;
-  closedByPointer = true;
-  leaveStep();
-  card.addEventListener("transitionend", finish, { once: true });
+  overlay.dataset.dragged = "";
+  leaveSheet();
+  if (reducedMotion.matches) finish(true);
+  else afterCard("transitionend", () => finish(true));
 }
 
-function finish() {
-  // Reopened while closing: the close is off.
+function finish(pointer: boolean) {
+  // Reopened while closing, so the close is off.
   if (palette.open) return;
+  rest();
+  overlay.hidden = true;
+  setVisible(false);
+  host.onClose(pointer);
+}
+
+/** Back at rest, with nothing left of a close or a drag. */
+function rest() {
+  delete overlay.dataset.closing;
+  delete overlay.dataset.dragged;
   card.style.transform = "";
   card.style.transition = "";
-  overlay.hidden = true;
-  delete overlay.dataset.closing;
-  setVisible(false);
-  host.onClose(closedByPointer);
+}
+
+/** Once the card's own animation or transition ends, not one inside it, which would bubble up to it first. */
+function afterCard(type: "animationend" | "transitionend", then: () => void) {
+  card.addEventListener(type, function end(event) {
+    if (event.target !== card) return;
+    card.removeEventListener(type, end);
+    then();
+  });
 }
 
 function showList() {
-  focusSearch = !touch.matches;
+  focusSearch = hasKeyboard();
   setView("notes");
-}
-
-/** Steps back off the sheet's step; App hears it as popstate. */
-function leaveStep() {
-  if (step) history.back();
-}
-
-function notSynced(count: number): string {
-  if (!count) return "Some notes may not have synced yet";
-  return `${plural(count, "note")} ${count === 1 ? "hasn't" : "haven't"} synced yet`;
-}
-
-/** Signs out at once if everything is synced; otherwise asks first. */
-async function signOutOrAsk() {
-  await drain();
-  setWaiting(await unsynced());
-  if (waiting() || sync.problem) return setView("sign-out");
-  const error = await signOut();
-  if (error) toast(error);
 }

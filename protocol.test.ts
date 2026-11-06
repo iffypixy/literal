@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decode, encode, type Message } from "#protocol.ts";
+import * as Y from "yjs";
+import { decode, encode, isDocDeleted, lastEdited, markEdited, type Message } from "./protocol.ts";
 
 const id = "7k3qx9m2da";
 const bytes = new Uint8Array([1, 2, 3]);
@@ -25,4 +26,23 @@ test("a malformed message is refused rather than half read", () => {
   assert.throws(() => decode(encode({ type: "update", seq: 1, id: "not-an-id!", update: bytes })), /bad note id/);
   // A purge claiming far more ids than there are bytes for.
   assert.throws(() => decode(new Uint8Array([5, 0xff, 0xff, 0x03])), /count past the end/);
+});
+
+test("an edit made after a delete brings the note back, whichever device Yjs favors", () => {
+  for (const flipped of [false, true]) {
+    const a = new Y.Doc();
+    const b = new Y.Doc();
+    a.clientID = flipped ? 2 : 1;
+    b.clientID = flipped ? 1 : 2;
+    // Both offline. A edits, then deletes, and B edits later.
+    markEdited(a, 1);
+    a.getMap<number>("meta").set("deletedAt", 2);
+    markEdited(b, 3);
+    Y.applyUpdate(a, Y.encodeStateAsUpdate(b));
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a));
+    for (const doc of [a, b]) {
+      assert.equal(lastEdited(doc), 3);
+      assert.equal(isDocDeleted(doc), false);
+    }
+  }
 });

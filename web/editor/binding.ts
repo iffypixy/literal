@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 import { Apple } from "#web/device.ts";
-import { letter, mod } from "#web/shortcuts.ts";
-import { diff, end, shift, type Delta } from "./diff.ts";
+import { pressed } from "#web/shortcuts.ts";
+import { diff, end, landingOf, type Change, type Delta } from "./diff.ts";
 
 /** Marks the changes this textarea makes, so they aren't echoed back into it. */
 const Typed = Symbol("typed");
@@ -12,7 +12,7 @@ const UndoStep = 600;
  * Keeps a textarea and a Yjs text the same, both ways. Typing goes into the text as the smallest change;
  * changes from elsewhere go into the textarea without moving the cursor. Undo only undoes what was typed here.
  *
- * If the text is empty and the textarea isn't, the textarea's content counts as typed: that's how a new note starts.
+ * If the text is empty and the textarea isn't, the textarea's content counts as typed. That's how a new note starts.
  */
 export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   if (!text.doc) throw new Error("bind: the text is in no document");
@@ -23,6 +23,8 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   /** Changes from elsewhere, waiting for the textarea to be free. */
   let held: Delta[] = [];
   let composing = false;
+  /** A composition's end, put off a moment. A new one may start before it comes. */
+  let ending: ReturnType<typeof setTimeout> | undefined;
 
   if (text.length === 0 && area.value) {
     type();
@@ -32,15 +34,19 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
   }
 
   function type() {
+    // Changes held mid-composition are placed against what the textarea showed when they came. Until they show, what's
+    // composed waits, and goes in as one change when the composition ends.
+    if (composing && held.length) return;
     const change = diff(shown, area.value, area.selectionEnd);
     shown = area.value;
     if (!change) return;
     // Text that arrived mid-composition sits in the Yjs text but not yet on screen.
-    const at = held.reduce((index, delta) => shift(index, delta), change.at);
+    const at = landingOf(change.at, held);
     doc.transact(() => {
       if (change.removed) text.delete(at, change.removed);
       if (change.inserted) text.insert(at, change.inserted);
     }, Typed);
+    release(change);
   }
 
   function receive(event: Y.YTextEvent, transaction: Y.Transaction) {
@@ -55,15 +61,14 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     show([delta], transaction.origin === undo ? end(delta) : null);
   }
 
-  /** Carries the selection over the changes, or puts it at `caret` after an undo. */
-  function show(deltas: Delta[], caret: number | null) {
+  /**
+   * Carries the selection over the changes, and over the textarea's own `change` made since they came, or puts it at
+   * `caret` after an undo.
+   */
+  function show(deltas: Delta[], caret: number | null, change?: Change) {
     const scroll = area.scrollTop;
-    let start = area.selectionStart;
-    let finish = area.selectionEnd;
-    for (const delta of deltas) {
-      start = shift(start, delta);
-      finish = shift(finish, delta);
-    }
+    const start = landingOf(area.selectionStart, deltas, change);
+    const finish = landingOf(area.selectionEnd, deltas, change);
     const direction = area.selectionDirection;
     shown = text.toString();
     area.value = shown;
@@ -71,20 +76,21 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
       area.setSelectionRange(start, finish, direction);
       area.scrollTop = scroll;
     } else {
-      // Moving the caret also scrolls it into view: an undo shows what it undid.
+      // Moving the caret also scrolls it into view, so an undo shows what it undid.
       area.setSelectionRange(caret, caret);
     }
   }
 
-  function onKeydown(event: KeyboardEvent) {
-    if (mod(event) && !event.altKey && letter(event, "z")) {
+  function onKeyDown(event: KeyboardEvent) {
+    // Read-only while the next note loads, and these would change this one regardless.
+    if (area.readOnly) return;
+    if (pressed(event, "Mod+Z")) {
       event.preventDefault();
-      if (event.shiftKey) undo.redo();
-      else undo.undo();
-    } else if (!Apple && event.ctrlKey && !event.metaKey && letter(event, "y")) {
+      undo.undo();
+    } else if (pressed(event, "Mod+Shift+Z") || (!Apple && pressed(event, "Mod+Y"))) {
       event.preventDefault();
       undo.redo();
-    } else if (event.key === "Tab" && !event.shiftKey && !mod(event) && !event.altKey) {
+    } else if (pressed(event, "Tab")) {
       event.preventDefault();
       area.setRangeText("\t", area.selectionStart, area.selectionEnd, "end");
       type();
@@ -93,29 +99,25 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
 
   // Undo from the menu, the context menu, or shaking the phone.
   function onBeforeInput(event: InputEvent) {
-    // A browser keeps one undo history for the whole page: ⌘Z in another field, once that field has nothing
-    // left to undo, arrives here. Only an undo meant for the note may touch it.
-    if (event.inputType.startsWith("history") && document.activeElement !== area) {
-      event.preventDefault();
-      return;
-    }
-    if (event.inputType === "historyUndo") {
-      event.preventDefault();
-      undo.undo();
-    } else if (event.inputType === "historyRedo") {
-      event.preventDefault();
-      undo.redo();
-    }
+    if (!event.inputType.startsWith("history")) return;
+    event.preventDefault();
+    // A browser keeps one undo history for the whole page, so ⌘Z in another field arrives here once that field has
+    // nothing left to undo. Only an undo meant for the note may touch it.
+    if (document.activeElement !== area) return;
+    if (event.inputType === "historyUndo") undo.undo();
+    else undo.redo();
   }
 
   function onCompositionStart() {
+    clearTimeout(ending);
     composing = true;
   }
 
   function onCompositionEnd() {
-    // Some browsers send the composition's last input right after this event: changes keep waiting until it lands.
-    setTimeout(() => {
+    // Some browsers send the composition's last input right after this event, so changes wait until it lands.
+    ending = setTimeout(() => {
       composing = false;
+      type();
       release();
     });
   }
@@ -124,29 +126,27 @@ export function bind(area: HTMLTextAreaElement, text: Y.Text): () => void {
     if (!document.hidden && !composing) release();
   }
 
-  function release() {
+  function release(change?: Change) {
     if (!held.length) return;
     const deltas = held;
     held = [];
-    show(deltas, null);
+    show(deltas, null, change);
   }
 
+  const listening = new AbortController();
+  const { signal } = listening;
   text.observe(receive);
-  area.addEventListener("input", type);
-  area.addEventListener("keydown", onKeydown);
-  area.addEventListener("beforeinput", onBeforeInput);
-  area.addEventListener("compositionstart", onCompositionStart);
-  area.addEventListener("compositionend", onCompositionEnd);
-  document.addEventListener("visibilitychange", onVisibilityChange);
+  area.addEventListener("input", type, { signal });
+  area.addEventListener("keydown", onKeyDown, { signal });
+  area.addEventListener("beforeinput", onBeforeInput, { signal });
+  area.addEventListener("compositionstart", onCompositionStart, { signal });
+  area.addEventListener("compositionend", onCompositionEnd, { signal });
+  document.addEventListener("visibilitychange", onVisibilityChange, { signal });
 
   return () => {
+    clearTimeout(ending);
+    listening.abort();
     text.unobserve(receive);
-    area.removeEventListener("input", type);
-    area.removeEventListener("keydown", onKeydown);
-    area.removeEventListener("beforeinput", onBeforeInput);
-    area.removeEventListener("compositionstart", onCompositionStart);
-    area.removeEventListener("compositionend", onCompositionEnd);
-    document.removeEventListener("visibilitychange", onVisibilityChange);
     undo.destroy();
   };
 }

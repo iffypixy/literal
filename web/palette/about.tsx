@@ -1,13 +1,8 @@
-import { Back } from "./back.tsx";
-import { Legal } from "./legal.tsx";
+import { View } from "./view.tsx";
 
 export function About(props: { onBack: () => void }) {
   return (
-    <div class="view">
-      <Back onClick={props.onBack} />
-      <h2 id="view-title" tabindex="-1">
-        Literal
-      </h2>
+    <View title="Literal" onBack={props.onBack}>
       <p>Instant notes, on all your devices.</p>
       <p class="section">
         Made by Ansat
@@ -20,6 +15,21 @@ export function About(props: { onBack: () => void }) {
           Source
         </a>
       </p>
-    </div>
+    </View>
+  );
+}
+
+/** The terms and the privacy policy, each opening in a tab of its own. */
+export function Legal() {
+  return (
+    <>
+      <a href="/terms" target="_blank">
+        Terms
+      </a>{" "}
+      ·{" "}
+      <a href="/privacy" target="_blank">
+        Privacy
+      </a>
+    </>
   );
 }

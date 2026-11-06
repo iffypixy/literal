@@ -1,4 +1,5 @@
 import { splitProps, type JSX } from "solid-js";
+import { aria } from "#web/shortcuts.ts";
 import { tooltip } from "./tooltip.ts";
 import "./icon.css";
 
@@ -20,7 +21,7 @@ type Props = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
   label: string;
   icon: keyof typeof Icons;
   /** Its shortcut, named in a tooltip along with the label. */
-  keys?: string[];
+  keys?: string;
 };
 
 export function IconButton(props: Props) {
@@ -31,6 +32,7 @@ export function IconButton(props: Props) {
       ref={(button) => own.keys && tooltip(button, own.label, own.keys)}
       class={own.class ? `quiet icon ${own.class}` : "quiet icon"}
       aria-label={own.label}
+      aria-keyshortcuts={own.keys && aria(own.keys)}
     >
       <svg viewBox="0 0 20 20" aria-hidden="true">
         {Icons[own.icon]()}

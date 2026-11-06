@@ -27,17 +27,17 @@ export function zip(entries: Entry[]): Blob {
     central.push(
       header(46, name, [
         [0, 4, 0x02014b50],
-        [4, 2, 20],
-        [6, 2, 20],
-        [8, 2, 0x0800],
-        [10, 2, 0],
+        [4, 2, 20], // version made by
+        [6, 2, 20], // version needed
+        [8, 2, 0x0800], // names are UTF-8
+        [10, 2, 0], // stored
         [12, 2, time],
         [14, 2, date],
         [16, 4, crc],
         [20, 4, data.length],
         [24, 4, data.length],
         [28, 2, name.length],
-        [42, 4, offset],
+        [42, 4, offset], // where its local header starts
       ]),
     );
     parts.push(local, data);
@@ -70,7 +70,7 @@ function header(
   return out;
 }
 
-/** The two 16-bit MS-DOS fields a zip stores times in: local time, to the even second. */
+/** The two 16-bit MS-DOS fields a zip stores times in, as local time to the even second. */
 function dosTime(date: Date): [number, number] {
   const year = Math.max(1980, date.getFullYear());
   return [

@@ -1,7 +1,7 @@
 .list {
   display: contents;
 
-  /* The search above and the footer below are the same height: a control's, plus 4px above and below. */
+  /* The search above and the footer below are the same height, a control's plus the gutter above and below. */
   & .search {
     display: flex;
     align-items: center;
@@ -12,7 +12,7 @@
   & .search input {
     flex: 1;
     min-width: 0;
-    padding: calc(var(--control-padding) + 4px) 0;
+    padding: calc(var(--control-padding) + var(--gutter)) 0;
     border: 0;
     outline: 0;
     background: transparent;
@@ -22,11 +22,7 @@
     flex: 1;
     min-height: 0;
     margin: 0;
-    padding: calc(var(--edge) - var(--inset));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--line) transparent;
+    padding: var(--gutter);
   }
 
   & .option {
@@ -41,7 +37,7 @@
     inset: 0;
     align-items: center;
     justify-content: flex-end;
-    padding: 0 var(--edge);
+    padding: 0 var(--inset);
     background: var(--danger);
     color: var(--surface);
   }
@@ -50,7 +46,7 @@
     display: flex;
   }
 
-  /* A row is a control: its height, and its text on the palette's 16px edge (the list's 4px gutter, then 12px). */
+  /* A row is a control's height, with its text on the palette's edge (the list's gutter, then its inset). */
   & .row {
     position: relative;
     padding: var(--control-padding) var(--inset);
@@ -62,13 +58,17 @@
   }
 
   & .rows[data-highlighted] [aria-selected="true"] .row {
-    background: color-mix(in srgb, var(--text) 6%, var(--surface));
-  }
+    background: linear-gradient(var(--hover), var(--hover)) var(--surface);
 
-  /* The wash alone (1.13:1) isn't enough to find: the accent's edge marks the row. */
-  @media (prefers-contrast: more) {
-    & .rows[data-highlighted] [aria-selected="true"] .row {
+    /* The wash alone (1.13:1) is too faint to find, so the accent's edge marks the row. */
+    @media (prefers-contrast: more) {
       box-shadow: inset 2px 0 var(--accent);
+    }
+
+    /* Windows High Contrast drops washes, so the row takes the system's highlight. */
+    @media (forced-colors: active) {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
     }
   }
 
@@ -90,7 +90,6 @@
   & .time {
     flex: none;
     color: var(--muted);
-    font-variant-numeric: tabular-nums;
   }
 
   & .snippet {
@@ -112,7 +111,7 @@
     height: 24px;
     margin: -4px -6px -4px 0;
 
-    /* A finger swipes instead; a screen reader, which takes swipes for itself, still finds the button. */
+    /* A finger swipes instead. A screen reader, which takes swipes for itself, still finds the button. */
     @media (pointer: coarse) {
       display: grid;
       position: absolute;
@@ -127,7 +126,7 @@
     height: 1px;
   }
 
-  /* Only when commands show: which rows do something, which rows are notes. */
+  /* Only when commands show, to tell the rows that do something from the notes. */
   & .group {
     padding: var(--group) var(--inset) var(--pair);
     color: var(--muted);
@@ -140,7 +139,7 @@
   /* Where the first row's text would be. */
   & .empty {
     margin: 0;
-    padding: calc(var(--edge) - var(--inset) + var(--control-padding)) var(--edge);
+    padding: calc(var(--gutter) + var(--control-padding)) var(--edge);
     color: var(--muted);
   }
 
@@ -150,7 +149,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 2ch;
-    padding: 4px 6px 4px var(--edge);
+    /*
+     * The More dots' ink, not the button around them, ends on the text's edge, like the text across from them, at any
+     * control size. The 20px icon draws them to 4px from its right. The menu lines up with the button.
+     */
+    --more-inset: calc(var(--edge) - (var(--control) - 20px) / 2 - 4px);
+    padding: var(--gutter) var(--more-inset) var(--gutter) var(--edge);
     border-top: 1px solid var(--line);
     color: var(--muted);
   }
@@ -174,13 +178,8 @@
     }
   }
 
-  /* Windows High Contrast drops washes: the highlighted row and hits are drawn in system colors. */
+  /* Windows High Contrast drops washes, so hits use system colors too. */
   @media (forced-colors: active) {
-    & .rows[data-highlighted] [aria-selected="true"] .row {
-      outline: 2px solid Highlight;
-      outline-offset: -2px;
-    }
-
     & mark {
       background: Mark;
       color: MarkText;

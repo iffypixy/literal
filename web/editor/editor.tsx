@@ -1,6 +1,6 @@
 import { createEffect, onCleanup } from "solid-js";
 import type * as Y from "yjs";
-import { composing } from "#web/shortcuts.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { bind } from "./binding.ts";
 
 export type Position = [start: number, end: number, scroll?: number];
@@ -15,7 +15,7 @@ export type EditorApi = {
 
 type Props = {
   text: Y.Text | null;
-  /** While another note is on its way: keys mustn't land in this one meanwhile. */
+  /** While another note loads, so typing doesn't land in this one. */
   readonly: boolean;
   /** A blank page got its first non-space character. */
   onCreate: () => void;
@@ -28,7 +28,7 @@ export function Editor(props: Props) {
       const text = props.text;
       if (!text) return;
       const unbind = bind(area, text);
-      // The next note starts on an empty page: only a blank page's words become the note bound to it.
+      // The next note starts on an empty page, since only a blank page's words become the note bound to it.
       onCleanup(() => {
         unbind();
         area.value = "";
@@ -54,12 +54,12 @@ export function Editor(props: Props) {
   return (
     <textarea
       ref={attach}
-      class="editor"
+      class="editor viewport scroll"
       aria-label="Note"
       autocapitalize="sentences"
       readOnly={props.readonly}
       onInput={(event) => !props.text && event.currentTarget.value.trim() && props.onCreate()}
-      onKeyDown={(event) => event.key === "Escape" && !composing(event) && event.currentTarget.blur()}
+      onKeyDown={(event) => pressed(event, "Escape") && event.currentTarget.blur()}
     />
   );
 }

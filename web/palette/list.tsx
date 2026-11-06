@@ -1,21 +1,21 @@
 import { batch, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
-import { Apple, Fragile, reducedMotion, touch } from "#web/device.ts";
+import { Apple, Fragile, hasKeyboard, reducedMotion, touch } from "#web/device.ts";
 import { ago } from "#web/format.ts";
-import { library, list, type Note } from "#web/notes/notes.ts";
-import { describe, markStarts, parse, search, startsWords, type Segment } from "#web/notes/search.ts";
-import { composing, Shortcuts } from "#web/shortcuts.ts";
+import * as notes from "#web/notes/notes.ts";
+import { describe, markStarts, parse, search, startRow, startsWords, type Segment } from "#web/notes/search.ts";
+import { pressed, Shortcuts } from "#web/shortcuts.ts";
 import { account } from "#web/sync/account.ts";
 import { exportAll, importFiles } from "#web/transfer/transfer.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import { Keys } from "#web/ui/keys.ts";
 import { swipe } from "./drag.ts";
 import { Menu, type Action } from "./menu.tsx";
-import type { View } from "./palette.tsx";
+import type { ViewName } from "./palette.tsx";
 import "./list.css";
 
 /** Rows rendered at a time; more appear as the list scrolls. */
 const PageSize = 50;
-/** Letters typed before commands show: with one, they'd come and go with every key, shoving the notes about. */
+/** Letters typed before commands show. With one, they'd come and go with every key, shoving the notes about. */
 const CommandsFrom = 2;
 
 type Props = {
@@ -28,52 +28,50 @@ type Props = {
   onPick: (id: string, pointer: boolean) => void;
   onDelete: (id: string) => void;
   onBlank: () => void;
-  onView: (view: View) => void;
-  onClose: (pointer: boolean) => void;
-  onSignOut: () => void;
+  onView: (view: ViewName) => void;
+  close: (pointer: boolean) => void;
 };
 
 export function List(props: Props) {
-  // Set as the list renders, before anything below runs.
   let input!: HTMLInputElement;
   let rows!: HTMLDivElement;
   let picker!: HTMLInputElement;
 
   const [query, setQuery] = createSignal("");
-  /** The row the arrows are on; -1 until they move. */
+  /** The row chosen by the arrows, a hover, a tap or a delete; -1 until one does, and again after typing. */
   const [active, setActive] = createSignal(-1);
   const [limit, setLimit] = createSignal(PageSize);
-  /** Notes on their way out: their rows are closing, and can't be picked or deleted again meanwhile. */
+  /** Notes on their way out. Their rows are closing, and can't be picked or deleted again meanwhile. */
   const removing = new Set<string>();
   const now = Date.now();
 
   const actions = {
     new: { label: "New note", keys: Shortcuts.new, run: () => props.onBlank() },
-    import: { label: "Import .txt files", run: () => picker.click() },
+    import: { label: "Import text files", run: () => picker.click() },
     export: {
       label: "Export all notes",
       run: (pointer) => {
-        props.onClose(pointer);
+        props.close(pointer);
         exportAll();
       },
     },
     sync: { label: "Sync across devices", run: () => props.onView("sign-in") },
-    signOut: { label: "Sign out", run: () => props.onSignOut() },
+    signOut: { label: "Sign out", run: () => props.onView("sign-out") },
     deleteAccount: { label: "Delete account", danger: true, run: () => props.onView("delete") },
-    keys: { label: "Keyboard shortcuts", run: () => props.onView("keys") },
+    shortcuts: { label: "Keyboard shortcuts", run: () => props.onView("shortcuts") },
     about: { label: "About Literal", run: () => props.onView("about") },
   } satisfies Record<string, Action>;
 
-  const commands = createMemo<Action[]>(() => [
+  const commands = (): Action[] => [
     actions.new,
     actions.import,
     actions.export,
     account.email ? actions.signOut : actions.sync,
-    ...(touch.matches ? [] : [actions.keys]),
+    ...(touch.matches ? [] : [actions.shortcuts]),
     actions.about,
-  ]);
+  ];
   const menu = (): Action[][] => [
-    touch.matches ? [actions.about] : [actions.keys, actions.about],
+    touch.matches ? [actions.about] : [actions.shortcuts, actions.about],
     [actions.import, actions.export],
     ...(account.email ? [[actions.signOut, actions.deleteAccount]] : []),
   ];
@@ -83,36 +81,31 @@ export function List(props: Props) {
   const commandsFound = createMemo(() =>
     words().join("").length >= CommandsFrom ? commands().filter((command) => startsWords(command.label, words())) : [],
   );
-  const results = createMemo(() => search(list(), words()));
-  const shown = createMemo(() => results().slice(0, limit()));
-  const entries = createMemo<(Action | Note)[]>(() => [...commandsFound(), ...shown()]);
-  /**
-   * Where the arrows start. With nothing typed, on the note open before this one (or the latest that isn't this
-   * one), so Enter goes back. Typing, on the first note, or the first command if no note matches: so Enter after
-   * "new" still opens a note about New York, and Enter after "export" exports.
-   */
-  const first = createMemo(() => {
-    if (words().length) return results().length ? commandsFound().length : 0;
-    const back = results().findIndex((note) => note.id === props.previous);
-    return back >= 0
-      ? back
-      : Math.max(
-          0,
-          results().findIndex((note) => note.id !== props.current),
-        );
-  });
+  const results = createMemo(() => search(notes.list(), words()));
+  const total = () => commandsFound().length + results().length;
+  const first = createMemo(() =>
+    startRow(results(), {
+      commands: commandsFound().length,
+      typed: words().length > 0,
+      previous: props.previous,
+      current: props.current,
+    }),
+  );
+  /** A page at a time, and always as far as the row the arrows start on, however old its note. */
+  const shown = createMemo(() => results().slice(0, Math.max(limit(), first() + 1)));
+  const entries = createMemo<(Action | notes.Note)[]>(() => [...commandsFound(), ...shown()]);
   const at = () => (active() >= 0 ? active() : first());
   const selected = () => entries()[at()];
-  const selectedId = () => {
-    const entry = selected();
-    return entry && rowId(entry);
-  };
-  /** Opened by a tap, no row is highlighted until a key moves the highlight: nothing there could act on it. */
+  /** Opened by a tap, no row is highlighted until a key moves the highlight, since nothing there could act on it. */
   const highlighted = () => props.focus || active() >= 0;
 
-  onMount(() => props.focus && input.focus());
+  onMount(() => {
+    if (!props.focus) return;
+    input.focus();
+    reveal();
+  });
 
-  function pick(entry: Action | Note | undefined, pointer: boolean) {
+  function pick(entry: Action | notes.Note | undefined, pointer: boolean) {
     if (!entry) return;
     if (isAction(entry)) return entry.run(pointer);
     if (removing.has(entry.id)) return;
@@ -122,25 +115,32 @@ export function List(props: Props) {
   }
 
   /**
-   * A click or swipe closes the note's row first: a row has no way out once its note is gone from the list. A key
-   * just takes it away, like any key.
+   * A click or swipe folds the note's row away first, since once the note leaves the list its row is gone at once. A
+   * key deletes straight away, like any key.
    */
-  async function remove(note: Note | undefined, row?: HTMLElement) {
+  async function remove(note: notes.Note | undefined, row?: HTMLElement) {
     if (!note || removing.has(note.id)) return;
     removing.add(note.id);
     if (row && !reducedMotion.matches) await collapse(row);
-    // The highlight stays put: on the next note, or the one before when the last one went.
-    setActive(Math.min(entries().indexOf(note), commandsFound().length + results().length - 2));
+    // The highlight stays put, on the next note, or the one before if the last one went. With none, none comes.
+    if (highlighted()) setActive(Math.min(entries().indexOf(note), total() - 2));
     props.onDelete(note.id);
     removing.delete(note.id);
   }
 
   function move(by: number) {
-    const total = commandsFound().length + results().length;
-    if (!total) return;
-    const next = Math.min(total - 1, Math.max(0, at() + by));
+    if (!total()) return;
+    const next = Math.min(total() - 1, Math.max(0, at() + by));
     setActive(next);
-    if (next - commandsFound().length >= limit()) setLimit(limit() + PageSize);
+    if (next - commandsFound().length >= shown().length) more();
+    reveal();
+  }
+
+  function more() {
+    setLimit(shown().length + PageSize);
+  }
+
+  function reveal() {
     rows.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
   }
 
@@ -154,34 +154,22 @@ export function List(props: Props) {
   }
 
   function onKeyDown(event: KeyboardEvent & { currentTarget: HTMLInputElement }) {
-    if (composing(event)) return;
     const entry = selected();
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      move(1);
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      move(-1);
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      pick(entry, false);
-    } else if (highlighted() && entry && !isAction(entry) && deletes(event, event.currentTarget)) {
-      event.preventDefault();
-      void remove(entry);
-    }
+    if (pressed(event, "ArrowDown")) move(1);
+    else if (pressed(event, "ArrowUp")) move(-1);
+    else if (pressed(event, "Enter")) pick(entry, false);
+    else if (highlighted() && entry && !isAction(entry) && deletes(event, event.currentTarget)) void remove(entry);
+    else return;
+    event.preventDefault();
   }
 
-  function more(sentinel: HTMLElement) {
-    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && setLimit(limit() + PageSize), {
+  function growWhenNear(sentinel: HTMLElement) {
+    const observer = new IntersectionObserver(([entry]) => entry?.isIntersecting && more(), {
       root: rows,
       rootMargin: "200px",
     });
     observer.observe(sentinel);
     onCleanup(() => observer.disconnect());
-  }
-
-  function rowId(entry: Action | Note): string {
-    return isAction(entry) ? `command-${commandsFound().indexOf(entry)}` : `note-${entry.id}`;
   }
 
   function onPicked(field: HTMLInputElement) {
@@ -204,7 +192,7 @@ export function List(props: Props) {
           role="combobox"
           aria-expanded={entries().length > 0}
           aria-controls="notes-list"
-          aria-activedescendant={selectedId()}
+          aria-activedescendant={selected() && `option-${at()}`}
           aria-label="Search notes and commands"
           placeholder="Search…"
           autocomplete="off"
@@ -216,7 +204,7 @@ export function List(props: Props) {
 
       <div
         ref={rows}
-        class="rows"
+        class="rows scroll"
         role="listbox"
         id="notes-list"
         aria-label="Notes and commands"
@@ -224,14 +212,12 @@ export function List(props: Props) {
         data-highlighted={highlighted() ? "" : undefined}
       >
         <Show when={commandsFound().length}>
-          <div role="group" aria-labelledby="commands-label">
-            <div class="group" id="commands-label">
-              Commands
-            </div>
+          <div role="group" aria-label="Commands">
+            <div class="group">Commands</div>
             <For each={commandsFound()}>
               {(command, index) => (
                 <Option
-                  id={`command-${index()}`}
+                  id={`option-${index()}`}
                   selected={index() === at()}
                   onHover={() => setActive(index())}
                   onPick={() => pick(command, true)}
@@ -247,15 +233,9 @@ export function List(props: Props) {
             </For>
           </div>
         </Show>
-        <div
-          role="group"
-          aria-labelledby={commandsFound().length ? "notes-label" : undefined}
-          aria-label={commandsFound().length ? undefined : "Notes"}
-        >
+        <div role="group" aria-label="Notes">
           <Show when={commandsFound().length && shown().length}>
-            <div class="group" id="notes-label">
-              Notes
-            </div>
+            <div class="group">Notes</div>
           </Show>
           <For each={shown()}>
             {(note, position) => {
@@ -265,7 +245,7 @@ export function List(props: Props) {
               return (
                 <Option
                   ref={option}
-                  id={`note-${note.id}`}
+                  id={`option-${index()}`}
                   selected={index() === at()}
                   current={note.id === props.current}
                   onHover={() => setActive(index())}
@@ -289,7 +269,7 @@ export function List(props: Props) {
                       }}
                     />
                   </div>
-                  <Show when={parts().snippet.some((part) => part.text)}>
+                  <Show when={parts().snippet.length}>
                     <div class="snippet truncate">
                       <Marked parts={parts().snippet} />
                     </div>
@@ -299,13 +279,15 @@ export function List(props: Props) {
             }}
           </For>
           <Show when={shown().length < results().length}>
-            <div ref={more} class="sentinel" aria-hidden="true" />
+            <div ref={growWhenNear} class="sentinel" aria-hidden="true" />
           </Show>
         </div>
       </div>
 
       {/* Signed in on a device still waiting for its notes, "No notes yet" would look like they were lost. */}
-      <Show when={library.ready && !entries().length && (words().length || !account.email || library.synced)}>
+      <Show
+        when={notes.library.ready && !entries().length && (words().length || !account.email || notes.library.synced)}
+      >
         <p class="empty">{words().length ? "No matches" : "No notes yet"}</p>
       </Show>
 
@@ -325,7 +307,7 @@ export function List(props: Props) {
             </span>
           )}
         </Show>
-        <Menu groups={menu()} onEscape={() => !touch.matches && input.focus()} />
+        <Menu groups={menu()} onEscape={() => hasKeyboard() && input.focus()} />
         <input
           ref={picker}
           type="file"
@@ -339,7 +321,7 @@ export function List(props: Props) {
   );
 }
 
-/** A row the arrows can land on. `onSwipe`: a note's row, which a swipe to the left deletes. */
+/** A row the arrows can land on. With `onSwipe`, it's a note's row, which a swipe to the left deletes. */
 function Option(props: {
   ref?: HTMLDivElement | ((option: HTMLDivElement) => void);
   id: string;
@@ -378,7 +360,7 @@ function Option(props: {
   );
 }
 
-function isAction(entry: Action | Note): entry is Action {
+function isAction(entry: Action | notes.Note): entry is Action {
   return "run" in entry;
 }
 
@@ -387,15 +369,14 @@ function Marked(props: { parts: Segment[] }) {
 }
 
 /**
- * Delete deletes, with nothing after the cursor to erase (fn⌫ on a Mac); and on Apple devices ⌘⌫, as in Finder,
- * with nothing before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held down, a key deletes
- * one note.
+ * Delete deletes when there's nothing after the cursor to erase (fn⌫ on a Mac), and on Apple devices so does ⌘⌫, as
+ * in Finder, when there's nothing before it. Not Ctrl+Backspace, which on Windows erases a word of the search. Held
+ * down, a key deletes just one note.
  */
 function deletes(event: KeyboardEvent, field: HTMLInputElement): boolean {
-  if (event.repeat || event.altKey || event.shiftKey) return false;
-  if (field.selectionStart !== field.selectionEnd) return false;
-  if (event.key === "Delete") return !event.ctrlKey && !event.metaKey && field.selectionEnd === field.value.length;
-  return Apple && event.key === "Backspace" && event.metaKey && field.selectionStart === 0;
+  if (event.repeat || field.selectionStart !== field.selectionEnd) return false;
+  if (pressed(event, "Delete")) return field.selectionEnd === field.value.length;
+  return Apple && pressed(event, "Mod+Backspace") && field.selectionStart === 0;
 }
 
 function collapse(row: HTMLElement): Promise<unknown> {

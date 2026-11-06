@@ -1,11 +1,8 @@
 /*
- * As tall as what's visible: with a phone's keyboard up, the sheet ends above it. It never scrolls: focusing the
- * sheet while it's still below the screen would scroll it into view, and undo its slide up.
+ * Over what's visible, so with a phone's keyboard up the sheet ends above it. It never scrolls, because focusing the
+ * sheet while it's still below the screen would scroll it into view and undo its slide up.
  */
 .palette {
-  position: fixed;
-  inset: 0 0 auto;
-  height: var(--viewport-height, 100dvh);
   overflow: clip;
   z-index: 20;
 
@@ -20,47 +17,16 @@
     display: flex;
     flex-direction: column;
     width: min(560px, calc(100vw - 2 * var(--edge)));
-    max-height: 70vh;
-    margin: 12vh auto 0;
-    outline: none;
-  }
-
-  /* The page's size, which also keeps iOS from zooming into fields. */
-  @media (pointer: coarse) {
-    & .card {
-      font-size: 16px;
-    }
+    max-height: calc(0.7 * var(--viewport-height));
+    margin: calc(0.12 * var(--viewport-height)) auto 0;
+    outline: 0;
   }
 
   & .grab {
     display: none;
   }
 
-  & .view {
-    min-height: 0;
-    padding: var(--edge);
-    overflow-y: auto;
-  }
-
-  /* Weightless, so a view's own spacing wins. */
-  & :where(.view p) {
-    margin: var(--gap) 0 0;
-    color: var(--muted);
-  }
-
-  & :where(.view h2 + p) {
-    margin-top: var(--pair);
-  }
-
-  & .view .error {
-    color: var(--danger);
-  }
-
-  & .view .section {
-    margin-top: var(--group);
-  }
-
-  /* Opened by a click or tap: a short rise, and a quicker sink as it closes. Opened by a key: no animation at all. */
+  /* Opened by a click or tap, it rises a little and sinks quicker as it closes. Opened by a key, it doesn't move. */
   &[data-motion] .card {
     animation: rise var(--fade) var(--ease-out);
   }
@@ -74,15 +40,13 @@
   }
 
   &[data-closing] .scrim {
-    animation: fade-in var(--press) var(--ease-out) reverse forwards;
+    animation: fade-out var(--press) var(--ease-out) forwards;
   }
 
   @media (max-width: 640px) {
     & .card {
       position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      inset: auto 0 0;
       width: auto;
       height: calc(100% - env(safe-area-inset-top, 0px) - 12px);
       max-height: none;
@@ -109,23 +73,28 @@
     }
 
     &[data-motion] .card {
-      animation: sheet-in var(--sheet-in) var(--ease-drawer);
+      animation: sheet-in var(--sheet-in) var(--ease-sheet);
     }
 
     &[data-closing] .card {
-      animation: sheet-out var(--sheet-out) var(--ease-drawer) forwards;
+      animation: sheet-out var(--sheet-out) var(--ease-sheet) forwards;
+    }
+
+    /* Dragged away, the sheet slides off from where the finger let go, and the scrim fades with it. */
+    &[data-dragged] .scrim {
+      animation: fade-out var(--sheet-out) var(--ease-sheet) forwards;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    &[data-motion] .card,
-    &[data-closing] .card {
+    &[data-motion] .card {
       animation-name: fade-in;
       animation-duration: var(--press);
     }
 
     &[data-closing] .card {
-      animation-direction: reverse;
+      animation-name: fade-out;
+      animation-duration: var(--press);
     }
   }
 }

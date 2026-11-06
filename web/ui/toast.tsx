@@ -4,8 +4,8 @@ import { Button } from "./button.tsx";
 import { Keys } from "./keys.ts";
 import "./toast.css";
 
-/** `keys`: the shortcut that also takes the action, shown beside it. */
-type Action = { label: string; keys?: string[]; run: () => void };
+/** `keys` is the shortcut that also takes the action, shown beside it. */
+type Action = { label: string; keys?: string; run: () => void };
 
 type Toast = {
   message: string;
@@ -16,10 +16,10 @@ type Toast = {
 
 const Shown = 4000;
 const ShownWithAction = 5000;
-/** What's left after a pause, at least: a toast never vanishes the moment it's back in view. */
+/** The least time left after a pause, so a toast never vanishes the moment it's back in view. */
 const ShownAfterPause = 1000;
 
-/** One toast at a time: a new one ends the last, which fades out beneath it. */
+/** One toast at a time. A new one ends the last, which fades out beneath it. */
 const shown = createMutable<{ toast: Toast | null; leaving: Toast[] }>({ toast: null, leaving: [] });
 let timer: ReturnType<typeof setTimeout> | undefined;
 let remaining = 0;
@@ -37,7 +37,7 @@ export function runAction() {
   dismiss()?.action?.run();
 }
 
-/** Ends the toast without its expiry: the next one takes over what it was about. */
+/** Ends the toast without its expiry, when the next one takes over what it was about. */
 export function dismiss(): Toast | null {
   const toast = shown.toast;
   clearTimeout(timer);
@@ -55,7 +55,7 @@ export function Toasts() {
   const cards = () => (shown.toast ? [...shown.leaving, shown.toast] : shown.leaving);
 
   return (
-    <div class="dock" role="status" aria-live="polite">
+    <div class="dock viewport" role="status" aria-live="polite">
       <For each={cards()}>
         {(toast) => {
           const gone = () => toast !== shown.toast;
@@ -68,7 +68,7 @@ export function Toasts() {
               onPointerLeave={resume}
               onFocusIn={pause}
               onFocusOut={resume}
-              onTransitionEnd={(event) => {
+              onAnimationEnd={(event) => {
                 if (event.target === event.currentTarget && gone())
                   shown.leaving = shown.leaving.filter((one) => one !== toast);
               }}
@@ -96,7 +96,7 @@ function expire() {
   dismiss()?.onExpire?.();
 }
 
-/** On hover, focus, or a hidden page: nobody misses an Undo. */
+/** On hover, focus, or a hidden page, so nobody misses an Undo. */
 function pause() {
   if (!running) return;
   running = false;

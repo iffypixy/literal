@@ -13,9 +13,14 @@
     font: inherit;
     font-size: 0.85em;
     line-height: 1.45;
-    /* A cap is a little taller than the line: this keeps rows at their height and caps on the baseline. */
+    /* A cap is a little taller than the line, and this keeps rows at their height and caps on the baseline. */
     margin-block: -1px;
     text-align: center;
     color: var(--muted);
+  }
+
+  /* Under a finger there's no keyboard to speak of, so shortcuts go unsaid, wherever they'd show. */
+  @media (pointer: coarse) {
+    display: none;
   }
 }

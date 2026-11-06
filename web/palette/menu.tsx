@@ -1,10 +1,11 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
-import { composing } from "#web/shortcuts.ts";
+import { byPointer } from "#web/device.ts";
+import { pressed } from "#web/shortcuts.ts";
 import { IconButton } from "#web/ui/icon.tsx";
 import "./menu.css";
 
-/** Something to do besides opening a note: from the menu, or found as a command. */
-export type Action = { label: string; keys?: string[]; danger?: boolean; run: (pointer: boolean) => void };
+/** Something to do besides opening a note, from the menu or found as a command. */
+export type Action = { label: string; keys?: string; danger?: boolean; run: (pointer: boolean) => void };
 
 type Props = {
   /** Divided by a line between each. */
@@ -21,39 +22,40 @@ export function Menu(props: Props) {
   createEffect(() => {
     if (!open()) return;
     // Before the palette's own Esc, which would close more than the menu.
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || composing(event)) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (!pressed(event, "Escape")) return;
       event.preventDefault();
       setOpen(false);
       props.onEscape();
     };
+    // The click that opened the menu reaches here too, so a click on its button doesn't count as one outside.
     const onClick = (event: MouseEvent) => {
       if (event.target instanceof Element && !event.target.closest(".menu, .more")) setOpen(false);
     };
-    addEventListener("keydown", onKeyDown, true);
-    addEventListener("click", onClick);
-    onCleanup(() => {
-      removeEventListener("keydown", onKeyDown, true);
-      removeEventListener("click", onClick);
-    });
+    const listening = new AbortController();
+    addEventListener("keydown", closeOnEscape, { capture: true, signal: listening.signal });
+    addEventListener("click", onClick, { signal: listening.signal });
+    onCleanup(() => listening.abort());
   });
 
   function toggle(event: MouseEvent) {
     if (open()) return setOpen(false);
+    // Drawn above first, so it's measured there, and below if it runs off the top.
     setBelow(false);
     setOpen(true);
     setBelow((box?.getBoundingClientRect().top ?? 0) < 0);
-    // Opened by a key (a click no pointer made): the keys go on into the menu.
-    if (event.detail === 0) box?.querySelector("button")?.focus();
+    // Opened by a key (a click no pointer made), so the keys go on into the menu.
+    if (!byPointer(event)) box?.querySelector("button")?.focus();
   }
 
   function onKeyDown(event: KeyboardEvent) {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const step = pressed(event, "ArrowDown") ? 1 : pressed(event, "ArrowUp") ? -1 : 0;
+    if (!step) return;
     event.preventDefault();
     const items = [...(box?.querySelectorAll("button") ?? [])];
-    const step = event.key === "ArrowDown" ? 1 : -1;
     const at = items.findIndex((item) => item === document.activeElement);
-    items.at(at < 0 ? (step > 0 ? 0 : -1) : (at + step) % items.length)?.focus();
+    // Focus is always on an item, since only they can take it in here. `at(-1)` wraps up to the last.
+    items.at((at + step) % items.length)?.focus();
   }
 
   return (
@@ -81,7 +83,7 @@ export function Menu(props: Props) {
                       classList={{ danger: action.danger }}
                       onClick={(event) => {
                         setOpen(false);
-                        action.run(event.detail > 0);
+                        action.run(byPointer(event));
                       }}
                     >
                       {action.label}

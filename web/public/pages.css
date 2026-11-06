@@ -1,22 +1,14 @@
 /*
- * The privacy and terms pages, laid out like a .txt file: from the top-left, as wide as the window; a heading's text
- * on the next line, a blank line between the rest, and lists in dashes.
+ * The privacy and terms pages, laid out like a .txt file. From the top-left and as wide as the window, with a heading's
+ * text on the next line, a blank line between the rest, and lists in dashes.
  */
 body {
   padding: var(--edge) var(--edge) 4lh;
 }
 
-h1,
-h2,
 p,
 ul {
   margin: 0 0 1lh;
-  font: inherit;
-}
-
-h1,
-h2 {
-  margin-bottom: 0;
 }
 
 p,
@@ -27,15 +19,4 @@ li {
 ul {
   padding-left: 2ch;
   list-style: "- ";
-}
-
-strong {
-  color: var(--text);
-  font-weight: 400;
-}
-
-.back {
-  display: block;
-  width: fit-content;
-  margin-bottom: 1lh;
 }

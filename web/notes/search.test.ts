@@ -1,0 +1,99 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type { Note } from "./notes.ts";
+import { describe, parse, search, shorten, startRow } from "./search.ts";
+
+function note(id: string, text: string): Note {
+  return { id, text, createdAt: 0, editedAt: 0, deletedAt: null };
+}
+
+test("search ignores case and accents, needs every word, and puts title matches first", () => {
+  const notes = [note("a", "Groceries\ncafé au lait"), note("b", "Café list\nbeans"), note("c", "Café")];
+  assert.deepEqual(
+    search(notes, parse("CAFE")).map((found) => found.id),
+    ["b", "c", "a"],
+  );
+  assert.deepEqual(
+    search(notes, parse("cafe beans")).map((found) => found.id),
+    ["b"],
+  );
+});
+
+test("a match the title doesn't show gets a snippet, with the hit marked, accents and all", () => {
+  // Decomposed, so each accent is a character of its own, which folding takes out and the mark has to put back.
+  const text = "Trip\nPack the crème brûlée".normalize("NFD");
+  const { title, snippet } = describe(note("a", text), parse("brulee"));
+  assert.deepEqual(title, [{ text: "Trip", hit: false }]);
+  assert.deepEqual(
+    snippet.filter((part) => part.hit),
+    [{ text: "brûlée".normalize("NFD"), hit: true }],
+  );
+});
+
+test("a snippet keeps its hit whole, far into a note and inside a long link", () => {
+  const hit = (text: string, query: string) =>
+    describe(note("a", text), parse(query))
+      .snippet.filter((part) => part.hit)
+      .map((part) => part.text);
+  const accents = "Trip\n" + "résumé ".normalize("NFD").repeat(200) + "target";
+  assert.deepEqual(hit(accents, "target"), ["target"]);
+  const link = `Links\nsee https://example.com/${"a".repeat(80)}`;
+  assert.deepEqual(hit(link, "example"), ["example"]);
+});
+
+test("the palette starts on the note before, or on what was typed for", () => {
+  const notes = [note("a", "Now"), note("b", "Before"), note("c", "Older")];
+  const start = (typed: boolean, commands: number, found = notes) =>
+    startRow(found, { commands, typed, previous: "c", current: "a" });
+  // Nothing typed: the note open before this one, wherever it is, or else the latest that isn't this one.
+  assert.equal(start(false, 0), 2);
+  assert.equal(start(false, 0, notes.slice(0, 2)), 1);
+  // Typed: the first note, past any commands; or the first command, when no note matches.
+  assert.equal(start(true, 2), 2);
+  assert.equal(start(true, 2, []), 0);
+});
+
+test("a hit in Korean written in letters is marked", () => {
+  const text = "Trip\n회의 메모".normalize("NFD");
+
+  const { snippet } = describe(note("a", text), parse("회의"));
+
+  assert.deepEqual(
+    snippet.filter((part) => part.hit),
+    [{ text: "회의".normalize("NFD"), hit: true }],
+  );
+});
+
+test("a snippet far into Korean written in letters holds its hit", () => {
+  const text = `Trip\n${"회의 ".repeat(40)}target`.normalize("NFD");
+
+  const { snippet } = describe(note("a", text), parse("target"));
+
+  assert.deepEqual(
+    snippet.filter((part) => part.hit),
+    [{ text: "target", hit: true }],
+  );
+});
+
+test("a final sigma is found and marked as any other", () => {
+  const text = "Trip\nΟΔΥΣΣΕΥΣ came home";
+
+  const { snippet } = describe(note("a", text), parse("Οδυσσευς"));
+
+  assert.deepEqual(
+    snippet.filter((part) => part.hit),
+    [{ text: "ΟΔΥΣΣΕΥΣ", hit: true }],
+  );
+});
+
+test("a snippet cut far into a note starts on a whole emoji", () => {
+  const text = `Party\n${"🎉".repeat(30)}xtarget`;
+
+  const { snippet } = describe(note("a", text), parse("target"));
+
+  assert.equal(snippet[0]?.text.slice(0, 3), "…🎉");
+});
+
+test("a name is shortened at a space past its middle, counting emoji as one character each", () => {
+  assert.equal(shorten("🎉🎉🎉🎉 abcdef", 8), "🎉🎉🎉🎉 ab…");
+});

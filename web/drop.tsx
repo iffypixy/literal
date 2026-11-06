@@ -3,21 +3,18 @@ import { importFiles } from "#web/transfer/transfer.ts";
 import "./drop.css";
 
 export function Drop() {
-  const [dropping, setDropping] = createSignal(false);
-  // Every element a drag passes over enters and leaves: only the count says it left the page.
-  let depth = 0;
+  // A drag enters and leaves every element it passes over, so only a count tells when it has left the page.
+  const [depth, setDepth] = createSignal(0);
 
   addEventListener("dragenter", (event) => {
     if (!hasFiles(event)) return;
     event.preventDefault();
-    depth++;
-    setDropping(true);
+    setDepth(depth() + 1);
   });
 
   addEventListener("dragleave", (event) => {
     if (!hasFiles(event)) return;
-    depth = Math.max(0, depth - 1);
-    if (!depth) setDropping(false);
+    setDepth(Math.max(0, depth() - 1));
   });
 
   addEventListener("dragover", (event) => {
@@ -29,13 +26,12 @@ export function Drop() {
   addEventListener("drop", (event) => {
     if (!hasFiles(event)) return;
     event.preventDefault();
-    depth = 0;
-    setDropping(false);
+    setDepth(0);
     void importFiles([...(event.dataTransfer?.files ?? [])]);
   });
 
   return (
-    <Show when={dropping()}>
+    <Show when={depth() > 0}>
       <div class="drop" aria-hidden="true">
         <p>Drop to import</p>
       </div>

@@ -1,10 +1,10 @@
 import { createSignal, type JSX } from "solid-js";
-import { Alert } from "#web/ui/alert.tsx";
 import { Button } from "#web/ui/button.tsx";
+import { Alert, View } from "./view.tsx";
 import "./confirm.css";
 
 type Props = {
-  title: JSX.Element;
+  title: string;
   children: JSX.Element;
   /** The danger button's label, and its label while it runs. */
   action: string;
@@ -25,18 +25,15 @@ export function Confirm(props: Props) {
   }
 
   return (
-    <div class="view">
-      <h2 id="view-title" tabindex="-1">
-        {props.title}
-      </h2>
+    <View title={props.title}>
       <p>{props.children}</p>
       <Alert message={error()} />
-      <div class="choices">
+      <div class="choices section">
         <Button onClick={() => props.onCancel()}>Cancel</Button>
         <Button variant="danger" busy={busy() && props.busy} onClick={() => void confirm()}>
           {props.action}
         </Button>
       </div>
-    </div>
+    </View>
   );
 }

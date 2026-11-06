@@ -1,34 +1,54 @@
 import { Apple } from "./device.ts";
 
-/** ⌘ on Apple devices, Ctrl elsewhere. */
-export function mod(event: KeyboardEvent): boolean {
-  return Apple ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
-}
-
-/**
- * Matches by the character typed on Latin layouts (so ⌘Z is still Z on AZERTY), and by key position where it types
- * something else (Cyrillic, or ⌥ on a Mac).
- */
-export function letter(event: KeyboardEvent, key: string): boolean {
-  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === key;
-  return event.code === `Key${key.toUpperCase()}`;
-}
-
-/**
- * An input method mid-word (Japanese, Chinese, Korean) owns its Enter and Esc. Safari marks the Enter that ends a
- * word only with keyCode 229.
- */
-export function composing(event: KeyboardEvent): boolean {
-  return event.isComposing || event.keyCode === 229;
-}
-
-/** Labeled as this computer's keyboard labels them. */
+/** Written like "Mod+Shift+Z", where Mod is ⌘ on Apple devices and Ctrl elsewhere. */
 export const Shortcuts = {
-  notes: Apple ? ["⌘", "K"] : ["Ctrl", "K"],
-  new: Apple ? ["⌥", "N"] : ["Alt", "N"],
-  move: ["↑", "↓"],
-  open: Apple ? ["↵"] : ["Enter"],
-  delete: Apple ? ["⌘", "⌫"] : ["Del"],
-  undo: Apple ? ["⌘", "Z"] : ["Ctrl", "Z"],
-  close: ["Esc"],
+  notes: "Mod+K",
+  new: "Alt+N",
+  delete: Apple ? "Mod+Backspace" : "Delete",
+  undo: "Mod+Z",
 };
+
+const Labels: Record<string, string> = {
+  Escape: "Esc",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ...(Apple ? { Mod: "⌘", Alt: "⌥", Shift: "⇧", Backspace: "⌫", Enter: "↵" } : { Mod: "Ctrl", Delete: "Del" }),
+};
+
+/** As this computer's keyboard labels them, so "Mod+K" is ⌘ K on a Mac and Ctrl K elsewhere. */
+export function caps(keys: string): string[] {
+  return keys.split("+").map((key) => Labels[key] ?? key);
+}
+
+/** As aria-keyshortcuts spells them, like "Meta+K". */
+export function aria(keys: string): string {
+  return keys.replace("Mod", Apple ? "Meta" : "Control");
+}
+
+/**
+ * Exactly these keys, with no other modifier held, and not while an input method (Japanese, Chinese, Korean) is
+ * mid-word; Safari marks the Enter that ends a word only with keyCode 229. A letter matches by what it types on Latin
+ * layouts, so ⌘Z is still Z on AZERTY, and by its position where it types something else (Cyrillic, or ⌥ on a Mac).
+ */
+export function pressed(event: KeyboardEvent, keys: string): boolean {
+  const parts = keys.split("+");
+  const key = parts.pop() ?? "";
+  const mod = parts.includes("Mod");
+  if (
+    event.ctrlKey !== (mod && !Apple) ||
+    event.metaKey !== (mod && Apple) ||
+    event.altKey !== parts.includes("Alt") ||
+    event.shiftKey !== parts.includes("Shift") ||
+    event.isComposing ||
+    event.keyCode === 229
+  )
+    return false;
+  if (key.length > 1) return event.key === key;
+  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase() === key.toLowerCase();
+  return event.code === `Key${key}`;
+}
+
+/** A key that types a character, not a shortcut, and not a key like Enter or Tab. */
+export function typesText(event: KeyboardEvent): boolean {
+  return event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
+}
