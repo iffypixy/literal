@@ -1,22 +1,32 @@
 import { splitProps, type JSX } from "solid-js";
-import "./button.css";
+import { classes } from "#/web/lib/classes.ts";
+import "#/web/ui/button.css";
 
-type Props = Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, "class"> & {
-  /** Bordered, unless the main action (`primary`), a destructive one (`danger`), or text alone (`link`). */
-  variant?: "primary" | "danger" | "link";
+/** Bordered, unless the main action, a destructive one, or text alone. */
+export type ButtonVariant = "plain" | "primary" | "danger" | "link";
+
+type Props = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant;
   /** While set, the button is disabled and says this instead, like "Sending…". */
-  busy?: string | false;
+  busy?: string;
 };
 
+const Variant = {
+  plain: "button",
+  primary: "button primary",
+  danger: "button danger",
+  link: "link",
+} satisfies Record<ButtonVariant, string>;
+
 export function Button(props: Props) {
-  const [own, rest] = splitProps(props, ["variant", "busy", "disabled", "children"]);
+  const [own, rest] = splitProps(props, ["variant", "busy", "disabled", "class", "children"]);
   return (
     <button
       {...rest}
-      class={own.variant === "link" ? "link" : own.variant ? `button ${own.variant}` : "button"}
-      disabled={own.disabled || Boolean(own.busy)}
+      class={classes(Variant[own.variant ?? "plain"], own.class)}
+      disabled={own.disabled || own.busy !== undefined}
     >
-      {own.busy || own.children}
+      {own.busy ?? own.children}
     </button>
   );
 }

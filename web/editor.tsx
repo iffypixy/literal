@@ -1,9 +1,12 @@
 import { createEffect, onCleanup } from "solid-js";
 import type * as Y from "yjs";
-import { pressed } from "#web/shortcuts.ts";
-import { bind } from "./binding.ts";
+import * as z from "zod/mini";
+import { bind } from "#/web/editor-binding.ts";
+import { pressed } from "#/web/lib/keyboard.ts";
 
-export type Position = [start: number, end: number, scroll?: number];
+/** The selection's start and end, and how far the note was scrolled. */
+export const PositionSchema = z.tuple([z.number(), z.number(), z.optional(z.number())]);
+export type Position = z.infer<typeof PositionSchema>;
 
 export type EditorApi = {
   /** At `position`, scrolled back to where it was; or where the cursor last was. */

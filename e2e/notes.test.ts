@@ -3,9 +3,11 @@ import { devices, expect, test, type Locator, type Page } from "@playwright/test
 test("a note is saved as you type, and is there after a reload", async ({ page }) => {
   await page.goto("/");
   await expect(note(page)).toBeFocused();
+
   await page.keyboard.type("Groceries\neggs, milk");
   await expect(page).toHaveURL(/\/[0-9a-hjkmnp-tv-z]{10}$/);
   await page.reload();
+
   await expect(note(page)).toHaveValue("Groceries\neggs, milk");
 });
 
@@ -19,7 +21,9 @@ test("Undo brings back a deleted note", async ({ page }) => {
   await page.keyboard.press("Delete");
   const rows = page.getByRole("option");
   await expect(rows).toHaveCount(1);
+
   await page.getByRole("button", { name: "Undo" }).click();
+
   await expect(rows).toHaveCount(2);
 });
 
@@ -245,14 +249,14 @@ function note(page: Page) {
   return page.getByRole("textbox", { name: "Note" });
 }
 
-/** Waits for `locator`'s animations, such as a sheet rising, to end. */
+// Waits for `locator`'s animations, such as a sheet rising, to end.
 async function settled(locator: Locator) {
   await locator.evaluate(async (element) => {
     await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
   });
 }
 
-/** Drags a finger from the middle of `locator` through each of `offsets`, in pixels right and down, and lifts it. */
+// Drags a finger from the middle of `locator` through each of `offsets`, in pixels right and down, and lifts it.
 async function touchDrag(page: Page, locator: Locator, offsets: [number, number][]) {
   const box = await locator.boundingBox();
   if (!box) throw new Error("nothing to drag");

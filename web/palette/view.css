@@ -17,10 +17,6 @@
   & .section {
     margin-top: var(--group);
   }
-
-  & .error {
-    color: var(--danger);
-  }
 }
 
 /* Weightless, so a view's own spacing wins. */

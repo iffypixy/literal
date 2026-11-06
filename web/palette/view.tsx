@@ -1,6 +1,7 @@
-import { onMount, Show, type JSX } from "solid-js";
-import { IconButton } from "#web/ui/icon.tsx";
-import "./view.css";
+import { onMount, type JSX } from "solid-js";
+import { classes } from "#/web/lib/classes.ts";
+import { IconButton } from "#/web/ui/icon.tsx";
+import "#/web/palette/view.css";
 
 type Props = {
   title: string;
@@ -22,23 +23,12 @@ export function View(props: Props) {
   onMount(() => view.contains(document.activeElement) || heading.focus());
 
   return (
-    <div ref={view} class={props.class ? `view scroll ${props.class}` : "view scroll"} onKeyDown={props.onKeyDown}>
+    <div ref={view} class={classes("view scroll", props.class)} onKeyDown={props.onKeyDown}>
       {props.onBack && <IconButton class="back" label="Back" icon="back" onClick={props.onBack} />}
       <h2 ref={heading} id="view-title" tabindex="-1">
         {props.title}
       </h2>
       {props.children}
     </div>
-  );
-}
-
-/** What went wrong, read out as it appears. Nothing while all is well. */
-export function Alert(props: { message: string }) {
-  return (
-    <Show when={props.message}>
-      <p class="error" role="alert">
-        {props.message}
-      </p>
-    </Show>
   );
 }

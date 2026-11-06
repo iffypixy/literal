@@ -1,5 +1,3 @@
-/** Pure text arithmetic for binding.ts: what changed between two texts, and where positions go after a change. */
-
 import type * as Y from "yjs";
 
 export type Delta = Y.YTextEvent["delta"];
@@ -8,16 +6,15 @@ export type Delta = Y.YTextEvent["delta"];
 export type Change = { at: number; removed: number; inserted: string };
 
 /**
- * Everything between the two texts' common start and end. Never splits a surrogate pair, which would put half an
- * emoji into the doc. Where repeated characters allow more than one answer, the change ends at `caret`, where it was
- * typed. The change almost always sits just before `caret`, so the common start and end are first checked there in
- * one comparison each, and typing in a long note doesn't walk the whole text.
+ * The smallest change, never splitting an emoji, and ending at `caret` where repeated characters allow more than one.
  */
 export function diff(before: string, after: string, caret: number): Change | null {
   if (before === after) return null;
   const limit = Math.min(before.length, after.length);
   const typedAt = caret - Math.max(0, after.length - before.length);
 
+  // The change almost always sits just before the caret, so the common start and end are first checked there in one
+  // comparison each, and typing in a long note doesn't walk the whole text.
   const startGuess = Math.min(limit, Math.max(0, typedAt));
   let start = before.slice(0, startGuess) === after.slice(0, startGuess) ? startGuess : 0;
   while (start < limit && before.charCodeAt(start) === after.charCodeAt(start)) start++;
@@ -32,33 +29,15 @@ export function diff(before: string, after: string, caret: number): Change | nul
   const kept = Math.min(limit, start + tail);
   let at = Math.min(start, Math.max(kept - tail, typedAt));
   if (at > 0 && isHighSurrogate(before.charCodeAt(at - 1))) at--;
-  let end = Math.min(tail, limit - at);
-  if (end > 0 && isLowSurrogate(after.charCodeAt(after.length - end))) end--;
+  let suffix = Math.min(tail, limit - at);
+  if (suffix > 0 && isLowSurrogate(after.charCodeAt(after.length - suffix))) suffix--;
 
-  return { at, removed: before.length - at - end, inserted: after.slice(at, after.length - end) };
-}
-
-/** Text inserted before `index` pushes it along; text inserted right at it goes after it. */
-export function shift(index: number, delta: Delta): number {
-  let at = 0;
-  let moved = index;
-  for (const op of delta) {
-    if (at > index) break;
-    if (op.retain !== undefined) {
-      at += op.retain;
-    } else if (typeof op.insert === "string") {
-      if (at < index) moved += op.insert.length;
-    } else if (op.delete !== undefined) {
-      moved -= Math.max(0, Math.min(op.delete, index - at));
-      at += op.delete;
-    }
-  }
-  return moved;
+  return { at, removed: before.length - at - suffix, inserted: after.slice(at, after.length - suffix) };
 }
 
 /**
  * Where `index` in a textarea lands in the text it shows, when `deltas` reached the text but not the textarea, and the
- * textarea's own `change` went into the text after them. Inside the change, a position keeps its place in it.
+ * textarea's own `change` (inside which a position keeps its place) went into the text after them.
  */
 export function landingOf(index: number, deltas: Delta[], change?: Change): number {
   if (!change || index <= change.at) return shiftAll(index, deltas);
@@ -71,9 +50,9 @@ export function landingOf(index: number, deltas: Delta[], change?: Change): numb
 export function end(delta: Delta): number {
   let at = 0;
   let last = 0;
-  for (const op of delta) {
-    if (op.retain !== undefined) at += op.retain;
-    else if (typeof op.insert === "string") last = at += op.insert.length;
+  for (const operation of delta) {
+    if (operation.retain !== undefined) at += operation.retain;
+    else if (typeof operation.insert === "string") last = at += operation.insert.length;
     else last = at;
   }
   return last;
@@ -82,6 +61,24 @@ export function end(delta: Delta): number {
 function shiftAll(index: number, deltas: Delta[]): number {
   let moved = index;
   for (const delta of deltas) moved = shift(moved, delta);
+  return moved;
+}
+
+// Text inserted before `index` pushes it along; text inserted right at it goes after it.
+function shift(index: number, delta: Delta): number {
+  let at = 0;
+  let moved = index;
+  for (const operation of delta) {
+    if (at > index) break;
+    if (operation.retain !== undefined) {
+      at += operation.retain;
+    } else if (typeof operation.insert === "string") {
+      if (at < index) moved += operation.insert.length;
+    } else if (operation.delete !== undefined) {
+      moved -= Math.max(0, Math.min(operation.delete, index - at));
+      at += operation.delete;
+    }
+  }
   return moved;
 }
 

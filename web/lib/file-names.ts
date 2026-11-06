@@ -1,8 +1,8 @@
-/** What systems refuse in a file name, or put to other uses: their separators, wildcards and control characters. */
+// What systems refuse in a file name, or put to other uses: their separators, wildcards and control characters.
 const Forbidden = /[/\\:*?"<>|\u0000-\u001f]/g;
-/** Names Windows keeps for devices, whatever extension follows them. */
+// Names Windows keeps for devices, whatever extension follows them.
 const Devices = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
-/** Long enough to tell notes apart in a folder, short enough for any system. */
+// Long enough to tell notes apart in a folder, short enough for any system.
 const MaxLength = 60;
 
 /**

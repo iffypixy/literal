@@ -28,7 +28,7 @@
 
   /* Replaced, it fades out under the next one rising over it. An animation, unlike a transition, runs even on a card
      replaced as soon as it came, so its end always comes. */
-  & .toast.leaving {
+  & .toast[data-leaving] {
     pointer-events: none;
     animation: fade-out var(--fade) linear forwards;
   }

@@ -14,7 +14,7 @@
   transform-origin: bottom right;
   animation: pop var(--fade) var(--ease-out);
 
-  &.below {
+  &[data-below] {
     top: calc(100% + 2px);
     bottom: auto;
     transform-origin: top right;

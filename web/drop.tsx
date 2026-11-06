@@ -1,6 +1,6 @@
 import { createSignal, Show } from "solid-js";
-import { importFiles } from "#web/transfer/transfer.ts";
-import "./drop.css";
+import { importFiles } from "#/web/transfer.ts";
+import "#/web/drop.css";
 
 export function Drop() {
   // A drag enters and leaves every element it passes over, so only a count tells when it has left the page.

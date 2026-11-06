@@ -1,4 +1,4 @@
-import { View } from "./view.tsx";
+import { View } from "#/web/palette/view.tsx";
 
 export function About(props: { onBack: () => void }) {
   return (

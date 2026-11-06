@@ -28,15 +28,15 @@
   }
 
   /* The buttons and their background fade while you type. A problem, when there is one, stays. */
-  &.away::before,
-  &.away button:not(.problem) {
+  &[data-away]::before,
+  &[data-away] button:not([data-problem]) {
     opacity: 0;
     transition-duration: calc(2 * var(--fade));
   }
 
   /* Reached by Tab (Esc, then Tab, leaves the page), they come back at once, so focus is never on something unseen. */
-  &.away:focus-within::before,
-  &.away:focus-within button {
+  &[data-away]:focus-within::before,
+  &[data-away]:focus-within button {
     opacity: 1;
     transition-duration: 0ms;
   }
@@ -50,7 +50,7 @@
     animation: fade-in var(--fade) var(--ease-out);
   }
 
-  & .problem {
+  & [data-problem] {
     color: var(--text);
   }
 
@@ -73,7 +73,7 @@
   pointer-events: none;
 
   /* It fades out, and comes back at once. */
-  &.gone {
+  &[data-gone] {
     opacity: 0;
     transition: opacity var(--fade) ease;
   }

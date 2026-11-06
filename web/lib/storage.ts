@@ -1,14 +1,14 @@
 /**
- * localStorage under Literal's own prefix. A browser may refuse storage (a private window, blocked site data, a
- * full disk), and then reads find nothing and writes return false.
+ * localStorage under Literal's own prefix. A browser may refuse storage (a private window, blocked site data, a full
+ * disk), and then reads find nothing and writes return false.
  */
 
-import { attempt } from "./safe.ts";
+import { attempt } from "#/web/lib/attempt.ts";
 
 const Prefix = "literal:";
 
-export function read(key: string): string | null {
-  return attempt(() => localStorage.getItem(Prefix + key), null);
+export function read(key: string): string | undefined {
+  return attempt(() => localStorage.getItem(Prefix + key) ?? undefined, undefined);
 }
 
 export function write(key: string, value: string): boolean {

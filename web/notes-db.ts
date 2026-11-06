@@ -1,20 +1,19 @@
 type Store = "notes" | "docs" | "meta";
 
-const Name = "literal";
-const Version = 1;
-/** Rows read at a time. */
-const Batch = 500;
-
-/** The database, held open. Each call waits for it to have opened. */
+// The database, held open. Each call waits for it to have opened.
 type Db = {
   get: (store: Store, key: string) => Promise<unknown>;
   /** Every row of `notes`, a batch at a time, leaving the page free in between. */
   notes: <T extends { id: string }>(parse: (value: unknown) => T) => AsyncGenerator<T[]>;
   /** Over every store, and strict, so a note that counts as saved survives a power cut right after. */
-  write: (work: (tx: IDBTransaction) => void) => Promise<void>;
+  write: (work: (transaction: IDBTransaction) => void) => Promise<void>;
   /** Closes the database and deletes it, which sends every other tab's connection to `onVersionChange`. */
   erase: () => Promise<void>;
 };
+
+const Name = "literal";
+const Version = 1;
+const BatchRows = 500;
 
 /** `onVersionChange` runs when another tab deletes or upgrades the database, once this connection has let it go. */
 export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void): Db {
@@ -25,10 +24,11 @@ export function openDb(onVersionChange: (event: IDBVersionChangeEvent) => void):
       let after: string | undefined;
       for (;;) {
         const range = after === undefined ? undefined : IDBKeyRange.lowerBound(after, true);
-        const rows = (await done((await db).transaction("notes").objectStore("notes").getAll(range, Batch))).map(parse);
-        if (rows.length) yield rows;
-        if (rows.length < Batch) return;
-        after = rows.at(-1)?.id;
+        const rows = await done((await db).transaction("notes").objectStore("notes").getAll(range, BatchRows));
+        const parsed = rows.map((row) => parse(row));
+        if (parsed.length) yield parsed;
+        if (parsed.length < BatchRows) return;
+        after = parsed.at(-1)?.id;
       }
     },
     write: async (work) => write(await db, work),
@@ -57,32 +57,32 @@ function open(onVersionChange: (event: IDBVersionChangeEvent) => void): Promise<
       };
       resolve(db);
     };
-    request.onerror = () => reject(new Error(`open database: ${request.error?.message}`));
+    request.onerror = () => reject(new Error("open database", { cause: request.error }));
   });
 }
 
-function write(db: IDBDatabase, work: (tx: IDBTransaction) => void): Promise<void> {
+function write(db: IDBDatabase, work: (transaction: IDBTransaction) => void): Promise<void> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(["notes", "docs", "meta"], "readwrite", { durability: "strict" });
-    tx.oncomplete = () => resolve();
+    const transaction = db.transaction(["notes", "docs", "meta"], "readwrite", { durability: "strict" });
+    transaction.oncomplete = () => resolve();
     // A failed request aborts the whole write, and only by then does the transaction hold the error.
-    tx.onabort = () => reject(new Error(`write: ${tx.error?.message ?? "aborted"}`));
-    work(tx);
+    transaction.onabort = () => reject(new Error("write database", { cause: transaction.error }));
+    work(transaction);
   });
 }
 
-/** Every open connection must be closed first. */
+// Every open connection must be closed first.
 function erase(): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(Name);
     request.onsuccess = () => resolve();
-    request.onerror = () => reject(new Error(`delete database: ${request.error?.message}`));
+    request.onerror = () => reject(new Error("delete database", { cause: request.error }));
   });
 }
 
 function done<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(new Error(`read: ${request.error?.message}`));
+    request.onerror = () => reject(new Error("read database", { cause: request.error }));
   });
 }

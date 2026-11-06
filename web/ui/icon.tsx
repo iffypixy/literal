@@ -1,7 +1,8 @@
 import { splitProps, type JSX } from "solid-js";
-import { aria } from "#web/shortcuts.ts";
-import { tooltip } from "./tooltip.ts";
-import "./icon.css";
+import { classes } from "#/web/lib/classes.ts";
+import { aria } from "#/web/lib/keyboard.ts";
+import { tooltip } from "#/web/ui/tooltip.ts";
+import "#/web/ui/icon.css";
 
 const Icons = {
   plus: () => <path d="M10 4.5v11M4.5 10h11" />,
@@ -30,7 +31,7 @@ export function IconButton(props: Props) {
     <button
       {...rest}
       ref={(button) => own.keys && tooltip(button, own.label, own.keys)}
-      class={own.class ? `quiet icon ${own.class}` : "quiet icon"}
+      class={classes("quiet icon", own.class)}
       aria-label={own.label}
       aria-keyshortcuts={own.keys && aria(own.keys)}
     >

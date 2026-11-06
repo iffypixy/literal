@@ -1,5 +1,5 @@
-import { caps } from "#web/shortcuts.ts";
-import "./keys.css";
+import { caps } from "#/web/lib/keyboard.ts";
+import "#/web/ui/keys.css";
 
 /** A shortcut as key caps, like `Ctrl` `K`. Plain DOM, so the tooltip can draw it outside any component. */
 export function Keys(props: { keys: string }): HTMLElement {

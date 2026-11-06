@@ -1,22 +1,25 @@
-import type { Note } from "./notes.ts";
+import type { Note } from "#/web/notes.ts";
 
 export type Segment = { text: string; hit: boolean };
 
-/** Besides the notes found: how many commands come first, whether anything is typed, and the notes open before and now. */
-type Start = { commands: number; typed: boolean; previous: string | null; current: string | null };
+// Besides the notes found: how many commands come first, whether anything is typed, and the notes open before and now.
+type Start = { commands: number; typed: boolean; previous?: string; current: string | null };
 
-/** How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead. */
+// How far back a snippet looks for a space to start at; past that, a long word or link is cut through instead.
 const SnippetReach = 20;
 const SnippetLength = 60;
-/** Short enough for a toast on a phone. */
+// Short enough for a toast on a phone.
 const QuoteLength = 30;
+// Without idle callbacks, a hundred at a time.
+const FoldsAtOnce = 100;
+const IdleFallbackMs = 50;
 
-const Graphemes = new Intl.Segmenter();
+const graphemes = new Intl.Segmenter();
 
-/** A note that changes is a new object, so it's folded again. */
+// A note that changes is a new object, so it's folded again.
 const folds = new WeakMap<Note, { text: string; title: string }>();
 
-export function parse(query: string): string[] {
+export function wordsOf(query: string): string[] {
   return fold(query).split(/\s+/).filter(Boolean);
 }
 
@@ -37,11 +40,11 @@ export function search(notes: Note[], words: string[]): Note[] {
 export function prepare(notes: Note[]) {
   let next = 0;
   const work = (deadline?: IdleDeadline) => {
+    const hasTime = () => (deadline ? deadline.timeRemaining() > 1 : next % FoldsAtOnce !== 0);
     do {
       const note = notes[next++];
       if (note) foldsOf(note);
-      // Without idle callbacks, a hundred at a time.
-    } while (next < notes.length && (deadline ? deadline.timeRemaining() > 1 : next % 100 !== 0));
+    } while (next < notes.length && hasTime());
     if (next < notes.length) later(work);
   };
   if (notes.length) later(work);
@@ -58,13 +61,12 @@ export function markStarts(text: string, words: string[]): Segment[] {
   return marked(text, words, (folded, at) => at === 0 || /\s/.test(folded[at - 1] ?? ""));
 }
 
-/**
- * The row the palette's arrows start on, among `commands` found and then the notes `found`. With nothing typed, the
- * note open before this one (or the latest that isn't this one), so Enter goes back. Typing, the first note, or the
- * first command if no note matches, so Enter after "new" still opens a note about New York, and after "export" exports.
- */
+/** The row the palette's arrows start on, among `commands` found and then the notes `found`. */
 export function startRow(found: Note[], { commands, typed, previous, current }: Start): number {
+  // The first note, or the first command if no note matches, so Enter after "new" still opens a note about New York,
+  // and after "export" exports.
   if (typed) return found.length ? commands : 0;
+  // The note open before this one, or the latest that isn't this one, so Enter goes back.
   const back = found.findIndex((note) => note.id === previous);
   const latest = found.findIndex((note) => note.id !== current);
   return back >= 0 ? back : Math.max(0, latest);
@@ -77,7 +79,7 @@ export function describe(note: Note, words: string[]): { title: Segment[]; snipp
   // A word the title doesn't hold can only be found past it.
   const untitled = words.filter((word) => !title.includes(word));
   const at = firstHit(note.text, text, untitled);
-  const snippet = at === undefined ? "" : around(note.text, at, restAt);
+  const snippet = at === null ? "" : around(note.text, at, restAt);
   return { title: mark(first, words), snippet: mark(snippet, words) };
 }
 
@@ -87,14 +89,14 @@ export function title(text: string): string {
 }
 
 /** The title, short and in quotes, like "Groceries"; or nothing, if the note has no words. */
-export function quoted(text: string): string {
+export function quoted(text: string): string | null {
   const name = shorten(title(text), QuoteLength);
-  return name && `"${name}"`;
+  return name ? `"${name}"` : null;
 }
 
 /** Cut at the end of a word if one ends near enough, then "…". Counts what shows as one character, emoji too. */
 export function shorten(name: string, length: number): string {
-  const chars = Array.from(Graphemes.segment(name), (part) => part.segment);
+  const chars = Array.from(graphemes.segment(name), (part) => part.segment);
   if (chars.length <= length) return name;
   const cut = chars.slice(0, length - 1);
   const space = cut.lastIndexOf(" ");
@@ -109,12 +111,10 @@ function split(text: string): { first: string; restAt: number } {
   return { first: text.slice(start, end).trim(), restAt: end + 1 };
 }
 
-/**
- * A little before `at`, more after, cut at spaces near enough to keep the hit in view, and otherwise between
- * characters, never through one.
- */
+// A little before `at`, more after, cut at spaces near enough to keep the hit in view, and otherwise between
+// characters, never through one.
 function around(text: string, at: number, from: number): string {
-  const chars = Graphemes.segment(text);
+  const chars = graphemes.segment(text);
   let start = Math.max(from, chars.containing(Math.max(from, at - SnippetReach))?.index ?? from);
   let end = at + SnippetLength;
   const last = chars.containing(end);
@@ -132,7 +132,7 @@ function around(text: string, at: number, from: number): string {
   return `${start > from ? "…" : ""}${line}${end < text.length ? "…" : ""}`;
 }
 
-/** "Café" and "cafe" fold the same, and so do "ΟΔΥΣΣΕΥΣ" and "οδυσσευσ". */
+// "Café" and "cafe" fold the same, and so do "ΟΔΥΣΣΕΥΣ" and "οδυσσευσ".
 function fold(text: string): string {
   // Most notes are plain ASCII, with nothing to fold but case.
   if (/^[\x00-\x7f]*$/.test(text)) return text.toLowerCase();
@@ -154,7 +154,7 @@ function mark(text: string, words: string[]): Segment[] {
   return marked(text, words, () => true);
 }
 
-/** Nothing for no text, so an empty snippet shows nothing. */
+// Nothing for no text, so an empty snippet shows nothing.
 function marked(text: string, words: string[], counts: (folded: string, at: number) => boolean): Segment[] {
   if (!text) return [];
   if (!words.length) return [{ text, hit: false }];
@@ -174,23 +174,21 @@ function marked(text: string, words: string[], counts: (folded: string, at: numb
   return segments;
 }
 
-/**
- * Where in `text` the first of `words` is, given its `folded` copy. Folding keeps positions unless it shrank the text
- * (an accent that was a character of its own, or a Korean syllable in letters), so only then is it worked out.
- */
-function firstHit(text: string, folded: string, words: string[]): number | undefined {
+// Where in `text` the first of `words` is, given its `folded` copy. Folding keeps positions unless it shrank the text
+// (an accent that was a character of its own, or a Korean syllable in letters), so only then is it worked out.
+function firstHit(text: string, folded: string, words: string[]): number | null {
   const exact = folded.length === text.length ? { folded, origin: undefined } : foldWithOrigin(text);
   const hits = words.map((word) => exact.folded.indexOf(word)).filter((at) => at >= 0);
-  if (!hits.length) return undefined;
+  if (!hits.length) return null;
   const at = Math.min(...hits);
   return exact.origin?.[at] ?? at;
 }
 
-/** For each folded character, the index of the character it came from (plus one past the end). */
+// For each folded character, the index of the character it came from (plus one past the end).
 function foldWithOrigin(text: string): { folded: string; origin: number[] } {
   let folded = "";
   const origin: number[] = [];
-  for (const { segment, index } of Graphemes.segment(text)) {
+  for (const { segment, index } of graphemes.segment(text)) {
     const part = fold(segment);
     for (let i = 0; i < part.length; i++) origin.push(index);
     folded += part;
@@ -201,5 +199,5 @@ function foldWithOrigin(text: string): { folded: string; origin: number[] } {
 
 function later(work: (deadline?: IdleDeadline) => void) {
   if ("requestIdleCallback" in window) requestIdleCallback(work);
-  else setTimeout(work, 50);
+  else setTimeout(work, IdleFallbackMs);
 }

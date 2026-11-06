@@ -3,10 +3,12 @@
  * finish. Each copy stays until a save that holds it lands.
  */
 
-import { attempt } from "#web/safe.ts";
-import * as storage from "#web/storage.ts";
+import { attempt } from "#/web/lib/attempt.ts";
+import * as storage from "#/web/lib/storage.ts";
 
 const Prefix = "unsaved:";
+// Spreading a large array into one call overflows the stack.
+const SliceBytes = 0x8000;
 
 /** The notes with a copy kept. */
 export function ids(): string[] {
@@ -18,11 +20,12 @@ export function keep(id: string, update: Uint8Array): boolean {
   return storage.write(Prefix + id, toBase64(update));
 }
 
-/** The copy kept for the note, if there's one to read. One that can't be read is let go. */
-export function read(id: string): Uint8Array | null {
+/** A copy that can't be read is let go. */
+export function read(id: string): Uint8Array | undefined {
   const text = storage.read(Prefix + id);
-  if (!text) return null;
-  const bytes = attempt(() => fromBase64(text), null);
+  if (!text) return undefined;
+
+  const bytes = attempt(() => fromBase64(text), undefined);
   if (!bytes) drop(id);
   return bytes;
 }
@@ -33,8 +36,9 @@ export function drop(id: string) {
 
 function toBase64(bytes: Uint8Array): string {
   let binary = "";
-  // In slices, since spreading a large array into one call overflows the stack.
-  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  for (let i = 0; i < bytes.length; i += SliceBytes) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + SliceBytes));
+  }
   return btoa(binary);
 }
 

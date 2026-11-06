@@ -28,7 +28,7 @@
     padding-left: calc(var(--inset) + 0.4em);
   }
 
-  & .code.wrong {
+  & .code[aria-invalid="true"] {
     border-color: var(--danger);
   }
 

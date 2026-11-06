@@ -1,10 +1,11 @@
-import { SignedOut } from "#protocol.ts";
-import { createAuth, forgetSignIns, handleAuth } from "./auth.ts";
-import { SessionHeader, type UserNotes } from "./notes.ts";
+import { SignedOut } from "#/protocol.ts";
+import { createAuth, forgetSignIns, handleAuth } from "#/server/auth.ts";
+import { SessionHeader, type UserNotes } from "#/server/notes.ts";
 
-export { UserNotes } from "./notes.ts";
+// Cloudflare finds a Durable Object's class among the Worker's exports.
+export { UserNotes } from "#/server/notes.ts";
 
-export interface Env {
+export type Env = {
   DB: D1Database;
   NOTES: DurableObjectNamespace<UserNotes>;
   EMAIL: SendEmail;
@@ -13,10 +14,10 @@ export interface Env {
   /** The only address EMAIL may send from, e.g. code@literal.ink. */
   EMAIL_FROM: string;
   BETTER_AUTH_SECRET: string;
-}
+};
 
-/** The auth routes the app calls, besides signing out. The library's others stay out of reach. */
-const AuthRoutes = new Set([
+// The auth routes the app calls, besides signing out, so the library's others stay out of reach.
+const authRoutes = new Set([
   "/api/auth/get-session",
   "/api/auth/email-otp/send-verification-otp",
   "/api/auth/sign-in/email-otp",
@@ -28,7 +29,7 @@ export default {
     if (pathname === "/sync") return connect(request, env);
     if (pathname === "/api/account" && request.method === "DELETE") return deleteAccount(request, env);
     if (pathname === "/api/auth/sign-out") return signOut(request, env);
-    if (AuthRoutes.has(pathname)) return handleAuth(request, env);
+    if (authRoutes.has(pathname)) return handleAuth(request, env);
     return new Response("not found", { status: 404 });
   },
   async scheduled(_controller, env) {
@@ -39,17 +40,17 @@ export default {
 async function connect(request: Request, env: Env): Promise<Response> {
   if (request.headers.get("Upgrade") !== "websocket") return new Response("expected a websocket", { status: 426 });
   if (!sameOrigin(request, env)) return new Response("forbidden", { status: 403 });
+
   const session = await createAuth(env).api.getSession({ headers: request.headers });
   if (!session) return signedOut();
+
   const headers = new Headers(request.headers);
   headers.set(SessionHeader, session.session.id);
   return notesOf(env, session.user.id).fetch(request, { headers });
 }
 
-/**
- * A browser can't read why a WebSocket upgrade failed, so a signed-out device gets a socket that closes
- * at once with a code saying so, and then it stops retrying and asks to sign in.
- */
+// A browser can't read why a WebSocket upgrade failed, so a signed-out device gets a socket that closes at once with a
+// code saying so, and then it stops retrying and asks to sign in.
 function signedOut(): Response {
   const { 0: client, 1: server } = new WebSocketPair();
   server.accept();
@@ -57,7 +58,7 @@ function signedOut(): Response {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-/** Also closes the session's sockets. */
+// Also closes the session's sockets, which check their session only as they open.
 async function signOut(request: Request, env: Env): Promise<Response> {
   const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });
@@ -68,9 +69,11 @@ async function signOut(request: Request, env: Env): Promise<Response> {
 
 async function deleteAccount(request: Request, env: Env): Promise<Response> {
   if (!sameOrigin(request, env)) return new Response("forbidden", { status: 403 });
+
   const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new Response("signed out", { status: 401 });
+
   await notesOf(env, session.user.id).wipe();
   await (await auth.$context).internalAdapter.deleteUser(session.user.id);
   return new Response(null, { status: 204 });

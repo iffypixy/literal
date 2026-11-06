@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFileNamer } from "./file-names.ts";
+import { createFileNamer } from "#/web/lib/file-names.ts";
 
 test("a title loses what a file name can't hold", () => {
   const nameOf = createFileNamer();

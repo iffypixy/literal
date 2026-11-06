@@ -1,6 +1,6 @@
 import { render } from "solid-js/web";
-import { App } from "./app.tsx";
-import { installed } from "./device.ts";
+import { App } from "#/web/app.tsx";
+import { installed } from "#/web/lib/device.ts";
 
 const early = document.querySelector(".early");
 if (!(early instanceof HTMLTextAreaElement)) throw new Error("start: index.html's stand-in page is missing");
@@ -22,7 +22,7 @@ viewport?.addEventListener("resize", () => {
   document.documentElement.style.setProperty("--viewport-height", `${viewport.height * viewport.scale}px`);
 });
 
-/** Moves what was typed before the app loaded into the real editor, cursor and all, as if typed there. */
+// Moves what was typed before the app loaded into the real editor, cursor and all, as if typed there.
 function handOver(early: HTMLTextAreaElement) {
   const editor = document.querySelector(".editor:not(.early)");
   if (!(editor instanceof HTMLTextAreaElement)) throw new Error("hand over: the editor isn't there");

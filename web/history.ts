@@ -1,12 +1,12 @@
 /**
- * The page's address, and its steps in history. On a phone the palette is a sheet with a step of its own, so that
- * Back closes it, and a note picked from the sheet takes that step's place.
+ * The page's address, and its steps in history. On a phone the palette is a sheet with a step of its own, so that Back
+ * closes it, and a note picked from the sheet takes that step's place.
  */
 
 /** As a new step, in place of the current one, or not at all (Back already moved). */
 export type Step = "push" | "replace" | "none";
 
-/** Whether the sheet's step is the current one. */
+// Whether the sheet's step is the current one.
 let onSheet = false;
 
 export function isOnSheet(): boolean {
@@ -29,6 +29,7 @@ export function navigate(path: string, how: Step) {
   const fromSheet = onSheet;
   onSheet = false;
   if (location.pathname === path && !fromSheet) return;
+
   if (how === "push" && !fromSheet) history.pushState(null, "", path);
   else history.replaceState(null, "", path);
 }

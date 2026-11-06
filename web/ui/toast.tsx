@@ -1,10 +1,10 @@
 import { batch, For, Show } from "solid-js";
 import { createMutable } from "solid-js/store";
-import { Button } from "./button.tsx";
-import { Keys } from "./keys.ts";
-import "./toast.css";
+import { Button } from "#/web/ui/button.tsx";
+import { Keys } from "#/web/ui/keys.ts";
+import "#/web/ui/toast.css";
 
-/** `keys` is the shortcut that also takes the action, shown beside it. */
+// `keys` is the shortcut that also takes the action, shown beside it.
 type Action = { label: string; keys?: string; run: () => void };
 
 type Toast = {
@@ -14,22 +14,22 @@ type Toast = {
   onExpire?: () => void;
 };
 
-const Shown = 4000;
-const ShownWithAction = 5000;
-/** The least time left after a pause, so a toast never vanishes the moment it's back in view. */
-const ShownAfterPause = 1000;
+const ShownMs = 4000;
+const ShownWithActionMs = 5000;
+// The least time left after a pause, so a toast never vanishes the moment it's back in view.
+const ShownAfterPauseMs = 1000;
 
-/** One toast at a time. A new one ends the last, which fades out beneath it. */
+// One toast at a time. A new one ends the last, which fades out beneath it.
 const shown = createMutable<{ toast: Toast | null; leaving: Toast[] }>({ toast: null, leaving: [] });
 let timer: ReturnType<typeof setTimeout> | undefined;
-let remaining = 0;
-let since = 0;
+let remainingMs = 0;
+let resumedAt = 0;
 let running = false;
 
 export function toast(message: string, options: Omit<Toast, "message"> = {}) {
   expire();
   shown.toast = { message, ...options };
-  remaining = options.action ? ShownWithAction : Shown;
+  remainingMs = options.action ? ShownWithActionMs : ShownMs;
   resume();
 }
 
@@ -62,7 +62,7 @@ export function Toasts() {
           return (
             <div
               class="toast surface"
-              classList={{ leaving: gone() }}
+              data-leaving={gone() || undefined}
               inert={gone()}
               onPointerEnter={pause}
               onPointerLeave={resume}
@@ -96,17 +96,17 @@ function expire() {
   dismiss()?.onExpire?.();
 }
 
-/** On hover, focus, or a hidden page, so nobody misses an Undo. */
+// On hover, focus, or a hidden page, so nobody misses an Undo.
 function pause() {
   if (!running) return;
   running = false;
   clearTimeout(timer);
-  remaining -= Date.now() - since;
+  remainingMs -= Date.now() - resumedAt;
 }
 
 function resume() {
   if (running || !shown.toast || document.hidden) return;
   running = true;
-  since = Date.now();
-  timer = setTimeout(expire, Math.max(remaining, ShownAfterPause));
+  resumedAt = Date.now();
+  timer = setTimeout(expire, Math.max(remainingMs, ShownAfterPauseMs));
 }

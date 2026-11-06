@@ -2,11 +2,24 @@
 
 export type Entry = { name: string; text: string; modified: Date };
 
+const CrcTable = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of data) crc = (CrcTable[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
 export function zip(entries: Entry[]): Blob {
   const encoder = new TextEncoder();
   const parts: Uint8Array<ArrayBuffer>[] = [];
   const central: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
+  let centralSize = 0;
   for (const entry of entries) {
     const name = encoder.encode(entry.name);
     const data = encoder.encode(entry.text);
@@ -24,37 +37,37 @@ export function zip(entries: Entry[]): Blob {
       [22, 4, data.length],
       [26, 2, name.length],
     ]);
-    central.push(
-      header(46, name, [
-        [0, 4, 0x02014b50],
-        [4, 2, 20], // version made by
-        [6, 2, 20], // version needed
-        [8, 2, 0x0800], // names are UTF-8
-        [10, 2, 0], // stored
-        [12, 2, time],
-        [14, 2, date],
-        [16, 4, crc],
-        [20, 4, data.length],
-        [24, 4, data.length],
-        [28, 2, name.length],
-        [42, 4, offset], // where its local header starts
-      ]),
-    );
+    const record = header(46, name, [
+      [0, 4, 0x02014b50],
+      [4, 2, 20], // version made by
+      [6, 2, 20], // version needed
+      [8, 2, 0x0800], // names are UTF-8
+      [10, 2, 0], // stored
+      [12, 2, time],
+      [14, 2, date],
+      [16, 4, crc],
+      [20, 4, data.length],
+      [24, 4, data.length],
+      [28, 2, name.length],
+      [42, 4, offset], // where its local header starts
+    ]);
     parts.push(local, data);
+    central.push(record);
     offset += local.length + data.length;
+    centralSize += record.length;
   }
-  const size = central.reduce((sum, part) => sum + part.length, 0);
+
   const end = header(22, new Uint8Array(), [
     [0, 4, 0x06054b50],
     [8, 2, entries.length],
     [10, 2, entries.length],
-    [12, 4, size],
+    [12, 4, centralSize],
     [16, 4, offset],
   ]);
   return new Blob([...parts, ...central, end], { type: "application/zip" });
 }
 
-/** A record of `size` fixed bytes, with `fields` written little-endian at their offsets, followed by `name`. */
+// A record of `size` fixed bytes, with `fields` written little-endian at their offsets, followed by `name`.
 function header(
   size: number,
   name: Uint8Array,
@@ -70,23 +83,11 @@ function header(
   return out;
 }
 
-/** The two 16-bit MS-DOS fields a zip stores times in, as local time to the even second. */
+// The two 16-bit MS-DOS fields a zip stores times in, as local time to the even second.
 function dosTime(date: Date): [number, number] {
   const year = Math.max(1980, date.getFullYear());
   return [
     (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1),
     ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
   ];
-}
-
-const CrcTable = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-
-function crc32(data: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of data) crc = (CrcTable[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
 }

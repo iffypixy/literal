@@ -19,7 +19,7 @@ export default defineConfig({
   ],
 });
 
-/** Emits `sw.js`, which precaches every file of the app so it opens with no network at all. */
+// Emits `sw.js`, which precaches every file of the app so it opens with no network at all.
 function serviceWorker(): Plugin {
   return {
     name: "literal:service-worker",
@@ -35,6 +35,7 @@ function serviceWorker(): Plugin {
         files.push(url(name));
         hash.update(chunk.type === "chunk" ? chunk.code : chunk.source);
       }
+
       const publicDir = here("web/public");
       for (const name of readdirSync(publicDir, { recursive: true, encoding: "utf8" })) {
         const path = join(publicDir, name);
@@ -43,6 +44,7 @@ function serviceWorker(): Plugin {
         hash.update(readFileSync(path));
         if (!name.startsWith("_")) files.push(url(name.replaceAll("\\", "/")));
       }
+
       const source = readFileSync(here("web/sw.js"), "utf8")
         .replace('"__VERSION__"', JSON.stringify(hash.digest("hex").slice(0, 12)))
         .replace('["__FILES__"]', JSON.stringify(files));
@@ -51,7 +53,7 @@ function serviceWorker(): Plugin {
   };
 }
 
-/** Cloudflare serves pages at their clean URL, redirecting `/privacy.html` to `/privacy`. */
+// Cloudflare serves pages at their clean URL, redirecting `/privacy.html` to `/privacy`.
 function url(file: string): string {
   return `/${file.replace(/(^|\/)index\.html$/, "$1").replace(/\.html$/, "")}`;
 }

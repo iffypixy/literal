@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-/** Where the test server writes, sign-in codes included, since tests have no inbox (see playwright.config.ts). */
+// Where the test server writes, sign-in codes included, since tests have no inbox (see playwright.config.ts).
 const ServerLog = "test-results/server.log";
 
 test("typing on one device shows up on the other, and offline edits on both merge", async ({ browser }) => {
@@ -86,7 +86,7 @@ test("a note too long to sync stays on its device, and syncs whole once it's sho
   await open(a, "a: written on a");
 
   await note(a).evaluate(
-    (area: HTMLTextAreaElement, n) => area.setSelectionRange(area.value.length - n, area.value.length),
+    (area: HTMLTextAreaElement, length) => area.setSelectionRange(area.value.length - length, area.value.length),
     long.length,
   );
   await a.keyboard.press("Backspace");
@@ -235,7 +235,7 @@ test("going back while a code is resent stays on the email", async ({ browser })
   await expect(page.getByLabel("Email")).toBeVisible();
 });
 
-/** Two devices, signed in to one account, each with a note written before signing in. */
+// Two devices, signed in to one account, each with a note written before signing in.
 async function devices(browser: Browser, email = address()): Promise<[Page, Page]> {
   return [await device(browser, email, "Written on A"), await device(browser, email, "Written on B")];
 }
@@ -250,7 +250,7 @@ async function device(browser: Browser, email: string, first: string): Promise<P
   return page;
 }
 
-/** Signs in from the sign-in view, with the code the server would have emailed, typing the address as `typed`. */
+// Signs in from the sign-in view, with the code the server would have emailed, typing the address as `typed`.
 async function signIn(page: Page, email: string, typed = email) {
   const sent = codes(email).length;
   await page.getByLabel("Email").fill(typed);
@@ -281,10 +281,8 @@ async function open(page: Page, title: string) {
   await expect(page).toHaveTitle(new RegExp(`^${title}`, "i"));
 }
 
-/**
- * Opens the list until it shows `count` notes (with `text`, if given), since another device's take a while. The list
- * follows changes as they arrive, so it's opened once and watched.
- */
+// Opens the list until it shows `count` notes (with `text`, if given), since another device's take a while. The list
+// follows changes as they arrive, so it's opened once and watched.
 async function expectListed(page: Page, count: number, text?: string) {
   await page.keyboard.press("Control+k");
   const rows = page.getByRole("option");

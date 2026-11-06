@@ -1,40 +1,41 @@
 import { createEffect, createSignal, onMount } from "solid-js";
 import type * as Y from "yjs";
-import { isNoteId } from "#protocol.ts";
-import { Editor, type EditorApi } from "#web/editor/editor.tsx";
-import * as notes from "#web/notes/notes.ts";
-import { prepare, shorten, title } from "#web/notes/search.ts";
-import { closePalette, Palette, palette, togglePalette } from "#web/palette/palette.tsx";
-import { farewell } from "#web/sync/account.ts";
-import { keepInSync, startSync } from "#web/sync/sync.ts";
-import { toast, Toasts } from "#web/ui/toast.tsx";
-import { Corner } from "./corner.tsx";
-import { recall, remember } from "./cursors.ts";
-import { deleteNote } from "./delete.ts";
-import { hasKeyboard } from "./device.ts";
-import { Drop } from "./drop.tsx";
-import { isOnSheet, leaveSheet, navigate, onBack, type Step } from "./history.ts";
-import { pressed, Shortcuts, typesText } from "./shortcuts.ts";
-import { stayUpToDate } from "./update.ts";
+import { isNoteId } from "#/protocol.ts";
+import { Corner } from "#/web/corner.tsx";
+import { recall, remember } from "#/web/cursors.ts";
+import { deleteNote } from "#/web/delete.ts";
+import { Drop } from "#/web/drop.tsx";
+import { Editor, type EditorApi } from "#/web/editor.tsx";
+import { isOnSheet, leaveSheet, navigate, onBack, type Step } from "#/web/history.ts";
+import { farewell } from "#/web/leave.ts";
+import { hasKeyboard, type Input } from "#/web/lib/device.ts";
+import { pressed, typesText } from "#/web/lib/keyboard.ts";
+import * as notes from "#/web/notes.ts";
+import { closePalette, closePaletteForPage, Palette, palette, togglePalette } from "#/web/palette/palette.tsx";
+import { prepare, shorten, title } from "#/web/search.ts";
+import { shortcuts } from "#/web/shortcuts.ts";
+import { keepInSync, startSync } from "#/web/sync.ts";
+import { toast, Toasts } from "#/web/ui/toast.tsx";
+import { stayUpToDate } from "#/web/update.ts";
 
-const TitleShown = 60;
+const TitleLength = 60;
 
 export function App() {
   let editor!: EditorApi;
 
   const [note, setNote] = createSignal<{ id: string; text: Y.Text } | null>(null);
-  /** The palette starts on it, so ⌘K and Enter go back and forth between two notes. */
-  const [previous, setPrevious] = createSignal<string | null>(null);
-  /** A note is loading from disk. Until it shows, typing would go into the page being left. */
+  // The palette starts on it, so ⌘K and Enter go back and forth between two notes.
+  const [previous, setPrevious] = createSignal<string>();
+  // A note is loading from disk. Until it shows, typing would go into the page being left.
   const [opening, setOpening] = createSignal(false);
-  /** A later call to `go` wins, so a note that loads after it is dropped. */
+  // A later call to `go` wins, so a note that loads after it is dropped.
   let lastGo = 0;
 
   const current = () => note()?.id ?? null;
 
   createEffect(() => {
     const id = current();
-    const name = id ? shorten(title(notes.find(id)?.text ?? ""), TitleShown) : "";
+    const name = id ? shorten(title(notes.find(id)?.text ?? ""), TitleLength) : "";
     document.title = name ? `${name} — Literal` : "Literal";
   });
 
@@ -47,29 +48,32 @@ export function App() {
   onMount(() => {
     const said = farewell();
     if (said) toast(said);
-    void notes.start().then(() => prepare(notes.list()));
+    void startNotes();
     // Replaced, so an address that isn't a note turns into the blank page's.
     void go(idFrom(location.pathname), "replace");
     keepInSync();
     stayUpToDate(() => palette.open);
   });
 
-  function onSignedIn(email: string) {
-    startSync();
-    toast(`Signed in as ${email}`);
+  async function startNotes() {
+    await notes.start();
+    prepare(notes.list());
   }
 
-  /** Shows the note `id`, with the cursor in it if `focus`, or a blank page, which always takes the cursor. */
-  async function go(id: string | null, how: Step, focus = hasKeyboard()) {
+  // Shows the note `id`, with the cursor in it if there's a keyboard, or a blank page, which always takes the cursor.
+  async function go(id: string | null, how: Step, input: Input = "pointer") {
     const thisGo = ++lastGo;
     setOpening(false);
-    if (id !== null && id === current()) {
-      if (focus) editor.focus();
+    if (id && id === current()) {
+      if (hasKeyboard(input)) editor.focus();
       return;
     }
-    if (current() !== null) setPrevious(current());
+
+    const before = current();
+    if (before) setPrevious(before);
     leave();
-    if (id === null) {
+
+    if (!id) {
       // Going from a blank page to a new one leaves behind any spaces typed on the first.
       editor.clear();
       setNote(null);
@@ -77,27 +81,29 @@ export function App() {
       editor.focus();
       return;
     }
+
     setOpening(true);
-    const text = await notes.open(id).catch((error: unknown) => {
-      console.error(error);
-      return undefined;
-    });
+    const opened = await notes.open(id);
     if (thisGo !== lastGo) return;
     setOpening(false);
-    if (text === undefined) {
-      // The sheet's step was left for this note to take, so it goes the way Back would.
-      leaveSheet();
-      toast("Couldn't open this note. Try again.");
-      return;
+
+    if (!opened.ok) {
+      switch (opened.reason) {
+        case "unreadable":
+          // The sheet's step was left for this note to take, so it goes the way Back would.
+          leaveSheet();
+          toast("Couldn't open this note. Try again.");
+          return;
+        case "notFound":
+          toast("Note not found");
+          void go(null, "replace");
+          return;
+      }
     }
-    if (!text) {
-      toast("Note not found");
-      void go(null, "replace");
-      return;
-    }
-    setNote({ id, text });
+
+    setNote({ id, text: opened.text });
     navigate(`/${id}`, how);
-    if (focus) editor.focus(recall(id));
+    if (hasKeyboard(input)) editor.focus(recall(id));
   }
 
   function leave() {
@@ -107,19 +113,19 @@ export function App() {
     notes.discardIfEmpty(id);
   }
 
-  function onCreate() {
+  function goBlank() {
+    // The blank page takes the sheet's step in history.
+    closePaletteForPage("key");
+    void go(null, "push");
+  }
+
+  function handleCreate() {
     const created = notes.create();
     setNote(created);
     navigate(`/${created.id}`, "replace");
   }
 
-  function goBlank() {
-    // The blank page takes the sheet's step in history.
-    closePalette(false, true);
-    void go(null, "push");
-  }
-
-  function onDelete(id: string) {
+  function handleDelete(id: string) {
     const wasOpen = id === current();
     if (wasOpen) {
       setNote(null);
@@ -128,28 +134,36 @@ export function App() {
     }
     // Undo puts you back where you were: in the note, if you were in it.
     void deleteNote(id, () => {
-      if (wasOpen && current() === null) void go(id, "replace");
+      if (wasOpen && !current()) void go(id, "replace");
     });
+  }
+
+  function handleSignedIn(email: string) {
+    startSync();
+    toast(`Signed in as ${email}`);
   }
 
   // The app lives as long as the page, and so do these listeners.
 
   addEventListener("keydown", (event) => {
-    if (pressed(event, Shortcuts.notes)) {
+    if (pressed(event, shortcuts.notes)) {
       event.preventDefault();
-      togglePalette(false);
-    } else if (pressed(event, Shortcuts.new)) {
+      togglePalette("key");
+      return;
+    }
+    if (pressed(event, shortcuts.new)) {
       // On a Mac, ⌥N would type a dead key (˜) into the note.
       event.preventDefault();
       goBlank();
-    } else if (!palette.open && !opening() && document.activeElement === document.body && typesText(event)) {
-      // With nothing focused (after Esc, or a click on a toast that's gone), typing still goes into the note.
-      editor.focus();
+      return;
     }
+    // With nothing focused (after Esc, or a click on a toast that's gone), typing still goes into the note.
+    const unfocused = document.activeElement === document.body && !palette.open && !opening();
+    if (unfocused && typesText(event)) editor.focus();
   });
 
   onBack((fromSheet) => {
-    closePalette(true);
+    closePalette("pointer");
     // Back off the sheet shows the page beneath it, whose note may have been deleted meanwhile.
     if (fromSheet) navigate(current() ? `/${current()}` : "/", "replace");
     else void go(idFrom(location.pathname), "none");
@@ -165,21 +179,24 @@ export function App() {
   return (
     <>
       <div inert={palette.open}>
-        <Editor ref={(api) => (editor = api)} text={note()?.text ?? null} readonly={opening()} onCreate={onCreate} />
+        <Editor
+          ref={(api) => (editor = api)}
+          text={note()?.text ?? null}
+          readonly={opening()}
+          onCreate={handleCreate}
+        />
       </div>
 
-      <Corner current={current()} onBlank={goBlank} focusEditor={() => editor.focus()} />
+      <Corner current={current()} onBlank={goBlank} onExplained={(input) => hasKeyboard(input) && editor.focus()} />
 
       <Palette
         current={current()}
         previous={previous()}
-        onPick={(id, pointer) => void go(id, "push", hasKeyboard(pointer))}
-        onDelete={onDelete}
+        onPick={(id, input) => void go(id, "push", input)}
+        onDelete={handleDelete}
         onBlank={goBlank}
-        onSignedIn={onSignedIn}
-        onClose={(pointer) => {
-          if (!opening() && hasKeyboard(pointer)) editor.focus();
-        }}
+        onSignedIn={handleSignedIn}
+        onClose={(input) => !opening() && hasKeyboard(input) && editor.focus()}
       />
 
       <Toasts />
@@ -188,7 +205,7 @@ export function App() {
   );
 }
 
-/** The note an address names, like `/7k3qx9m2da`, in either case. */
+// The note an address names, like `/7k3qx9m2da`, in either case.
 function idFrom(path: string): string | null {
   const id = path.slice(1).toLowerCase();
   return isNoteId(id) ? id : null;
